@@ -1,0 +1,164 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Oasis Radio Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:Montserrat,'Segoe UI',Arial,sans-serif}
+  body.preview{background:linear-gradient(135deg,#1b1b2f,#3a3a5a);min-height:100vh}
+  #stage{position:fixed;left:0;right:0;bottom:8vh;display:flex;justify-content:center;pointer-events:none}
+  .card{max-width:min(88vw,760px);opacity:0;transform:translateY(40px) scale(.92);transition:opacity .45s ease,transform .45s cubic-bezier(.2,1.4,.4,1)}
+  .card.show{opacity:1;transform:none}
+  .card.hide{opacity:0;transform:translateY(-20px) scale(.96)}
+  /* welcome card: neon sunset */
+  .welcome{display:flex;align-items:center;gap:16px;padding:16px 26px;border-radius:18px;color:#fff;
+    background:linear-gradient(100deg,rgba(255,0,128,.92),rgba(255,140,0,.92));
+    box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(255,0,170,.7),0 10px 30px rgba(0,0,0,.45)}
+  .welcome .icon{font-size:40px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+  .welcome .txt{font-weight:800;font-size:30px;line-height:1.2;text-shadow:0 2px 4px rgba(0,0,0,.45)}
+  .welcome .u{color:#fff7a8}
+  /* fact card: retro cassette-label teal */
+  .fact{padding:16px 24px 18px;border-radius:12px;color:#0d1b2a;background:rgba(240,252,255,.96);
+    border-left:10px solid #00c2c7;box-shadow:0 0 0 3px #00c2c7,0 0 26px rgba(0,194,199,.6),0 10px 30px rgba(0,0,0,.45)}
+  .fact .lbl{font-size:15px;font-weight:800;letter-spacing:.18em;color:#7a2bd9;text-transform:uppercase;margin-bottom:6px}
+  .fact .txt{font-size:24px;font-weight:600;line-height:1.3}
+  /* reply card: Bob answers chat, electric purple + neon cyan */
+  .reply{padding:14px 24px 18px;border-radius:18px;color:#fff;
+    background:linear-gradient(100deg,rgba(98,0,234,.93),rgba(0,150,199,.93));
+    box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(0,229,255,.65),0 10px 30px rgba(0,0,0,.45)}
+  .reply .hd{font-size:17px;font-weight:800;letter-spacing:.06em;color:#fff7a8;text-shadow:0 2px 3px rgba(0,0,0,.4);margin-bottom:4px}
+  .reply .msg{font-size:19px;font-weight:600;font-style:italic;opacity:.85;margin-bottom:6px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .reply .txt{font-size:28px;font-weight:800;line-height:1.2;text-shadow:0 2px 4px rgba(0,0,0,.45)}
+</style></head>
+<body>
+<div id="stage"></div>
+<!-- np-card removed: song box is its own Studio source (nowplaying.html) -->
+<script>/* Oasis overlay data bus: stable box link via ngrok (header skips the ngrok warning page) + ntfy.sh relay for Now Playing. */
+window.OasisBus = (function () {
+  const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', TOPIC = 'oasisradio-np-67c6ab132bb28b1d2d0df0be', H = { 'ngrok-skip-browser-warning': '1' };
+  function api(path) { return fetch(BOX + path, { headers: H, cache: 'no-store' }).then(r => r.json()); }
+  // SSE over fetch (EventSource can't send the header). Auto-reconnects forever; watchdog kills stalled streams.
+  function boxStream(path, onEvent, onState) {
+    let ctrl = null, last = Date.now(), running = false, since = 0;
+    async function run() {
+      if (running) return; running = true; last = Date.now();
+      ctrl = new AbortController();
+      try {
+        const r = await fetch(BOX + path, { headers: Object.assign({ Accept: 'text/event-stream' }, H), cache: 'no-store', signal: ctrl.signal });
+        if (!r.ok || !r.body) throw new Error('status ' + r.status);
+        since = Date.now(); onState && onState(true, since);
+        const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+        for (;;) {
+          const { value, done } = await rd.read(); if (done) break;
+          last = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+          let i;
+          while ((i = buf.indexOf('\n\n')) >= 0) {
+            const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+            const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+            if (data) { try { const d = JSON.parse(data); if (d && d.type !== 'ping') onEvent(d); } catch (e) {} }
+          }
+        }
+      } catch (e) {}
+      try { ctrl.abort(); } catch (e) {}
+      running = false; onState && onState(false, 0);
+      setTimeout(run, 3000);
+    }
+    setInterval(() => { if (running && Date.now() - last > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+    run();
+    return { connectedSince: () => since };
+  }
+  // ntfy.sh: messages are JSON strings we published. Initial = last cached message.
+  function ntfy(onEvent) {
+    const parse = m => { try { if (m && m.event === 'message' && m.message) { const d = JSON.parse(m.message); d._t = m.time * 1000; onEvent(d); } } catch (e) {} };
+    fetch('https://ntfy.sh/' + TOPIC + '/json?poll=1&since=12h', { cache: 'no-store' }).then(r => r.text()).then(t => {
+      const lines = t.trim().split('\n').filter(Boolean); if (lines.length) { try { const m = JSON.parse(lines[lines.length - 1]); m._initial = true; parse(m); } catch (e) {} }
+    }).catch(() => {});
+    let es = null, last = Date.now();
+    const connect = () => {
+      try { if (es) es.close(); } catch (e) {}
+      last = Date.now();
+      es = new EventSource('https://ntfy.sh/' + TOPIC + '/sse');
+      es.onmessage = e => { last = Date.now(); try { parse(JSON.parse(e.data)); } catch (x) {} };
+      es.addEventListener('keepalive', () => { last = Date.now(); });
+      es.onopen = () => { last = Date.now(); };
+    };
+    connect();
+    setInterval(() => { if (!es || es.readyState === 2 || Date.now() - last > 120000) connect(); }, 15000);
+  }
+  return { BOX, TOPIC, api, boxStream, ntfy };
+})();
+</script>
+<script>
+const params = new URLSearchParams(location.search);
+const TEST = params.get('test') === '1';
+const TESTREPLY = params.get('testreply') === '1';          // local-only reply preview (no live stream)
+const CHANNEL = params.get('channel') === 'test' ? 'test' : ''; // separate test SSE channel (not on air)
+const REPLY_MS = +(params.get('replyMs') || 8000), REPLY_MAX_QUEUE = 3, REPLY_MAX_AGE_MS = 60000;
+const WELCOME_MS = +(params.get('welcomeMs') || 4000), FACT_MS = +(params.get('factMs') || 12000);
+if (TEST || TESTREPLY || params.get('bg') === '1') document.body.classList.add('preview');
+const stage = document.getElementById('stage');
+const welcomes = [], facts = [], replies = [];
+let busy = false;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(item){
+  const el = document.createElement('div');
+  if (item.type === 'welcome') {
+    const h = '@' + item.username.replace(/^@/,'');
+    const txt = esc(item.text).split(esc(h)).join('<span class="u">'+esc(h)+'</span>');
+    el.className = 'card welcome'; el.innerHTML = '<div class="icon">📻</div><div class="txt">'+txt+'</div>';
+  } else if (item.type === 'reply') {
+    el.className = 'card reply';
+    el.innerHTML = '<div class="hd">🤖 Bob → @'+esc(String(item.display||item.nickname||item.user||'').replace(/^@/,''))+'</div>'
+      + '<div class="msg">“'+esc(item.message||'')+'”</div><div class="txt">'+esc(item.reply||'')+'</div>';
+  } else {
+    el.className = 'card fact'; el.innerHTML = '<div class="lbl">📼 Music Fact</div><div class="txt">'+esc(item.text)+'</div>';
+  }
+  return el;
+}
+function next(){
+  if (busy) return;
+  while (replies.length && Date.now() - replies[0]._rx > REPLY_MAX_AGE_MS) replies.shift();   // drop stale replies
+  const item = replies.shift() || welcomes.shift() || facts.shift();   // replies, then welcomes, then facts; one card at a time
+  if (!item) return;
+  busy = true;
+  const el = render(item); stage.appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
+  const dur = item.type === 'reply' ? REPLY_MS : item.type === 'welcome' ? WELCOME_MS : FACT_MS;
+  setTimeout(()=>{ el.classList.add('hide'); setTimeout(()=>{ el.remove(); busy=false; next(); }, 500); }, dur);
+}
+function push(evt){
+  if (evt.type==='welcome') welcomes.push(evt);
+  else if (evt.type==='fact') facts.push(evt);
+  else if (evt.type==='reply') { if (!evt.reply) return; evt._rx = Date.now(); replies.push(evt); while (replies.length > REPLY_MAX_QUEUE) replies.shift(); }
+  next();
+}
+window.__push = push;
+if (TEST) {
+  const freeze = params.get('freeze');
+  OasisBus.api('/api/sample').then(d=>{
+    if (freeze === 'welcome') { WELCOME_HOLD(d.welcomes[0]); return; }
+    if (freeze === 'fact') { WELCOME_HOLD({type:'fact', text:d.fact}); return; }
+    d.welcomes.slice(0,4).forEach(w=>push({type:'welcome', ...w}));
+    push({type:'welcome', ...d.welcomes[0]}); // duplicate: deduped below
+    push({type:'fact', text:d.fact});
+    d.welcomes.slice(4).forEach(w=>push({type:'welcome', ...w}));
+  });
+}
+if (TESTREPLY) {
+  const freeze = params.get('freeze'), msg = params.get('msg');
+  const url = msg ? '/api/reply-preview?force=1&msg='+encodeURIComponent(msg)+'&user='+encodeURIComponent(params.get('user')||'neonrider85')+'&nick='+encodeURIComponent(params.get('nick')||params.get('user')||'Neon Rider') : '/api/reply-sample';
+  OasisBus.api(url).then(d=>{
+    const list = (Array.isArray(d) ? d : [d]).filter(x=>x.reply);
+    if (freeze === 'reply') { WELCOME_HOLD(list[0]); return; }
+    list.forEach(x=>push(x));
+  });
+}
+function WELCOME_HOLD(item){ item.type = item.type || 'welcome'; const el=render(item); stage.appendChild(el); requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show'))); }
+// client-side dedupe guard (server also dedupes per session)
+const shown = new Set(); const _push = push;
+push = function(evt){ if (evt && evt.type==='nowplaying'){ if (window.NowPlaying) NowPlaying.handle(evt); return; } if (evt.type==='session'){ shown.clear(); return; } if (evt.type==='welcome'){ const k=evt.username.toLowerCase(); if (shown.has(k)) return; shown.add(k);} _push(evt); };
+if (params.get('nptest')) { const [a,t] = params.get('nptest').split('|'); setTimeout(()=>push({type:'nowplaying', artist:t?a:'', title:t||a}), 300); }
+if (!TEST && !TESTREPLY) {
+  OasisBus.boxStream(CHANNEL ? '/events?channel=test' : '/events', d => push(d));
+}
+</script>
+</body></html>
