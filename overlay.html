@@ -110,7 +110,7 @@ function render(item){
     el.innerHTML = '<div class="hd">🤖 Bob → @'+esc(String(item.display||item.nickname||item.user||'').replace(/^@/,''))+'</div>'
       + '<div class="msg">“'+esc(item.message||'')+'”</div><div class="txt">'+esc(item.reply||'')+'</div>';
   } else {
-    el.className = 'card fact'; el.innerHTML = '<div class="lbl">📼 Music Fact</div><div class="txt">'+esc(item.text)+'</div>';
+    el.className = 'card fact'; el.innerHTML = '<div class="lbl">'+esc(item.label||'📼 Music Fact')+'</div><div class="txt">'+esc(item.text)+'</div>';
   }
   return el;
 }
