@@ -6,6 +6,7 @@
     {"file": "grumpy-austin-1.mp3", "tier": "big"},
     {"file": "grumpy-rik-1.mp3", "tier": "big"},
     {"file": "grumpy-rik-2.mp3", "tier": "big"},
-    {"file": "grumpy-rik-3.mp3", "tier": "medium"}
+    {"file": "grumpy-rik-3.mp3", "tier": "medium"},
+    {"file": "grumpy-hanks-1.mp3", "tier": "huge"}
   ]
 }

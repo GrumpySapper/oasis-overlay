@@ -216,7 +216,8 @@ window.GiftFX = (function () {
     return buffers[file];
   }
   function playClip(c, out, file, when) {
-    return loadClip(c, file).then(buf => { const src = c.createBufferSource(); src.buffer = buf; src.connect(out); src.start(Math.max(c.currentTime + 0.02, when)); return true; });
+    // resolves with the seconds from *now* until the clip finishes (it may start late if it was still loading)
+    return loadClip(c, file).then(buf => { const src = c.createBufferSource(); src.buffer = buf; src.connect(out); const at = Math.max(c.currentTime + 0.02, when); src.start(at); return (at - c.currentTime) + buf.duration; });
   }
   function sound(tier) {
     const c = ac(); if (!c) return false;
@@ -224,11 +225,13 @@ window.GiftFX = (function () {
       const out = c.createGain(); out.gain.value = VOL; out.connect(c.destination);
       const t0 = c.currentTime + 0.03, clip = VOICE === 'off' ? null : pickClip(tier);
       const synth = () => (SONGS[tier] || SONGS.small)(c, out, t0);
+      // Returns { running, clip }: clip is a Promise of seconds-until-the-clip-ends (null if no clip / it failed), so the card can wait for it.
+      let clipP = Promise.resolve(null);
       if (!clip) synth();
-      else if (VOICE === 'instead' || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) playClip(c, out, clip.file, t0).catch(synth);   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
-      else { synth(); playClip(c, out, clip.file, t0 + (SYNTH_LEN[tier] || 0.8)).catch(() => {}); }
-      return c.state === 'running';
-    } catch (e) { return false; }
+      else if (VOICE === 'instead' || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) clipP = playClip(c, out, clip.file, t0).catch(() => { synth(); return null; });   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
+      else { synth(); clipP = playClip(c, out, clip.file, t0 + (SYNTH_LEN[tier] || 0.8)).catch(() => null); }
+      return { running: c.state === 'running', clip: clipP };
+    } catch (e) { return null; }
   }
   const COLORS = ['#ffd740', '#ff4081', '#7c4dff', '#00e5ff', '#69f0ae', '#ff9100', '#fff'];
   function confetti(tier) {
@@ -275,6 +278,7 @@ const welcomes = [], facts = [], replies = [], says = [], gifts = [], legends = 
 const LEGEND_MS = +(params.get('legendMs') || 13000);
 let current = null;   // { el, timer } of the card on screen, so a legend can cut it short
 const GIFT_MS = +(params.get('giftMs') || 0);   // optional override for every gift card
+const CLIP_CARD_MAX_MS = +(params.get('clipCardMaxMs') || 12000);   // longest a gift card is held for a voice clip
 const HEART_MAX_QUEUE = 2, HEART_MAX_AGE_MS = 30000;   // Heart Me bursts: tiny, short, never crowd other cards
 const GIFT_TIER_MS = { heartme: 3500, request: 6000, small: 5000, medium: 6000, big: 7000, huge: 8000 }, GIFT_MAX_QUEUE = 5, GIFT_MAX_AGE_MS = 120000;
 let busy = false;
@@ -312,10 +316,19 @@ function next(){
   busy = true;
   const el = render(item); stage.appendChild(el);
   requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
-  if (item.type === 'gift') { GiftFX.sound(item.tier); GiftFX.confetti(item.tier); if (item.tier === 'huge') { GiftFX.fireworks(5000); setTimeout(()=>GiftFX.confetti('huge'), 3500); } }
+  let snd = null;
+  if (item.type === 'gift') { snd = GiftFX.sound(item.tier); GiftFX.confetti(item.tier); if (item.tier === 'huge') { GiftFX.fireworks(5000); setTimeout(()=>GiftFX.confetti('huge'), 3500); } }
   const dur = item.type === 'reply' ? REPLY_MS : item.type === 'gift' ? (GIFT_MS || GIFT_TIER_MS[item.tier] || 6000) : item.type === 'welcome' ? WELCOME_MS : FACT_MS;
   const done = () => { if (!current || current.el !== el) return; current = null; el.classList.add('hide'); setTimeout(()=>{ el.remove(); busy=false; next(); }, 500); };
-  current = { el, timer: setTimeout(done, dur), done };
+  const shownAt = Date.now();
+  current = { el, timer: setTimeout(done, dur), done, holdMs: dur };
+  // Voice clip on a gift card: hold the card until chime + clip + 0.5s (never below the tier default, max 12s). Only a legend can cut it short.
+  if (snd && snd.clip) snd.clip.then(left => {
+    if (!left || !current || current.el !== el) return;
+    const elapsed = Date.now() - shownAt;
+    const total = Math.min(CLIP_CARD_MAX_MS, Math.max(dur, elapsed + left * 1000 + 500));
+    clearTimeout(current.timer); current.holdMs = total; current.timer = setTimeout(done, Math.max(0, total - elapsed));
+  });
 }
 function showLegend(item){
   busy = true;
