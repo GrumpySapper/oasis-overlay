@@ -73,8 +73,25 @@
   @keyframes burst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.3);opacity:0}}
   .confetti{position:fixed;top:-20px;width:10px;height:16px;border-radius:2px;pointer-events:none;z-index:22;animation:fall linear forwards}
   @keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
+  #stage{z-index:15}
+  #showtitle{position:fixed;inset:0;z-index:5;pointer-events:none;display:none;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at center,rgba(40,0,70,.28),rgba(20,0,40,.18) 70%);transition:background .9s ease}
+  #showtitle.on{display:flex}
+  #showtitle .wrap{transform:scale(.3);opacity:0;transition:transform 1s cubic-bezier(.2,1.3,.4,1),opacity .6s ease,top 1s ease}
+  #showtitle.vis .wrap{transform:none;opacity:1}
+  #showtitle .st{font-family:inherit;font-weight:900;font-size:min(11vh,9.5vw);line-height:1.05;max-width:94vw;margin:0 3vw;
+    background:linear-gradient(90deg,#ffd740,#fff6c2,#c77dff,#ffd740,#fff6c2,#ffd740);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:shine 3s linear infinite;filter:drop-shadow(0 0 14px rgba(255,215,64,.85)) drop-shadow(0 0 30px rgba(170,60,255,.8)) drop-shadow(0 4px 4px rgba(0,0,0,.7))}
+  #showtitle .ss{margin-top:2vh;font-weight:800;font-size:min(4.4vh,3.9vw);color:#fff;text-shadow:0 0 16px rgba(170,60,255,.95),0 0 6px rgba(255,215,64,.8),0 3px 6px rgba(0,0,0,.85)}
+  #showtitle.mini{background:transparent;align-items:flex-start}
+  #showtitle.mini .wrap{margin-top:2.5vh;padding:1vh 3vw;border-radius:18px;background:rgba(40,0,70,.45);box-shadow:0 0 0 2px rgba(255,215,64,.8),0 0 26px rgba(170,60,255,.8)}
+  #showtitle.mini .st{font-size:min(4.6vh,5.5vw)}
+  #showtitle.mini .ss{font-size:min(2.6vh,3.2vw);margin-top:.4vh}
+  #showtitle .tw{position:absolute;font-size:min(4vh,30px);animation:twinkle 1.8s ease-in-out infinite;filter:drop-shadow(0 0 8px #ffd740)}
+  #showtitle.mini .tw{display:none}
+  @keyframes twinkle{0%,100%{opacity:.15;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1.2) rotate(30deg)}}
 </style></head>
 <body>
+<div id="showtitle"><div class="wrap"><div class="st"></div><div class="ss"></div></div></div>
 <div id="stage"></div>
 <div id="legend"><div class="crown">👑</div><div class="lg">Legend</div><div class="name"></div><div class="line"></div></div>
 <!-- np-card removed: song box is its own Studio source (nowplaying.html) -->
@@ -341,6 +358,7 @@ function showLegend(item){
   setTimeout(()=>{ box.classList.remove('vis'); setTimeout(()=>{ box.classList.remove('on'); busy=false; next(); }, 650); }, LEGEND_MS);
 }
 function push(evt){
+  if (evt && evt.title) return showTitle(evt);   // show-title takeover: its own layer, never blocks the card queue
   if (evt.type==='welcome') welcomes.push(evt);
   else if (evt.type==='fact') { if (evt.label) says.push(evt); else facts.push(evt); }
   else if (evt.type==='gift' && evt.tier==='legend') { legends.push(evt); if (current) { clearTimeout(current.timer); current.done(); } }   // cut the current card short
@@ -378,6 +396,23 @@ if (params.get('giftdemo') === '1') {   // local preview of gift cards (no serve
   [{tier:'small',text:"Cor blimey, ta for the Rose, Rosie! 🌹"},{tier:'medium',text:"Strike a light! Donna, you're a proper star! Ta! ⭐"},{tier:'big',text:"WAHEY! Big Spender, you absolute legend! Ta ever so! 🏆"},{tier:'huge',text:"HOLD ON TO YER HATS! Hugh, that's ENORMOUS! Ta! 🎆"},{tier:'heartme',text:"Ding! Ta for the Heart Me, Hattie ❤️"},{tier:'request',text:"Rosie's request is at the top of Grumpy's list! 🎶"}]
     .forEach((g,i)=>setTimeout(()=>push({type:'gift',...g}), 300 + i*100));
 }
+// Show-title takeover: ~20s big centre (light dim, face visible), then a small top banner for the rest of evt.ms.
+let titleTimers = [];
+function showTitle(evt){
+  const box = document.getElementById('showtitle'); if (!box) return;
+  titleTimers.forEach(clearTimeout); titleTimers = [];
+  const ms = Math.max(3000, Math.min(300000, +evt.ms || 15000)), bigMs = Math.min(20000, ms);
+  box.querySelector('.st').textContent = String(evt.show || evt.label || '').slice(0, 60);
+  box.querySelector('.ss').textContent = String(evt.sub || evt.text || '').slice(0, 100);
+  box.querySelectorAll('.tw').forEach(e => e.remove());
+  for (let i = 0; i < 14; i++) { const t = document.createElement('div'); t.className = 'tw'; t.textContent = i % 3 ? '✨' : '⭐'; t.style.left = (5 + Math.random() * 90) + 'vw'; t.style.top = (8 + Math.random() * 80) + 'vh'; t.style.animationDelay = (Math.random() * 1.8) + 's'; box.appendChild(t); }
+  box.classList.remove('mini','vis'); box.classList.add('on');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.add('vis')));
+  try { if (window.GiftFX && GiftFX.confetti) GiftFX.confetti('big'); } catch (e) {}
+  if (ms > bigMs) titleTimers.push(setTimeout(()=>box.classList.add('mini'), bigMs));
+  titleTimers.push(setTimeout(()=>{ box.classList.remove('vis'); titleTimers.push(setTimeout(()=>box.classList.remove('on','mini'), 900)); }, ms));
+}
+if (params.get('titletest')) setTimeout(()=>showTitle({ show: '🎵 Featured Album Wednesday! 🎵', sub: 'Tonight: Queen – A Kind of Magic (1986) ✨', ms: +params.get('titletest') > 100 ? +params.get('titletest') : 40000 }), 300);
 if (params.get('nptest')) { const [a,t] = params.get('nptest').split('|'); setTimeout(()=>push({type:'nowplaying', artist:t?a:'', title:t||a}), 300); }
 if (!TEST && !TESTREPLY) {
   OasisBus.boxStream(CHANNEL ? '/events?channel=test' : '/events', d => push(d));
