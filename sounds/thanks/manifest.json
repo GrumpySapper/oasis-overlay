@@ -1,9 +1,10 @@
 {
   "clips": [
-    { "file": "legend-announcer-1.mp3", "tier": "legend" },
-    { "file": "legend-announcer-2.mp3", "tier": "legend" },
-    { "file": "legend-announcer-3.mp3", "tier": "legend" },
-    { "file": "grumpy-austin-1.mp3", "tier": "big" },
-    { "file": "grumpy-rik-1.mp3", "tier": "big" }
+    {"file": "legend-announcer-1.mp3", "tier": "legend"},
+    {"file": "legend-announcer-2.mp3", "tier": "legend"},
+    {"file": "legend-announcer-3.mp3", "tier": "legend"},
+    {"file": "grumpy-austin-1.mp3", "tier": "big"},
+    {"file": "grumpy-rik-1.mp3", "tier": "big"},
+    {"file": "grumpy-rik-2.mp3", "tier": "big"}
   ]
 }
