@@ -225,7 +225,7 @@ window.GiftFX = (function () {
       const t0 = c.currentTime + 0.03, clip = VOICE === 'off' ? null : pickClip(tier);
       const synth = () => (SONGS[tier] || SONGS.small)(c, out, t0);
       if (!clip) synth();
-      else if (VOICE === 'instead' || tier === 'heartme') playClip(c, out, clip.file, t0).catch(synth);   // clip failed to load: fall back to the synth
+      else if (VOICE === 'instead' || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) playClip(c, out, clip.file, t0).catch(synth);   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
       else { synth(); playClip(c, out, clip.file, t0 + (SYNTH_LEN[tier] || 0.8)).catch(() => {}); }
       return c.state === 'running';
     } catch (e) { return false; }
