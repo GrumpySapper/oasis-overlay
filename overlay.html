@@ -96,7 +96,7 @@ const REPLY_MS = +(params.get('replyMs') || 8000), REPLY_MAX_QUEUE = 3, REPLY_MA
 const WELCOME_MS = +(params.get('welcomeMs') || 4000), FACT_MS = +(params.get('factMs') || 12000);
 if (TEST || TESTREPLY || params.get('bg') === '1') document.body.classList.add('preview');
 const stage = document.getElementById('stage');
-const welcomes = [], facts = [], replies = [];
+const welcomes = [], facts = [], replies = [], says = [];
 let busy = false;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function render(item){
@@ -117,7 +117,8 @@ function render(item){
 function next(){
   if (busy) return;
   while (replies.length && Date.now() - replies[0]._rx > REPLY_MAX_AGE_MS) replies.shift();   // drop stale replies
-  const item = replies.shift() || welcomes.shift() || facts.shift();   // replies, then welcomes, then facts; one card at a time
+  while (welcomes.length > 6) welcomes.shift();
+  const item = replies.shift() || says.shift() || welcomes.shift() || facts.shift();   // replies, then welcomes, then facts; one card at a time
   if (!item) return;
   busy = true;
   const el = render(item); stage.appendChild(el);
@@ -127,7 +128,7 @@ function next(){
 }
 function push(evt){
   if (evt.type==='welcome') welcomes.push(evt);
-  else if (evt.type==='fact') facts.push(evt);
+  else if (evt.type==='fact') { if (evt.label) says.push(evt); else facts.push(evt); }
   else if (evt.type==='reply') { if (!evt.reply) return; evt._rx = Date.now(); replies.push(evt); while (replies.length > REPLY_MAX_QUEUE) replies.shift(); }
   next();
 }
