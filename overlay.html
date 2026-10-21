@@ -278,7 +278,7 @@ const welcomes = [], facts = [], replies = [], says = [], gifts = [], legends = 
 const LEGEND_MS = +(params.get('legendMs') || 13000);
 let current = null;   // { el, timer } of the card on screen, so a legend can cut it short
 const GIFT_MS = +(params.get('giftMs') || 0);   // optional override for every gift card
-const CLIP_CARD_MAX_MS = +(params.get('clipCardMaxMs') || 12000);   // longest a gift card is held for a voice clip
+const CLIP_CARD_MAX_MS = +(params.get('clipCardMaxMs') || 12000), CLIP_CARD_MAX_HUGE_MS = +(params.get('clipCardMaxHugeMs') || 16000);   // longest a gift card is held for a voice clip (huge tier gets longer)
 const HEART_MAX_QUEUE = 2, HEART_MAX_AGE_MS = 30000;   // Heart Me bursts: tiny, short, never crowd other cards
 const GIFT_TIER_MS = { heartme: 3500, request: 6000, small: 5000, medium: 6000, big: 7000, huge: 8000 }, GIFT_MAX_QUEUE = 5, GIFT_MAX_AGE_MS = 120000;
 let busy = false;
@@ -326,7 +326,7 @@ function next(){
   if (snd && snd.clip) snd.clip.then(left => {
     if (!left || !current || current.el !== el) return;
     const elapsed = Date.now() - shownAt;
-    const total = Math.min(CLIP_CARD_MAX_MS, Math.max(dur, elapsed + left * 1000 + 500));
+    const total = Math.min(item.tier === 'huge' ? CLIP_CARD_MAX_HUGE_MS : CLIP_CARD_MAX_MS, Math.max(dur, elapsed + left * 1000 + 500));
     clearTimeout(current.timer); current.holdMs = total; current.timer = setTimeout(done, Math.max(0, total - elapsed));
   });
 }
