@@ -16,6 +16,10 @@
     {"file": "ghost-host-5.mp3", "tier": "big"},
     {"file": "ghost-host-6.mp3", "tier": "big"},
     {"file": "ghost-host-7.mp3", "tier": "huge"},
-    {"file": "ghost-host-8.mp3", "tier": "any"}
+    {"file": "ghost-host-8.mp3", "tier": "any"},
+    {"file": "ghost-host-9.mp3", "tier": "medium"},
+    {"file": "ghost-host-10.mp3", "tier": "small"},
+    {"file": "ghost-host-11.mp3", "tier": "big"},
+    {"file": "ghost-host-12.mp3", "tier": "any"}
   ]
 }
