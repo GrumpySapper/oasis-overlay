@@ -2,50 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Oasis Radio – Bob rides across the top</title>
+<title>Oasis Radio – Bob rides across the top (with stunts)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  /* Bob rides across the top band using his transparent (VP9 alpha) video.
-     Params: ?test=1 (ride now, then every 30s)  ?every=<min> (default 5)
+  /* Bob rides across the top band using his transparent (VP9 alpha) video, doing a random stunt each pass.
+     Params: ?test=1 (ride now, then every 30s, random stunt)  ?every=<min> (default 5)
              ?dur=<sec> crossing time (default 20)  ?flip=1 (mirror: ride left -> right)
+             ?stunt=<cruise|wheelie|jump|stoppie|speed|hops|uturn|backflip> force one stunt
      Old still-image version: bob-ride-still.html */
-  :root { --h:20vh; --dur:20s; }
+  :root { --h:20vh; }
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent !important; }
   #ride { position:absolute; top:1.5vh; left:0; height:var(--h); visibility:hidden; pointer-events:none;
     will-change:transform; transform:translateX(100vw); }
-  #ride.go { visibility:visible; animation: rideL var(--dur) linear forwards; }
-  body.flip #ride { transform:translateX(-100%); }
-  body.flip #ride.go { animation-name: rideR; }
-  @keyframes rideL { from { transform:translateX(100vw); } to { transform:translateX(-100%); } }
-  @keyframes rideR { from { transform:translateX(-100%); } to { transform:translateX(100vw); } }
-  #bob { height:100%; width:auto; display:block; background:transparent;
+  #ride.go { visibility:visible; }
+  #ride div { height:100%; width:max-content; will-change:transform; }
+  #face { transform-origin:50% 50%; }
+  body.flip #face { transform:scaleX(-1); }
+  #lift { transform-origin:50% 100%; }
+  #roll { transform-origin:50% 55%; }
+  #tiltB { transform-origin:84% 95%; }   /* back-wheel contact (bike faces left, back wheel on the right) */
+  #tiltF { transform-origin:16% 95%; }   /* front-wheel contact */
+  #turn { position:relative; transform-origin:50% 50%; }
+  #bob { height:100%; width:auto; display:block; background:transparent; position:relative; z-index:1;
     filter: drop-shadow(0 .6vh .5vh rgba(0,0,0,.45)) drop-shadow(0 0 1.2vh rgba(255,61,154,.3)); }
-  body.flip #bob { transform:scaleX(-1); }
+  /* speed lines trailing behind (to the right of) Bob */
+  #ride div.lines { position:absolute; left:78%; top:22%; width:70%; height:62%; opacity:0; overflow:hidden; z-index:0;
+    -webkit-mask-image:linear-gradient(90deg,#000 0%,#000 30%,transparent 100%); mask-image:linear-gradient(90deg,#000 0%,#000 30%,transparent 100%); }
+  .lines i { position:absolute; left:0; height:.45vh; width:100%; border-radius:1vh;
+    background:linear-gradient(90deg, rgba(255,255,255,.95), rgba(0,229,255,.6) 40%, rgba(255,61,154,0));
+    animation: zoomline .38s linear infinite; }
+  .lines i:nth-child(1){ top:8%;  animation-delay:-.05s; width:80%; }
+  .lines i:nth-child(2){ top:24%; animation-delay:-.21s; }
+  .lines i:nth-child(3){ top:41%; animation-delay:-.12s; width:90%; }
+  .lines i:nth-child(4){ top:58%; animation-delay:-.30s; width:70%; }
+  .lines i:nth-child(5){ top:74%; animation-delay:-.17s; }
+  .lines i:nth-child(6){ top:90%; animation-delay:-.26s; width:85%; }
+  @keyframes zoomline { from { transform:translateX(-30%); opacity:1; } to { transform:translateX(60%); opacity:.2; } }
+  /* dust puffs on landings */
+  .puff { position:absolute; width:0; height:0; pointer-events:none; }
+  .puff b { position:absolute; left:-2.2vh; top:-3.4vh; width:4.4vh; height:4.4vh; border-radius:50%;
+    background:radial-gradient(circle, rgba(230,205,170,.85) 0%, rgba(200,170,130,.45) 55%, rgba(200,170,130,0) 72%);
+    opacity:0; animation: puff .9s ease-out forwards; }
+  @keyframes puff { 0% { opacity:.9; transform:translate(0,0) scale(.3); }
+                    100% { opacity:0; transform:translate(var(--dx),var(--dy)) scale(1.6); } }
 </style>
 </head>
 <body>
-<div id="ride" aria-hidden="true">
+<div id="ride" aria-hidden="true"><div id="face"><div id="lift"><div id="roll"><div id="tiltB"><div id="tiltF"><div id="turn">
+  <div class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <video id="bob" src="images/bob-ride.webm?v=2" muted autoplay loop playsinline preload="auto" disablepictureinpicture></video>
-</div>
+</div></div></div></div></div></div></div>
 <script>
 (function(){
   var q = new URLSearchParams(location.search);
   var test  = q.get('test') === '1';
   var every = parseFloat(q.get('every')); if (!(every > 0)) every = 5;      // minutes
   var dur   = parseFloat(q.get('dur'));   if (!(dur > 0))   dur = 20;       // seconds per crossing
+  var force = (q.get('stunt') || '').toLowerCase();
+  var flip  = q.get('flip') === '1';
   var firstDelay = test ? 0 : 30;                                            // seconds
   var periodMs = test ? Math.max(30000, (dur + 5) * 1000) : every * 60000;
-  if (q.get('flip') === '1') document.body.classList.add('flip');
-  document.documentElement.style.setProperty('--dur', dur + 's');
-  var el = document.getElementById('ride'), v = document.getElementById('bob');
+  if (flip) document.body.classList.add('flip');
+  var $ = function(id){ return document.getElementById(id); };
+  var el = $('ride'), v = $('bob'), lines = el.querySelector('.lines');
+  var parts = { lift:$('lift'), roll:$('roll'), tiltB:$('tiltB'), tiltF:$('tiltF'), turn:$('turn') };
   v.muted = true;
-  el.addEventListener('animationend', function(e){ if (e.target === el) { el.classList.remove('go'); v.pause(); } });
-  function ride(){
-    el.classList.remove('go'); void el.offsetWidth;
-    try { v.currentTime = 0; } catch(e) {}
-    var p = v.play(); if (p && p.catch) p.catch(function(){});
-    el.classList.add('go');
+  function R(a,b){ return a + Math.random()*(b-a); }
+
+  // Squash-on-landing arc: returns lift keyframes [t, y(vh), scaleY, easing]
+  function arc(t0, len, hgt, out){
+    var tp = t0 + len/2, tl = t0 + len;
+    out.push([t0, 0, 1, 'ease-out'], [t0+len*0.04, 0, 0.94, 'ease-out'], [tp, -hgt, 1.03, 'ease-in'],
+             [tl, 0, 1, 'ease-out'], [tl+0.012, 0, 0.88, 'ease-out'], [tl+0.03, 0, 1.03, 'ease-in-out'], [tl+0.045, 0, 1, 'linear']);
+    return tl;
   }
+
+  // Each stunt: D (seconds), head (vh headroom needed above the bike), x track [t, progress, easing], other tracks, fx.
+  var STUNTS = {
+    cruise: function(){ return { D:dur, head:0, x:[[0,0,'linear'],[1,1]] }; },
+    wheelie: function(){
+      var a = R(0.22,0.36), up = R(15,19);
+      return { D:dur, head:6.5, x:[[0,0,'linear'],[1,1]],
+        tiltB:[[0,0],[a,0,'cubic-bezier(.2,.8,.3,1)'],[a+.05,up,'ease-in-out'],[a+.11,up-3,'ease-in-out'],[a+.17,up,'ease-in-out'],
+               [a+.23,up-2,'ease-in'],[a+.27,0,'ease-out'],[a+.29,3,'ease-in'],[a+.31,0],[1,0]],
+        lift:[[0,0,1],[a+.27,0,1,'ease-out'],[a+.28,0,.93,'ease-out'],[a+.30,0,1.02],[a+.32,0,1],[1,0,1]],
+        fx:[[a+.27,'dust']] };
+    },
+    jump: function(){
+      var n = Math.random() < .5 ? 1 : 2, lift = [[0,0,1]], roll = [[0,0]], fx = [], t = R(.25,.35), h = R(4.5,5.5);
+      for (var i = 0; i < n; i++) {
+        var len = n === 1 ? .14 : .11, tl = arc(t, len, h, lift);
+        roll.push([t,0,'ease-out'],[t+len*.3,7,'ease-in-out'],[t+len*.75,-4,'ease-in'],[tl,0]);
+        fx.push([tl,'dust']); t = tl + .12; h *= .8;
+      }
+      lift.push([1,0,1]); roll.push([1,0]);
+      return { D:dur, head:6.5, x:[[0,0,'linear'],[1,1]], lift:lift, roll:roll, fx:fx };
+    },
+    stoppie: function(){
+      var s = R(.38,.46), p = R(.42,.5);
+      return { D:dur, head:4,
+        x:[[0,0,'linear'],[s-.12,p-.12,'cubic-bezier(.1,.6,.3,1)'],[s,p,'linear'],[s+.12,p,'cubic-bezier(.6,0,.9,.5)'],[s+.32,1,'linear'],[1,1]],
+        tiltF:[[0,0],[s-.04,0,'ease-out'],[s,-14,'ease-in-out'],[s+.05,-15,'ease-in'],[s+.08,0,'ease-out'],[s+.095,-2,'ease-in'],[s+.11,0],[1,0]],
+        tiltB:[[0,0],[s+.12,0,'ease-out'],[s+.15,9,'ease-in-out'],[s+.21,0],[1,0]],
+        lines:[[0,0],[s+.14,0],[s+.18,1],[s+.32,1],[s+.36,0],[1,0]],
+        fx:[[s+.08,'dust'],[s+.12,'dust']] };
+    },
+    speed: function(){
+      return { D:Math.max(5, dur*R(.3,.4)), head:0,
+        x:[[0,0,'cubic-bezier(.3,0,.7,1)'],[1,1]],
+        lines:[[0,1],[1,1]] };
+    },
+    hops: function(){
+      var lift = [[0,0,1]], fx = [], t = R(.22,.3), n = 4 + Math.floor(Math.random()*2);
+      for (var i = 0; i < n; i++) { var tl = arc(t, .05, R(2,3), lift); fx.push([tl,'dust']); t = tl + .06; }
+      lift.push([1,0,1]);
+      return { D:dur, head:3.5, x:[[0,0,'linear'],[1,1]], lift:lift, fx:fx };
+    },
+    uturn: function(){
+      var s = R(.32,.4), p = R(.38,.5);
+      return { D:dur, head:3.5,
+        x:[[0,0,'linear'],[s-.1,p-.1,'cubic-bezier(.2,.7,.4,1)'],[s,p,'linear'],[s+.12,p,'cubic-bezier(.5,0,.8,.6)'],[Math.min(1,s+.12+p*.9),0,'linear'],[1,0]],
+        tiltB:[[0,0],[s,0,'ease-out'],[s+.03,10,'ease-in'],[s+.06,0],[1,0]],
+        turn:[[0,1],[s+.04,1,'ease-in-out'],[s+.11,-1],[1,-1]],
+        fx:[[s+.06,'dust']] };
+    },
+    backflip: function(){
+      var t = R(.36,.44), len = .26;
+      var lift = [[0,0,1]]; var tl = arc(t, len, 4.5, lift); lift.push([1,0,1]);
+      return { D:dur, head:8, x:[[0,0,'linear'],[1,1]], lift:lift,
+        roll:[[0,0,1],[t,0,1,'ease-out'],[t+.035,0,.72,'ease-in-out'],[tl-.035,360,.72,'ease-out'],[tl,360,1],[1,360,1]],
+        fx:[[tl,'dust']] };
+    }
+  };
+  var NAMES = Object.keys(STUNTS), last = null;
+  function pick(){
+    if (STUNTS[force]) return force;
+    var n; do { n = NAMES[Math.floor(Math.random()*NAMES.length)]; } while (n === last && NAMES.length > 1);
+    return n;
+  }
+
+  function frames(track, fmt){
+    var out = track.map(function(k){ var f = fmt(k); f.offset = Math.max(0, Math.min(1, k[0])); var e = k[k.length-1];
+      if (typeof e === 'string') f.easing = e; return f; });
+    out.sort(function(a,b){ return a.offset - b.offset; });
+    if (out[0].offset > 0) { var f0 = Object.assign({}, out[0]); f0.offset = 0; out.unshift(f0); }
+    if (out[out.length-1].offset < 1) { var f1 = Object.assign({}, out[out.length-1]); f1.offset = 1; delete f1.easing; out.push(f1); }
+    return out;
+  }
+  var FMT = {
+    lift:  function(k){ var sy = k[2] == null ? 1 : k[2]; return { transform:'translateY('+k[1]+'vh) scale('+(2-sy).toFixed(3)+','+sy+')' }; },
+    roll:  function(k){ var s = typeof k[2] === 'number' ? k[2] : 1; return { transform:'rotate('+k[1]+'deg) scale('+s+')' }; },
+    tiltB: function(k){ return { transform:'rotate('+k[1]+'deg)' }; },
+    tiltF: function(k){ return { transform:'rotate('+k[1]+'deg)' }; },
+    turn:  function(k){ return { transform:'scaleX('+k[1]+')' }; }
+  };
+
+  function dust(){
+    var r = v.getBoundingClientRect(); if (!r.width) return;
+    var facingLeft = !flip;
+    var bx = r.left + r.width * (facingLeft ? .84 : .16), by = r.bottom - r.height * .05;
+    var p = document.createElement('div'); p.className = 'puff'; p.style.left = bx+'px'; p.style.top = by+'px';
+    for (var i = 0; i < 5; i++) { var b = document.createElement('b');
+      b.style.setProperty('--dx', ((facingLeft?1:-1)*R(1,6)).toFixed(1)+'vh'); b.style.setProperty('--dy', (-R(.5,3)).toFixed(1)+'vh');
+      b.style.animationDelay = (i*0.04)+'s'; p.appendChild(b); }
+    document.body.appendChild(p); setTimeout(function(){ p.remove(); }, 1400);
+  }
+
+  var timers = [];
+  function ride(){
+    var name = pick(); last = name;
+    var s = STUNTS[name](), D = s.D * 1000;
+    el.getAnimations({subtree:true}).forEach(function(a){ if (a.effect && a.effect.target !== lines.firstElementChild && !(a instanceof CSSAnimation)) a.cancel(); });
+    timers.forEach(clearTimeout); timers = [];
+    var H = innerHeight, W = innerWidth, w = el.getBoundingClientRect().width || (H*.2*546/400);
+    // random height within the top band, leaving headroom for jumps/wheelies (top edge never crosses the screen top)
+    var top = 1.5 + (s.head || 0) * 0.9 + R(0, (s.head || 0) > 5 ? 1.2 : 2.5);
+    el.style.top = top.toFixed(2)+'vh';
+    var tail = s.lines ? w*0.55 : 0;   // let the speed lines clear the screen too
+    var startX = flip ? -w : W, endX = flip ? W + tail : -w - tail;
+    el.animate(frames(s.x, function(k){ return { transform:'translateX('+(startX + (endX-startX)*k[1]).toFixed(1)+'px)' }; }),
+               { duration:D, fill:'forwards' }).finished.then(function(){ el.classList.remove('go'); v.pause(); }, function(){});
+    Object.keys(parts).forEach(function(k){
+      parts[k].style.transform = '';
+      if (s[k]) parts[k].animate(frames(s[k], FMT[k]), { duration:D, fill:'forwards' });
+    });
+    lines.animate(frames(s.lines || [[0,0],[1,0]], function(k){ return { opacity:k[1] }; }), { duration:D, fill:'forwards' });
+    (s.fx || []).forEach(function(f){ if (f[1] === 'dust') timers.push(setTimeout(dust, f[0]*D)); });
+    try { v.currentTime = 0; } catch(e) {}
+    var pr = v.play(); if (pr && pr.catch) pr.catch(function(){});
+    el.classList.add('go');
+    document.title = 'Bob ride: ' + name;
+  }
+  window.bobRide = ride;
   setTimeout(function(){ ride(); setInterval(ride, periodMs); }, firstDelay * 1000);
 })();
 </script>
