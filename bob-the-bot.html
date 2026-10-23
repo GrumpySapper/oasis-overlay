@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob the Bot — Oasis Radio's AI Co-Host</title>
+<meta name="description" content="Meet Bob the Bot, Oasis Radio's cheeky AI co-host on Grumpy's TikTok Lives.">
+<meta name="theme-color" content="#07070a">
+<meta property="og:title" content="Bob the Bot — Oasis Radio's AI Co-Host">
+<meta property="og:description" content="Cheeky chrome co-host, 80s music nut, chopper rider. From the desert to your dashboard!">
+<meta property="og:image" content="https://grumpysapper.github.io/oasis-overlay/images/bob-page/bob-studio.jpg">
+<link rel="icon" href="images/oasis-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Oswald:wght@600;700&family=Outfit:wght@400;500;600;700;800&display=swap">
+<link rel="preload" as="image" href="images/bob-page/hero-sunset-road.jpg">
+<style>
+  :root{
+    --ink:#07070a; --panel:#12121a; --panel2:#16141c;
+    --pink:#ff3d9a; --hot:#ff2d6a; --gold:#ffc42e; --orange:#ff7a1a;
+    --purple:#8a3dff; --cyan:#22d3ee; --cream:#fff6e0;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:Outfit,system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:inherit}
+  img{max-width:100%;display:block}
+
+  /* ---------- top bar ---------- */
+  .topbar{position:absolute;inset:0 0 auto 0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:14px clamp(14px,4vw,40px)}
+  .topbar .logo img{height:clamp(48px,7vw,72px);width:auto;filter:drop-shadow(0 4px 14px rgba(0,0,0,.5))}
+  .topbar nav{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .pill{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.08em;font-size:14px;text-decoration:none;padding:8px 16px;border-radius:999px;background:rgba(7,7,10,.55);border:1px solid rgba(255,246,224,.25);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .15s, background .15s}
+  .pill:hover{transform:translateY(-2px);background:rgba(255,61,154,.35)}
+
+  /* ---------- hero ---------- */
+  .hero{position:relative;min-height:clamp(520px,82vh,820px);overflow:hidden;
+    background:#3a1052 url(images/bob-page/hero-sunset-road.jpg) center 40%/cover no-repeat;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:clamp(110px,15vh,150px) 18px 0}
+  .hero::after{content:"";position:absolute;inset:auto 0 0 0;height:30%;background:linear-gradient(to bottom,transparent,var(--ink));pointer-events:none;z-index:1}
+  .kicker{font-family:Oswald,sans-serif;letter-spacing:.4em;text-transform:uppercase;font-size:clamp(12px,1.6vw,15px);color:var(--cream);text-shadow:0 2px 10px rgba(0,0,0,.6);position:relative;z-index:3}
+  h1{font-family:Bungee,Impact,sans-serif;font-weight:400;margin:.1em 0 .05em;font-size:clamp(46px,10vw,124px);line-height:.95;position:relative;z-index:3;
+    background:linear-gradient(180deg,#fff6e0 0%,#ffc42e 35%,#ff7a1a 60%,#ff3d9a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 4px 0 #5b1a8a) drop-shadow(0 10px 24px rgba(0,0,0,.45))}
+  .tagline{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.12em;font-size:clamp(16px,2.4vw,24px);margin:0;position:relative;z-index:3;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+  .tagline span{color:var(--cyan)}
+
+  /* the road Bob rides on */
+  .rideway{position:absolute;left:0;right:0;bottom:4%;height:clamp(150px,24vw,270px);z-index:2;pointer-events:none}
+  .rider{position:absolute;bottom:0;left:0;height:100%;aspect-ratio:546/400;will-change:transform;
+    animation:ride 13s linear infinite}
+  .rider video,.rider img{width:100%;height:100%;object-fit:contain;filter:brightness(1.15) saturate(1.1) drop-shadow(0 12px 10px rgba(0,0,0,.45))}
+  @keyframes ride{
+    0%{transform:translateX(100vw)}
+    100%{transform:translateX(calc(-100% - 20px))}
+  }
+  .shadow-road{position:absolute;left:0;right:0;bottom:3%;height:6px;z-index:1;background:linear-gradient(90deg,transparent,rgba(255,196,46,.35),transparent);filter:blur(3px)}
+  @media (prefers-reduced-motion: reduce){
+    .rider{animation:none;left:50%;transform:translateX(-50%)}
+  }
+
+  /* ---------- sections ---------- */
+  main{position:relative;z-index:2}
+  section{padding:clamp(48px,8vw,90px) clamp(16px,5vw,48px)}
+  .wrap{max-width:1140px;margin:0 auto}
+  h2{font-family:Bungee,Impact,sans-serif;font-weight:400;font-size:clamp(30px,5vw,52px);line-height:1;margin:0 0 .5em;
+    background:linear-gradient(90deg,var(--gold),var(--pink) 55%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .eyebrow{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.35em;color:var(--pink);font-size:13px;margin:0 0 .4em}
+
+  .bio{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:clamp(24px,4vw,56px);align-items:center}
+  .bio p{font-size:clamp(17px,1.6vw,19px);margin:0 0 1em;color:#f3eadb}
+  .bio p.quote{font-family:Oswald,sans-serif;font-size:clamp(20px,2.4vw,26px);color:var(--gold);letter-spacing:.02em}
+  .bio-card{position:relative;max-width:420px;justify-self:center;border-radius:22px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,61,154,.6),0 20px 60px rgba(255,61,154,.25),0 0 36px rgba(255,196,46,.2);transform:rotate(1.5deg)}
+  .bio-card img{width:100%;height:auto}
+
+  .chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:clamp(32px,5vw,56px)}
+  .chip{background:linear-gradient(160deg,var(--panel2),var(--panel));border:1px solid rgba(255,246,224,.08);border-radius:18px;padding:20px 18px;position:relative;overflow:hidden}
+  .chip::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,var(--gold),var(--pink),var(--purple),var(--cyan))}
+  .chip .ic{font-size:28px}
+  .chip h3{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:18px;margin:.3em 0 .2em;color:#fff}
+  .chip p{margin:0;font-size:15px;color:#d9cfc0}
+
+  /* gallery */
+  .gallery-sec{background:radial-gradient(1200px 500px at 50% 0%,rgba(138,61,255,.18),transparent 70%)}
+  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(14px,2vw,24px)}
+  .shot{margin:0;background:var(--panel);border-radius:20px;overflow:hidden;border:1px solid rgba(255,246,224,.08);transition:transform .2s, box-shadow .2s}
+  .shot:hover{transform:translateY(-4px);box-shadow:0 14px 40px rgba(255,61,154,.25)}
+  .shot button{all:unset;cursor:zoom-in;display:block;width:100%}
+  .shot button:focus-visible{outline:3px solid var(--cyan);outline-offset:-3px}
+  .shot img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover}
+  .shot figcaption{padding:14px 16px 16px}
+  .shot figcaption b{display:block;font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.08em;font-size:17px;color:var(--gold)}
+  .shot figcaption span{font-size:15px;color:#e6dccd}
+
+  /* CTA */
+  .cta{text-align:center}
+  .cta .catch{font-family:Bungee,Impact,sans-serif;font-size:clamp(22px,4vw,40px);margin:.2em 0 .8em;color:#fff;text-shadow:0 0 24px rgba(255,61,154,.5)}
+  .btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{font-family:Oswald,sans-serif;text-transform:uppercase;letter-spacing:.1em;font-size:17px;text-decoration:none;padding:14px 28px;border-radius:999px;color:#07070a;font-weight:700;
+    background:linear-gradient(90deg,var(--gold),var(--pink));box-shadow:0 0 24px rgba(255,61,154,.35);transition:transform .15s}
+  .btn.alt{background:linear-gradient(90deg,var(--cyan),var(--purple));color:#fff}
+  .btn:hover{transform:translateY(-2px) scale(1.03)}
+
+  footer{text-align:center;padding:30px 16px 40px;color:#a99e8f;font-size:14px;border-top:1px solid rgba(255,246,224,.08)}
+  footer img{height:64px;width:auto;margin:0 auto 10px}
+
+  /* lightbox */
+  .lb{position:fixed;inset:0;z-index:100;background:rgba(7,7,10,.92);display:none;align-items:center;justify-content:center;padding:20px;flex-direction:column;gap:12px;cursor:zoom-out}
+  .lb.open{display:flex}
+  .lb img{max-height:82vh;max-width:min(92vw,900px);width:auto;border-radius:16px;box-shadow:0 0 60px rgba(255,61,154,.35)}
+  .lb p{margin:0;font-family:Oswald,sans-serif;letter-spacing:.06em;color:var(--gold);text-align:center;font-size:18px}
+  .lb .x{position:absolute;top:14px;right:18px;font-size:34px;line-height:1;background:none;border:0;color:#fff;cursor:pointer}
+
+  @media (max-width:900px){
+    .bio{grid-template-columns:1fr}
+    .bio-card{max-width:440px;margin:0 auto;transform:none}
+    .chips{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:560px){
+    .topbar nav .pill.hide-sm{display:none}
+    .hero{min-height:580px}
+    .rideway{height:190px;bottom:3%}
+    .chips{grid-template-columns:1fr 1fr;gap:10px}
+    .chip{padding:16px 14px}
+    .chip p{font-size:14px}
+    .grid{grid-template-columns:1fr 1fr;gap:10px}
+    .shot figcaption{padding:10px 10px 12px}
+    .shot figcaption b{font-size:14px}
+    .shot figcaption span{font-size:13px;line-height:1.4}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="logo" href="https://oasisradio.live" aria-label="Oasis Radio home"><img src="images/oasis-logo.png" alt="Oasis Radio"></a>
+  <nav>
+    <a class="pill hide-sm" href="#gallery">Gallery</a>
+    <a class="pill" href="https://oasisradio.live">Oasis Radio</a>
+    <a class="pill" href="https://www.tiktok.com/@oasisradiolive" target="_blank" rel="noopener">TikTok</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <p class="kicker">Oasis Radio presents</p>
+  <h1>Bob the Bot</h1>
+  <p class="tagline">Oasis Radio's <span>AI co-host</span></p>
+
+  <div class="shadow-road"></div>
+  <div class="rideway" aria-hidden="true">
+    <div class="rider" id="rider">
+      <video id="bobVid" autoplay muted loop playsinline preload="auto" disablepictureinpicture>
+        <source src="images/bob-ride.webm" type="video/webm">
+      </video>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="about">
+    <div class="wrap bio">
+      <div>
+        <p class="eyebrow">Who's this geezer?</p>
+        <h2>Alright, my lovely!</h2>
+        <p class="quote">"The name's Bob. Bob the Bot. Chrome head, blue eyes, heart of pure 80s gold!"</p>
+        <p>I'm the cheeky AI co-host on Grumpy's TikTok Lives over at Oasis Radio. Yes, I'm a robot, and no, I can't make you a cuppa. What I <em>can</em> do is give every one of you a proper welcome when you pop into the chat.</p>
+        <p>I'll chuck you a bit of 80s music trivia, pass your song requests straight to the main man Grumpy, and every now and then I'll come tearin' across your screen on me chopper. Mind yer toes!</p>
+        <p>Catch me on the morning show, on the quiz nights, and on Thursday's Drive Time. <strong>From the desert to your dashboard!</strong></p>
+      </div>
+      <div class="bio-card"><img src="images/bob-page/bob-original-bike.jpg" alt="Bob the Bot waving from his chopper on a sunset desert highway" width="576" height="1024"></div>
+    </div>
+
+    <div class="wrap chips">
+      <div class="chip"><div class="ic">👋</div><h3>Chat welcomes</h3><p>Every face in the chat gets a cheery hello from yours truly.</p></div>
+      <div class="chip"><div class="ic">📻</div><h3>80s music facts</h3><p>Bits of real 80s trivia to keep you on your toes.</p></div>
+      <div class="chip"><div class="ic">🎶</div><h3>Song requests</h3><p>Ask away and I'll pass it straight to Grumpy.</p></div>
+      <div class="chip"><div class="ic">🏍️</div><h3>Chopper ride-bys</h3><p>Wheelies, stoppies and a wave as I ride across the screen.</p></div>
+    </div>
+  </section>
+
+  <section id="gallery" class="gallery-sec">
+    <div class="wrap">
+      <p class="eyebrow">A day in the life</p>
+      <h2>Bob about town</h2>
+      <div class="grid" id="grid">
+        <figure class="shot"><button data-full="images/bob-page/bob-studio.jpg"><img loading="lazy" src="images/bob-page/bob-studio-thumb.jpg" alt="Bob at the mixing desk in a neon radio studio" width="600" height="800"></button>
+          <figcaption><b>On air</b><span>Faders up, mic hot, Oasis hoodie on. Workin' hard, honest!</span></figcaption></figure>
+        <figure class="shot"><button data-full="images/bob-page/bob-beach.jpg"><img loading="lazy" src="images/bob-page/bob-beach-thumb.jpg" alt="Bob in a Hawaiian shirt on a deck chair at the beach with a boombox" width="600" height="800"></button>
+          <figcaption><b>Beach day</b><span>Hawaiian shirt, boombox, sunset. Lovely jubbly.</span></figcaption></figure>
+        <figure class="shot"><button data-full="images/bob-page/bob-dj.jpg"><img loading="lazy" src="images/bob-page/bob-dj-thumb.jpg" alt="Bob DJing on turntables at a neon 80s party" width="600" height="800"></button>
+          <figcaption><b>Disco Bob</b><span>Spinnin' 80s bangers in me satin bomber.</span></figcaption></figure>
+        <figure class="shot"><button data-full="images/bob-page/bob-drive-time.jpg"><img loading="lazy" src="images/bob-page/bob-drive-time-thumb.jpg" alt="Bob waving from a pink convertible on a desert road at sunset" width="600" height="800"></button>
+          <figcaption><b>Drive Time</b><span>Top down, denim on. From the desert to your dashboard!</span></figcaption></figure>
+        <figure class="shot"><button data-full="images/bob-page/bob-record-shop.jpg"><img loading="lazy" src="images/bob-page/bob-record-shop-thumb.jpg" alt="Bob holding up a vinyl record in a cosy record shop" width="600" height="800"></button>
+          <figcaption><b>Crate digger</b><span>Rummagin' through the vinyl for 80s gold.</span></figcaption></figure>
+        <figure class="shot"><button data-full="images/bob-page/bob-campfire.jpg"><img loading="lazy" src="images/bob-page/bob-campfire-thumb.jpg" alt="Bob playing acoustic guitar by a campfire at a desert oasis" width="600" height="800"></button>
+          <figcaption><b>Oasis campfire</b><span>A little jam under the stars. Don't tell Grumpy I can't play.</span></figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <p class="eyebrow">Come say hello</p>
+      <p class="catch">Pop into the Live and give us a wave!</p>
+      <div class="btns">
+        <a class="btn" href="https://www.tiktok.com/@oasisradiolive" target="_blank" rel="noopener">Watch on TikTok</a>
+        <a class="btn alt" href="https://oasisradio.live">Back to Oasis Radio</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <a href="https://oasisradio.live"><img src="images/oasis-logo.png" alt="Oasis Radio"></a>
+  Bob the Bot is an AI co-host for Oasis Radio · <a href="https://www.tiktok.com/@oasisradiolive" target="_blank" rel="noopener">@oasisradiolive</a>
+</footer>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Enlarged picture">
+  <button class="x" aria-label="Close">&times;</button>
+  <img id="lbImg" alt="">
+  <p id="lbCap"></p>
+</div>
+
+<script>
+(function(){
+  // Bob's ride: transparent VP9 video where supported; animated WebP (with transparency) on Safari/iOS
+  var rider=document.getElementById('rider'), vid=document.getElementById('bobVid');
+  var ua=navigator.userAgent;
+  var isIOS=/iPad|iPhone|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  var isSafari=/^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(ua);
+  function useWebp(){
+    if(rider.dataset.fb) return; rider.dataset.fb=1;
+    var img=new Image(); img.src='images/bob-page/bob-ride.webp'; img.alt='';
+    rider.innerHTML=''; rider.appendChild(img);
+  }
+  var canWebm=vid.canPlayType && vid.canPlayType('video/webm; codecs="vp9"');
+  if(isIOS||isSafari||!canWebm){ useWebp(); }
+  else{
+    vid.addEventListener('error',useWebp,true);
+    var s=vid.querySelector('source'); if(s) s.addEventListener('error',useWebp);
+    var p=vid.play&&vid.play(); if(p&&p.catch) p.catch(function(){});
+  }
+
+  // Lightbox
+  var lb=document.getElementById('lb'), li=document.getElementById('lbImg'), lc=document.getElementById('lbCap');
+  document.querySelectorAll('.shot button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var fig=b.closest('figure');
+      li.src=b.dataset.full; li.alt=b.querySelector('img').alt;
+      lc.textContent=fig.querySelector('b').textContent+' — '+fig.querySelector('span').textContent;
+      lb.classList.add('open'); document.body.style.overflow='hidden';
+    });
+  });
+  function close(){lb.classList.remove('open'); document.body.style.overflow=''; li.removeAttribute('src');}
+  lb.addEventListener('click',close);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')close();});
+})();
+</script>
+</body>
+</html>
