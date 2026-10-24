@@ -126,7 +126,7 @@
   var every = parseFloat(q.get('every')); if (!(every > 0)) every = 5;   // minutes between shows
   var dur   = parseFloat(q.get('dur'));   if (!(dur > 0))   dur = 20;    // seconds the blind stays lowered
   var root = document.documentElement;
-  if (q.get('hide') === '1') root.classList.add('hideStored');
+  if (q.get('show') !== '1') root.classList.add('hideStored');
 
   // ---- fit the 1080x1920 stage to the window ----
   var stage = document.getElementById('stage');
