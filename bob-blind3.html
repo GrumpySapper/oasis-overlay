@@ -87,9 +87,11 @@
 
   /* ---------- Bob ---------- */
   #bob { position:absolute; left:0; top:911px; width:432px; height:708px; z-index:8; transform:translateX(-500px); }
-  #bob .clip { position:absolute; left:0; top:0; width:432px; height:708px; opacity:0; transition:opacity .12s linear; }
-  #bob .clip.vis { opacity:1; }
-  #bob .clip.walkleft { left:16px; transition:opacity .25s linear; }   /* mirrored sprite sits ~16px left of centre */
+  /* outgoing clip fades out only after the incoming one is fully in, so there is no see-through dip on a switch */
+  #bob .clip { position:absolute; left:0; top:0; width:432px; height:708px; opacity:0; transition:opacity .1s linear .14s; }
+  #bob .clip.vis { opacity:1; transition:opacity .12s linear 0s; }
+  #bob .clip.walkleft { left:16px; }
+  #bob .clip.walkleft.vis { transition:opacity .25s linear 0s; }   /* mirrored sprite sits ~16px left of centre */
   #bob.idle #still { animation: idle 1.8s ease-in-out infinite; transform-origin:50% 100%; }
   @keyframes idle { 0%,100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(-5px) rotate(.8deg) } }
   #bob .shadow { position:absolute; left:120px; bottom:2px; width:240px; height:26px; border-radius:50%;
