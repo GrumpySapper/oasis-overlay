@@ -134,7 +134,7 @@
         fx:[[tl,'dust']] };
     }
   };
-  var NAMES = Object.keys(STUNTS), last = null;
+  var NAMES = Object.keys(STUNTS).filter(function(n){ return n !== 'uturn'; }), last = null;   // U-turn only when forced (?stunt=uturn): it looked like Bob riding backwards
   function pick(){
     if (STUNTS[force]) return force;
     var n; do { n = NAMES[Math.floor(Math.random()*NAMES.length)]; } while (n === last && NAMES.length > 1);
