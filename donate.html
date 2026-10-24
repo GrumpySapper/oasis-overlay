@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oasis Radio donate banner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Oswald:wght@700&family=Outfit:wght@800;900&display=swap" rel="stylesheet">
+<style>
+  /* Same palette & fonts as promo.html / oasisradio.live */
+  :root { --pink:#ff3d9a; --cyan:#2ad4ff; --sun:#ffc42e; --palm:#2ee56a; --ink:#16141c; --violet:#7a3dff; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent !important; }
+  #donate { position:absolute; left:0; right:0; bottom:20vh; text-align:center; pointer-events:none;
+    opacity:0; border:none; outline:none; background:none; }
+  #donate.show { animation: slidein 1.1s cubic-bezier(.2,1.4,.4,1) forwards; }
+  #donate.hide { animation: slideout .8s ease-in forwards; }
+  @keyframes slidein {
+    0%   { opacity:0; transform: translateX(-110vw) rotate(-6deg) scale(.8); }
+    60%  { opacity:1; transform: translateX(4vw) rotate(2deg) scale(1.06); }
+    80%  { transform: translateX(-1vw) rotate(-.5deg) scale(.98); }
+    100% { opacity:1; transform:none; }
+  }
+  @keyframes slideout {
+    0%   { opacity:1; transform:none; }
+    35%  { transform: scale(1.08) rotate(2deg); }
+    100% { opacity:0; transform: translateX(110vw) rotate(10deg) scale(.7); }
+  }
+  .row { display:flex; align-items:flex-end; justify-content:center; gap:2vw; }
+  .logo { width:30vw; display:block;
+    filter: drop-shadow(0 .5vw 0 rgba(22,20,28,.55)) drop-shadow(0 0 2vw rgba(255,61,154,.45));
+    animation: bob 2.4s ease-in-out infinite; }
+  .bob { width:17vw; height:17vw; border-radius:50%; object-fit:cover; object-position:50% 20%;
+    border:.6vw solid var(--sun); box-shadow: 0 0 0 .5vw var(--pink), .6vw .9vw 0 .5vw var(--violet), 0 0 3vw rgba(255,61,154,.6);
+    animation: bob 2.4s ease-in-out infinite reverse; margin-bottom:1vw; }
+  @keyframes bob { 0%,100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-1vh) rotate(1.5deg); } }
+  .line { margin-top:2vw; font-family:'Outfit', sans-serif; font-weight:900; font-size:5.4vw; line-height:1.15;
+    color:#fff; -webkit-text-stroke:.28vw var(--ink); paint-order: stroke fill;
+    text-shadow: .4vw .4vw 0 var(--ink), 0 0 2vw rgba(255,61,154,.7); }
+  .line b { color: var(--cyan); }
+  .support { display:inline-block; margin-top:1.2vw; font-family:'Bungee', Impact, sans-serif; font-size:6.6vw; line-height:1;
+    color: var(--sun); -webkit-text-stroke:.35vw var(--ink); paint-order: stroke fill;
+    text-shadow: .5vw .5vw 0 var(--pink), 1vw 1vw 0 var(--violet), 0 0 3vw rgba(255,196,46,.6);
+    animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1) rotate(-2deg); } 50% { transform: scale(1.06) rotate(-2deg); } }
+  .pill { display:inline-block; margin-top:3vw; padding:1.6vw 3.5vw 2vw; max-width:90vw; box-sizing:border-box; border-radius:5vw;
+    background: linear-gradient(100deg,#ff4d00 0%,#ff2d8a 45%,#7a3dff 100%);
+    border:.5vw solid #fff; box-shadow: 0 1vw 0 var(--ink), 0 0 4vw rgba(255,61,154,.75); }
+  .via { font-family:'Oswald', sans-serif; font-weight:700; font-size:3.6vw; letter-spacing:.5vw; color:#fff;
+    text-shadow: .25vw .25vw 0 var(--ink); }
+  .link { font-family:'Outfit', sans-serif; font-weight:900; font-size:6.5vw; line-height:1.1; letter-spacing:0; white-space:nowrap;
+    color:#fff; -webkit-text-stroke:.3vw var(--ink); paint-order: stroke fill;
+    text-shadow: .45vw .45vw 0 var(--ink), 0 0 2vw rgba(42,212,255,.8); }
+  .link span { color: var(--sun); }
+  .burst { position:absolute; width:2.2vw; height:9vw; border-radius:1vw; opacity:0; animation: zap 1.4s ease-out infinite; }
+  @keyframes zap { 0% { opacity:0; transform: var(--r) scaleY(.2); } 30% { opacity:1; transform: var(--r) scaleY(1.1); } 100% { opacity:0; transform: var(--r) scaleY(.6) translateY(-3vw); } }
+</style>
+</head>
+<body>
+<div id="donate" aria-hidden="true">
+  <div class="row">
+    <img class="logo" src="images/oasis-logo.png" alt="">
+    <img class="bob" src="images/bob-page/bob-studio-thumb.jpg" alt="">
+  </div>
+  <div class="line">Enjoying the show? 💛</div>
+  <div class="support">SUPPORT OASIS RADIO</div>
+  <div><div class="pill">
+    <div class="via">DONATE VIA PAYPAL</div>
+    <div class="link">paypal.me/<span>grumpysapper</span></div>
+  </div></div>
+  <span class="burst" style="left:5%;top:35%;background:var(--sun);--r:rotate(-55deg);animation-delay:0s"></span>
+  <span class="burst" style="left:3%;top:55%;background:var(--pink);--r:rotate(-80deg);animation-delay:.35s"></span>
+  <span class="burst" style="left:6%;top:75%;background:var(--cyan);--r:rotate(-110deg);animation-delay:.7s"></span>
+  <span class="burst" style="right:5%;top:35%;background:var(--cyan);--r:rotate(55deg);animation-delay:.2s"></span>
+  <span class="burst" style="right:3%;top:55%;background:var(--sun);--r:rotate(80deg);animation-delay:.55s"></span>
+  <span class="burst" style="right:6%;top:75%;background:var(--pink);--r:rotate(110deg);animation-delay:.9s"></span>
+</div>
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var test = q.get('test') === '1';
+  var every = parseFloat(q.get('every')); if (!(every > 0)) every = 5;      // minutes
+  var dur   = parseFloat(q.get('dur'));   if (!(dur > 0))   dur = 20;       // seconds
+  // First show at half the interval (2.5 min by default), then every `every` minutes,
+  // so it sits between promo.html's appearances.
+  var firstDelayMs = test ? 0 : every * 30000;
+  var periodMs = test ? 30000 : every * 60000;
+  var el = document.getElementById('donate');
+  var hideT;
+  function show(){
+    clearTimeout(hideT);
+    el.classList.remove('hide'); void el.offsetWidth; el.classList.add('show');
+    hideT = setTimeout(function(){ el.classList.remove('show'); el.classList.add('hide'); }, dur * 1000);
+  }
+  setTimeout(function(){ show(); setInterval(show, periodMs); }, firstDelayMs);
+})();
+</script>
+</body>
+</html>
