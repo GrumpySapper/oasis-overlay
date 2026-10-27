@@ -8,7 +8,8 @@
   /* Bob rides across the top band using his transparent (VP9 alpha) video, doing a random stunt each pass.
      Params: ?test=1 (ride now, then every 30s, random stunt)  ?every=<min> (default 5)
              ?dur=<sec> crossing time (default 20)  ?flip=1 (mirror: ride left -> right)
-             ?stunt=<cruise|wheelie|jump|stoppie|speed|hops|uturn|backflip> force one stunt
+             ?stunt=<cruise|wheelie|jump|stoppie|speed|hops|uturn|backflip|daredevil> force one stunt
+             daredevil = Bob in a 70s stunt-rider suit jumps a row of buses off a ramp
      Old still-image version: bob-ride-still.html */
   :root { --h:20vh; }
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent !important; }
@@ -23,6 +24,14 @@
   #tiltB { transform-origin:84% 95%; }   /* back-wheel contact (bike faces left, back wheel on the right) */
   #tiltF { transform-origin:16% 95%; }   /* front-wheel contact */
   #turn { position:relative; transform-origin:50% 50%; }
+  #dd { height:100%; width:auto; display:none; position:relative; z-index:1;
+    filter: drop-shadow(0 .6vh .5vh rgba(0,0,0,.45)) drop-shadow(0 0 1.2vh rgba(42,212,255,.3)); }
+  #ride.dd #bob { display:none; }
+  #ride.dd #dd { display:block; }
+  /* daredevil props: take-off ramp, row of buses, landing ramp (behind Bob) */
+  #props { position:absolute; left:0; top:0; width:100vw; height:0; opacity:0; pointer-events:none; z-index:0; }
+  body.flip #props { transform:scaleX(-1); }
+  #props svg { position:absolute; overflow:visible; }
   #bob { height:100%; width:auto; display:block; background:transparent; position:relative; z-index:1;
     filter: drop-shadow(0 .6vh .5vh rgba(0,0,0,.45)) drop-shadow(0 0 1.2vh rgba(255,61,154,.3)); }
   /* speed lines trailing behind (to the right of) Bob */
@@ -48,9 +57,11 @@
 </style>
 </head>
 <body>
+<div id="props" aria-hidden="true"></div>
 <div id="ride" aria-hidden="true"><div id="face"><div id="lift"><div id="roll"><div id="tiltB"><div id="tiltF"><div id="turn">
   <div class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <video id="bob" src="images/bob-ride.webm?v=2" muted autoplay loop playsinline preload="auto" disablepictureinpicture></video>
+  <img id="dd" src="images/bob-daredevil.webp?v=1" alt="" decoding="async">
 </div></div></div></div></div></div></div>
 <script>
 (function(){
@@ -64,7 +75,7 @@
   var periodMs = test ? Math.max(30000, (dur + 5) * 1000) : every * 60000;
   if (flip) document.body.classList.add('flip');
   var $ = function(id){ return document.getElementById(id); };
-  var el = $('ride'), v = $('bob'), lines = el.querySelector('.lines');
+  var el = $('ride'), v = $('bob'), dd = $('dd'), props = $('props'), lines = el.querySelector('.lines');
   var parts = { lift:$('lift'), roll:$('roll'), tiltB:$('tiltB'), tiltF:$('tiltF'), turn:$('turn') };
   v.muted = true;
   function R(a,b){ return a + Math.random()*(b-a); }
@@ -132,7 +143,10 @@
       return { D:dur, head:8, x:[[0,0,'linear'],[1,1]], lift:lift,
         roll:[[0,0,1],[t,0,1,'ease-out'],[t+.035,0,.72,'ease-in-out'],[tl-.035,360,.72,'ease-out'],[tl,360,1],[1,360,1]],
         fx:[[tl,'dust']] };
-    }
+    },
+    // Daredevil: stunt suit, up a take-off ramp, over a row of buses, down the landing ramp, off the other side.
+    // Built from real geometry in ride() (needs screen size), so this only flags it.
+    daredevil: function(){ return { D:Math.max(9, dur*.6), head:14, dd:true, x:[[0,0,'linear'],[1,1]] }; }
   };
   var NAMES = Object.keys(STUNTS).filter(function(n){ return n !== 'uturn'; }), last = null;   // U-turn only when forced (?stunt=uturn): it looked like Bob riding backwards
   function pick(){
@@ -158,7 +172,7 @@
   };
 
   function dust(){
-    var r = v.getBoundingClientRect(); if (!r.width) return;
+    var r = (el.classList.contains('dd') ? dd : v).getBoundingClientRect(); if (!r.width) return;
     var facingLeft = !flip;
     var bx = r.left + r.width * (facingLeft ? .84 : .16), by = r.bottom - r.height * .05;
     var p = document.createElement('div'); p.className = 'puff'; p.style.left = bx+'px'; p.style.top = by+'px';
@@ -168,16 +182,65 @@
     document.body.appendChild(p); setTimeout(function(){ p.remove(); }, 1400);
   }
 
+  // ---- daredevil geometry: draws the props and fills s.lift / s.roll / s.lines / s.fx ----
+  var BUS = ['#ffc42e', '#2ad4ff', '#ff3d9a', '#2ee56a'];
+  function busSVG(x, y, bw, bh, col){
+    var r = bh*.16, wy = y + bh*.18, wh = bh*.32, win = '';
+    for (var i = 0; i < 5; i++) win += '<rect x="'+(x+bw*(.08+i*.17))+'" y="'+wy+'" width="'+(bw*.13)+'" height="'+wh+'" rx="'+(bh*.05)+'" fill="#16141c" opacity=".85"/>';
+    return '<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+(bh*.86)+'" rx="'+r+'" fill="'+col+'" stroke="#16141c" stroke-width="'+(bh*.04)+'"/>' +
+      '<rect x="'+x+'" y="'+(y+bh*.58)+'" width="'+bw+'" height="'+(bh*.07)+'" fill="#fff" opacity=".8"/>' + win +
+      '<circle cx="'+(x+bw*.2)+'" cy="'+(y+bh*.86)+'" r="'+(bh*.14)+'" fill="#16141c" stroke="#bbb" stroke-width="'+(bh*.04)+'"/>' +
+      '<circle cx="'+(x+bw*.8)+'" cy="'+(y+bh*.86)+'" r="'+(bh*.14)+'" fill="#16141c" stroke="#bbb" stroke-width="'+(bh*.04)+'"/>';
+  }
+  function rampSVG(x0, x1, gy, rh, id){   // x0 = low end, x1 = high end (lip)
+    var lo = Math.min(x0,x1), hi = Math.max(x0,x1);
+    return '<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff3d9a"/><stop offset=".5" stop-color="#7a3dff"/><stop offset="1" stop-color="#2ad4ff"/></linearGradient></defs>' +
+      '<polygon points="'+x0+','+gy+' '+x1+','+(gy-rh)+' '+x1+','+gy+'" fill="url(#'+id+')" stroke="#16141c" stroke-width="'+(rh*.05)+'" stroke-linejoin="round"/>' +
+      '<line x1="'+x0+'" y1="'+gy+'" x2="'+x1+'" y2="'+(gy-rh)+'" stroke="#ffc42e" stroke-width="'+(rh*.09)+'" stroke-linecap="round"/>';
+  }
+  function daredevil(s, topVh, W, H, w){
+    var vh = H/100, gy = topVh*vh + H*.2*.985;          // ground line = Bob's wheel line
+    var cx = W/2, nb = W > H*.75 ? 4 : 3;               // number of buses (more on wide screens)
+    var bw = Math.min(11.5*vh, W*.21), bh = bw*.5, gap = bw*.12;
+    var rowW = nb*bw + (nb-1)*gap*.3, rh = bh*1.05, rl = Math.min(9*vh, W*.15), pad = gap;
+    // default travel is right -> left; in flip mode the props layer is mirrored so the same layout works
+    var lipR = cx + rowW/2 + pad, footR = lipR + rl, lipL = cx - rowW/2 - pad, footL = lipL - rl;
+    var svg = '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">' + rampSVG(footR, lipR, gy, rh, 'rg1') + rampSVG(footL, lipL, gy, rh, 'rg2');
+    for (var i = 0; i < nb; i++) svg += busSVG(cx - rowW/2 + i*(bw + gap*.3), gy - bh, bw, bh, BUS[i % BUS.length]);
+    props.innerHTML = svg + '</svg>';
+    props.style.opacity = 0;
+    // bike centre travels from W + w/2 down to -w/2 at a constant speed; contact point ~ centre of bike
+    var c0 = W + w/2, c1 = -w/2, L = c0 - c1;
+    function T(X){ return (c0 - X)/L; }
+    var ang = Math.atan2(rh, rl)*180/Math.PI, rhV = rh/vh, jumpV = Math.max(4, 1.1*rhV);
+    var lift = [[0,0,1,'linear'],[T(footR),0,1,'linear'],[T(lipR),-rhV,1,'linear']];
+    var roll = [[0,0,1,'linear'],[T(footR)-.004,0,1,'ease-out'],[T(footR)+.02,ang,1,'linear'],[T(lipR),ang+4,1,'ease-out']];
+    var a = T(lipR), b = T(lipL), N = 14;
+    for (var k = 1; k < N; k++) {            // parabola from lip to lip
+      var u = k/N; lift.push([a + (b-a)*u, -rhV - jumpV*4*u*(1-u), 1, 'linear']);
+    }
+    roll.push([a + (b-a)*.3, 10, 1, 'ease-in-out'], [a + (b-a)*.55, 2, 1, 'ease-in-out'], [b, -ang, 1, 'linear']);
+    lift.push([b, -rhV, 1, 'linear'], [b+.006, -rhV, .9, 'ease-out'], [b+.014, -rhV*.93, 1, 'linear'], [T(footL), 0, 1, 'ease-out'],
+              [T(footL)+.008, 0, .9, 'ease-out'], [T(footL)+.02, 0, 1, 'linear'], [1, 0, 1]);
+    roll.push([T(footL)-.01, -ang, 1, 'ease-out'], [T(footL)+.015, 0, 1, 'linear'], [1, 0, 1]);
+    s.lift = lift; s.roll = roll;
+    s.lines = [[0,0],[T(footR)-.12,0],[T(footR)-.05,1],[b,1],[b+.05,0],[1,0]];
+    s.fx = [[b,'dust'],[T(footL),'dust']];
+  }
+
   var timers = [];
   function ride(){
     var name = pick(); last = name;
     var s = STUNTS[name](), D = s.D * 1000;
     el.getAnimations({subtree:true}).forEach(function(a){ if (a.effect && a.effect.target !== lines.firstElementChild && !(a instanceof CSSAnimation)) a.cancel(); });
     timers.forEach(clearTimeout); timers = [];
-    var H = innerHeight, W = innerWidth, w = el.getBoundingClientRect().width || (H*.2*546/400);
+    props.getAnimations().forEach(function(a){ a.cancel(); });
+    el.classList.toggle('dd', !!s.dd);
+    var H = innerHeight, W = innerWidth, w = el.getBoundingClientRect().width || (H*.2*(s.dd ? 607/600 : 546/400));
     // random height within the top band, leaving headroom for jumps/wheelies (top edge never crosses the screen top)
     var top = 1.5 + (s.head || 0) * 0.9 + R(0, (s.head || 0) > 5 ? 1.2 : 2.5);
     el.style.top = top.toFixed(2)+'vh';
+    if (s.dd) daredevil(s, top, W, H, w); else props.style.opacity = 0;
     var tail = s.lines ? w*0.55 : 0;   // let the speed lines clear the screen too
     var startX = flip ? -w : W, endX = flip ? W + tail : -w - tail;
     el.animate(frames(s.x, function(k){ return { transform:'translateX('+(startX + (endX-startX)*k[1]).toFixed(1)+'px)' }; }),
@@ -188,8 +251,8 @@
     });
     lines.animate(frames(s.lines || [[0,0],[1,0]], function(k){ return { opacity:k[1] }; }), { duration:D, fill:'forwards' });
     (s.fx || []).forEach(function(f){ if (f[1] === 'dust') timers.push(setTimeout(dust, f[0]*D)); });
-    try { v.currentTime = 0; } catch(e) {}
-    var pr = v.play(); if (pr && pr.catch) pr.catch(function(){});
+    if (s.dd) { v.pause(); props.animate([{opacity:0},{opacity:1,offset:.06},{opacity:1,offset:.9},{opacity:0}], { duration:D, fill:'forwards' }); }
+    else { try { v.currentTime = 0; } catch(e) {} var pr = v.play(); if (pr && pr.catch) pr.catch(function(){}); }
     el.classList.add('go');
     document.title = 'Bob ride: ' + name;
   }
