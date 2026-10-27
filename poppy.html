@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oasis Radio - Remembrance poppy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent !important; }
+  /* 1080x1920 design stage, scaled to fit the browser source */
+  #stage { position:absolute; left:50%; top:50%; width:1080px; height:1920px; transform-origin:0 0; pointer-events:none; }
+  .serif { font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif; color:#fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,.85), 0 0 14px rgba(0,0,0,.6); }
+
+  /* ---------- corner poppy ---------- */
+  #corner { position:absolute; width:380px; text-align:center; transition:opacity 1.6s ease; }
+  #corner.tr { top:70px;  right:50px; transform-origin:top right; }
+  #corner.tl { top:70px;  left:50px;  transform-origin:top left; }
+  #corner.br { bottom:120px; right:50px; transform-origin:bottom right; }
+  #corner.bl { bottom:120px; left:50px;  transform-origin:bottom left; }
+  #corner .pop { width:220px; height:286px; display:block; margin:0 auto;
+    transform-origin:50% 95%; animation: sway 9s ease-in-out infinite; }
+  #corner .cap { white-space:nowrap; font-size:34px; font-weight:700; font-style:italic; margin-top:-4px; letter-spacing:.5px; }
+  @keyframes sway { 0%,100% { transform:rotate(-2.5deg); } 50% { transform:rotate(2.5deg); } }
+  .glow { animation: glow 6s ease-in-out infinite; }
+  @keyframes glow { 0%,100% { filter: drop-shadow(0 4px 6px rgba(0,0,0,.55)) drop-shadow(0 0 4px rgba(200,16,30,.25)); }
+                    50%     { filter: drop-shadow(0 4px 6px rgba(0,0,0,.55)) drop-shadow(0 0 16px rgba(220,30,40,.55)); } }
+
+  /* ---------- centred moment ---------- */
+  #big { position:absolute; left:0; top:0; width:1080px; height:1920px; opacity:0; transition:opacity 2.5s ease;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  #big::before { content:""; position:absolute; left:50%; top:50%; width:1300px; height:1500px; margin:-750px 0 0 -650px;
+    background: radial-gradient(closest-side, rgba(0,0,0,.55), rgba(0,0,0,.30) 55%, rgba(0,0,0,0)); }
+  #big > * { position:relative; }
+  #big .pop { width:520px; height:676px; transform-origin:50% 95%; animation: sway 12s ease-in-out infinite; }
+  #big .l1 { font-size:92px; font-weight:700; letter-spacing:2px; margin-top:10px; }
+  #big .l2 { font-size:62px; font-weight:600; font-style:italic; margin-top:14px; max-width:920px; line-height:1.15; }
+  #big .l3 { font-size:44px; font-weight:600; margin-top:34px; letter-spacing:3px; text-transform:uppercase; opacity:.92; }
+  .on { opacity:1 !important; }
+  .off { opacity:0 !important; }
+</style>
+</head>
+<body>
+<!-- Poppy artwork: original simple drawing (four rounded petals, black centre, green stem and leaf) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <radialGradient id="petal" cx="50%" cy="45%" r="60%">
+      <stop offset="0%"  stop-color="#e8202c"/>
+      <stop offset="70%" stop-color="#c8101e"/>
+      <stop offset="100%" stop-color="#930a14"/>
+    </radialGradient>
+    <radialGradient id="petalBack" cx="50%" cy="40%" r="60%">
+      <stop offset="0%"  stop-color="#d4141f"/>
+      <stop offset="100%" stop-color="#7f0810"/>
+    </radialGradient>
+    <radialGradient id="centre" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"  stop-color="#3a3a3a"/>
+      <stop offset="60%" stop-color="#0d0d0d"/>
+      <stop offset="100%" stop-color="#000"/>
+    </radialGradient>
+    <linearGradient id="green" x1="0" x2="1">
+      <stop offset="0%" stop-color="#2f7a2a"/>
+      <stop offset="100%" stop-color="#1c5419"/>
+    </linearGradient>
+    <symbol id="poppy" viewBox="0 0 200 260">
+      <!-- stem + leaf -->
+      <path d="M100 135 C 101 175, 96 215, 92 255" stroke="url(#green)" stroke-width="9" fill="none" stroke-linecap="round"/>
+      <path d="M97 205 C 120 185, 150 182, 168 190 C 150 208, 122 215, 97 205 Z" fill="url(#green)"/>
+      <path d="M100 204 C 125 196, 145 193, 162 191" stroke="#14400f" stroke-width="2" fill="none" opacity=".7"/>
+      <!-- back petals -->
+      <circle cx="70"  cy="74" r="52" fill="url(#petalBack)"/>
+      <circle cx="130" cy="74" r="52" fill="url(#petalBack)"/>
+      <!-- front petals -->
+      <circle cx="66"  cy="118" r="50" fill="url(#petal)"/>
+      <circle cx="134" cy="118" r="50" fill="url(#petal)"/>
+      <!-- soft crinkle lines -->
+      <g stroke="#7a0810" stroke-width="1.6" fill="none" opacity=".45" stroke-linecap="round">
+        <path d="M100 100 L 52 52"/><path d="M100 100 L 148 52"/>
+        <path d="M100 100 L 36 118"/><path d="M100 100 L 164 118"/>
+        <path d="M100 100 L 70 160"/><path d="M100 100 L 130 160"/>
+        <path d="M100 118 L 100 168"/>
+      </g>
+      <!-- seam between front petals -->
+      <path d="M100 100 C 98 125, 100 150, 100 168" stroke="#8a0a14" stroke-width="2" fill="none" opacity=".6"/>
+      <!-- black centre -->
+      <circle cx="100" cy="100" r="22" fill="url(#centre)"/>
+      <circle cx="94" cy="93" r="5" fill="#fff" opacity=".12"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="stage" aria-hidden="true">
+  <div id="corner" class="tr">
+    <svg class="pop glow"><use href="#poppy"/></svg>
+    <div class="cap serif">We will remember them</div>
+  </div>
+  <div id="big">
+    <svg class="pop glow"><use href="#poppy"/></svg>
+    <div class="l1 serif" id="b1">Lest we forget</div>
+    <div class="l2 serif" id="b2">We will remember them</div>
+    <div class="l3 serif" id="b3"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- fit the 1080x1920 stage to the window ----
+  var stage = document.getElementById('stage');
+  function fit(){ var s = Math.min(innerWidth/1080, innerHeight/1920);
+    stage.style.transform = 'scale(' + s + ') translate(-540px,-960px)'; }
+  fit(); addEventListener('resize', fit);
+
+  // ---- options ----
+  var q = new URLSearchParams(location.search);
+  var corner = document.getElementById('corner'), big = document.getElementById('big');
+  var b1 = document.getElementById('b1'), b2 = document.getElementById('b2'), b3 = document.getElementById('b3');
+  var c = (q.get('corner') || 'tr').toLowerCase();
+  if (['tl','tr','bl','br'].indexOf(c) < 0) c = 'tr';
+  corner.className = c;
+  var size = parseFloat(q.get('size'));
+  if (size > 0 && size < 5) corner.style.transform = 'scale(' + size + ')';
+  var every = q.has('every') ? parseFloat(q.get('every')) : 10;   // minutes, 0 = never
+  if (!(every >= 0)) every = 10;
+  var BIG_MS = 20000, SILENCE_MS = 120000;
+  var test = (q.get('test') || '').toLowerCase();
+
+  // ---- states ----
+  var mode = 'corner', until = 0, silenceDoneKey = '';
+  function showBig(kind, ms){
+    if (kind === 'silence') {
+      b1.textContent = 'At the going down of the sun and in the morning,';
+      b2.textContent = 'we will remember them';
+      b3.textContent = "Two minutes' silence";
+      b1.style.fontSize = '58px'; b1.style.maxWidth = '960px'; b1.style.lineHeight = '1.15';
+      b2.style.fontSize = '84px'; b2.style.fontStyle = 'normal'; b2.style.fontWeight = '700';
+    } else {
+      b1.textContent = 'Lest we forget';
+      b2.textContent = 'We will remember them';
+      b3.textContent = '';
+      b1.style.fontSize = ''; b1.style.maxWidth = ''; b1.style.lineHeight = '';
+      b2.style.fontSize = ''; b2.style.fontStyle = ''; b2.style.fontWeight = '';
+    }
+    mode = kind; until = Date.now() + ms;
+    corner.classList.add('off'); big.classList.add('on');
+  }
+  function backToCorner(){
+    mode = 'corner'; big.classList.remove('on'); corner.classList.remove('off');
+  }
+
+  // ---- UK time (Europe/London, handles GMT/BST) ----
+  var fmt = new Intl.DateTimeFormat('en-GB', { timeZone:'Europe/London', year:'numeric', month:'numeric',
+    day:'numeric', hour:'numeric', minute:'numeric', hourCycle:'h23' });
+  function london(){
+    var o = {}; fmt.formatToParts(new Date()).forEach(function(p){ o[p.type] = p.value; });
+    return { y:+o.year, mo:+o.month, d:+o.day, h:+o.hour, mi:+o.minute };
+  }
+
+  var nextBig = every > 0 ? Date.now() + every*60000 : Infinity;
+  function tick(){
+    var now = Date.now(), t = london();
+    // 11th hour of the 11th day of the 11th month: 11:00-11:02 UK time
+    if (t.mo === 11 && t.d === 11 && t.h === 11 && t.mi < 2) {
+      var key = t.y + '-silence';
+      if (mode !== 'silence' && silenceDoneKey !== key) {
+        silenceDoneKey = key;
+        var secs = new Date().getSeconds();
+        showBig('silence', Math.max(5000, ((2 - t.mi) * 60 - secs) * 1000));
+      }
+    }
+    if (mode !== 'corner' && now >= until) {
+      backToCorner();
+      if (every > 0) nextBig = now + every*60000;
+    }
+    if (mode === 'corner' && now >= nextBig) showBig('big', BIG_MS);
+  }
+
+  if (test === 'silence') { silenceDoneKey = 'test'; showBig('silence', SILENCE_MS); }
+  else if (test === 'big') showBig('big', BIG_MS);
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
