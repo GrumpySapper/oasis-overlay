@@ -9,7 +9,7 @@
      Params: ?test=1 (ride now, then every 30s, random stunt)  ?every=<min> (default 5)
              ?dur=<sec> crossing time (default 20)  ?flip=1 (mirror: ride left -> right)
              ?stunt=<cruise|wheelie|jump|stoppie|speed|hops|uturn|backflip|daredevil> force one stunt
-             daredevil = Bob in a 70s stunt-rider suit jumps a row of buses off a ramp
+             daredevil = Bob in a 70s stunt-rider suit jumps from a take-off ramp to a landing ramp
      Old still-image version: bob-ride-still.html */
   :root { --h:20vh; }
   html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent !important; }
@@ -28,7 +28,7 @@
     filter: drop-shadow(0 .6vh .5vh rgba(0,0,0,.45)) drop-shadow(0 0 1.2vh rgba(42,212,255,.3)); }
   #ride.dd #bob { display:none; }
   #ride.dd #dd { display:block; }
-  /* daredevil props: take-off ramp, row of buses, landing ramp (behind Bob) */
+  /* daredevil props: take-off ramp + landing ramp (behind Bob) */
   #props { position:absolute; left:0; top:0; width:100vw; height:0; opacity:0; pointer-events:none; z-index:0; }
   body.flip #props { transform:scaleX(-1); }
   #props svg { position:absolute; overflow:visible; }
@@ -206,7 +206,6 @@
     // default travel is right -> left; in flip mode the props layer is mirrored so the same layout works
     var lipR = cx + rowW/2 + pad, footR = lipR + rl, lipL = cx - rowW/2 - pad, footL = lipL - rl;
     var svg = '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">' + rampSVG(footR, lipR, gy, rh, 'rg1') + rampSVG(footL, lipL, gy, rh, 'rg2');
-    for (var i = 0; i < nb; i++) svg += busSVG(cx - rowW/2 + i*(bw + gap*.3), gy - bh, bw, bh, BUS[i % BUS.length]);
     props.innerHTML = svg + '</svg>';
     props.style.opacity = 0;
     // bike centre travels from W + w/2 down to -w/2 at a constant speed; contact point ~ centre of bike
