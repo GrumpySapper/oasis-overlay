@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Oasis Radio Gift Jar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Oasis Radio Gift Jar. TikTok LIVE Studio Link source, 720x1280 (or 1080x1920). Transparent background.
+     ?test=1 drops fake gifts every second (preview, no server needed).  ?reset=1 empties the jar.
+     ?names=0 hides gifter names.  ?max=150 total icons cap.  ?per=20 icons per gift cap.  ?channel=test listens to the test channel. -->
+<style>
+  html,body{margin:0;padding:0;background:transparent!important;overflow:hidden;width:100%;height:100%}
+  canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;background:transparent}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+</head><body>
+<canvas id="c"></canvas>
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const TEST = q.get('test') === '1', NAMES = q.get('names') !== '0';
+  const MAX = Math.max(10, Math.min(400, +(q.get('max') || 150))), PER = Math.max(1, Math.min(60, +(q.get('per') || 20)));
+  const STORE = 'oasisGiftJar.v1', KEEP_MS = 6 * 3600 * 1000;
+  if (q.get('reset') === '1' || TEST) { try { localStorage.removeItem(STORE); } catch (e) {} }
+
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1, jar = null;
+  const { Engine, Bodies, Composite, Body } = Matter;
+  const engine = Engine.create({ gravity: { y: 1.1 } });
+  engine.positionIterations = 8; engine.velocityIterations = 6;
+  let walls = [];
+  const items = [];    // { body, img, emoji, r, born }
+  const tags = [];     // floating gifter names { text, x, y, born }
+
+  // ---- jar geometry (relative to the viewport) ----
+  function layout() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const jw = Math.min(W * 0.78, H * 0.48), jh = Math.min(H * 0.50, jw * 1.25);
+    const cx = W / 2, bottom = H - Math.max(18, H * 0.03);
+    jar = { cx, w: jw, h: jh, bottom, top: bottom - jh, left: cx - jw / 2, right: cx + jw / 2, neck: jw * 0.80, rimH: Math.max(14, jh * 0.05), r: jw * 0.16 };
+    walls.forEach(w => Composite.remove(engine.world, w));
+    const t = 60, inset = 6;
+    walls = [
+      Bodies.rectangle(cx, bottom + t / 2 - inset, jw + t * 2, t, { isStatic: true, friction: 0.6 }),
+      Bodies.rectangle(jar.left - t / 2 + inset, bottom - jh / 2 - jh, t, jh * 3, { isStatic: true, friction: 0.2 }),
+      Bodies.rectangle(jar.right + t / 2 - inset, bottom - jh / 2 - jh, t, jh * 3, { isStatic: true, friction: 0.2 }),
+      // rounded bottom corners
+      Bodies.polygon(jar.left + inset, bottom - inset, 3, jar.r * 0.9, { isStatic: true, angle: Math.PI / 4 }),
+      Bodies.polygon(jar.right - inset, bottom - inset, 3, jar.r * 0.9, { isStatic: true, angle: Math.PI / 4 }),
+    ];
+    Composite.add(engine.world, walls);
+  }
+
+  // ---- icons ----
+  const EMO = [[/rose/i, '🌹'], [/heart ?me/i, '❤️'], [/galaxy/i, '🌌'], [/tiktok/i, '🎵'], [/finger ?heart/i, '🫰'], [/heart|love/i, '💖'], [/coffee/i, '☕'], [/donut|doughnut/i, '🍩'], [/ice ?cream/i, '🍦'], [/perfume/i, '💐'], [/gg/i, '🎮'], [/cap|hat/i, '🧢'], [/beer|cheers/i, '🍻'], [/lion/i, '🦁'], [/crown/i, '👑'], [/diamond/i, '💎'], [/money|gun/i, '💸'], [/firework/i, '🎆'], [/rocket|universe|planet/i, '🚀'], [/star/i, '⭐'], [/sun/i, '🌞'], [/rainbow/i, '🌈']];
+  const emojiFor = n => (EMO.find(([rx]) => rx.test(n || '')) || [0, '🎁'])[1];
+  const imgCache = new Map(), emoCache = new Map();
+  function loadImg(url) {
+    if (!url) return null;
+    if (imgCache.has(url)) return imgCache.get(url);
+    const im = new Image(); im.referrerPolicy = 'no-referrer'; im.decoding = 'async';
+    im.onerror = () => { im._bad = true; }; im.src = url; imgCache.set(url, im); return im;
+  }
+  function emojiCanvas(e) {
+    if (emoCache.has(e)) return emoCache.get(e);
+    const s = 128, c = document.createElement('canvas'); c.width = c.height = s;
+    const x = c.getContext('2d'); x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = `${s * 0.78}px "Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif`; x.fillText(e, s / 2, s / 2 + s * 0.05);
+    emoCache.set(e, c); return c;
+  }
+
+  // ---- dropping ----
+  function radiusFor(diamonds) { const base = jar.w * 0.062; return base * (1 + Math.min(0.9, Math.log10(1 + (diamonds || 1)) * 0.22)); }
+  function addIcon(o, delay) {
+    setTimeout(() => {
+      const r = radiusFor(o.diamonds);
+      const x = jar.cx + (Math.random() - 0.5) * (jar.w * 0.6);
+      const y = -r - Math.random() * 60;
+      const b = Bodies.circle(x, y, r, { restitution: 0.35, friction: 0.25, frictionAir: 0.012, density: 0.002 });
+      Body.setAngularVelocity(b, (Math.random() - 0.5) * 0.25);
+      Body.setVelocity(b, { x: (Math.random() - 0.5) * 3, y: 2 + Math.random() * 3 });
+      Composite.add(engine.world, b);
+      items.push({ body: b, img: loadImg(o.img), emoji: emojiFor(o.giftName), r, born: Date.now(), giftName: o.giftName, url: o.img || null, diamonds: o.diamonds });
+      while (items.length > MAX) { const old = items.shift(); Composite.remove(engine.world, old.body); }
+      save();
+    }, delay);
+  }
+  function drop(evt, opts) {
+    if (!jar) return;
+    const n = Math.max(1, Math.min(PER, Number(evt.count) || 1));
+    for (let i = 0; i < n; i++) addIcon(evt, i * 140);
+    if (NAMES && !(opts && opts.quiet) && evt.display) {
+      const label = `${evt.display}${n > 1 ? ' ×' + (Number(evt.count) || n) : ''}`;
+      const fs = Math.max(14, Math.min(jar.w * 0.06, 40)), used = new Set(tags.map(t => t.slot));
+      let slot = 0; while (used.has(slot) && slot < 3) slot++; if (slot >= 3) { tags.shift(); slot = 0; while (tags.some(t => t.slot === slot)) slot++; }
+      tags.push({ text: label.slice(0, 30), slot, x: jar.cx + (slot - 1) * jar.w * 0.12, y: jar.top - jar.rimH - fs * 2.6 - slot * fs * 2.0, born: Date.now() });
+    }
+  }
+  window.__drop = drop;
+
+  // ---- persistence (so a Studio reload doesn't empty the jar) ----
+  let saveT = 0;
+  function save() {
+    if (TEST) return; clearTimeout(saveT);
+    saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ t: Date.now(), items: items.map(i => ({ img: i.url, giftName: i.giftName, diamonds: i.diamonds })) })); } catch (e) {} }, 1500);
+  }
+  function restore() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (!s || Date.now() - s.t > KEEP_MS) return;
+      s.items.slice(-MAX).forEach((o, i) => addIcon(o, i * 25));
+    } catch (e) {}
+  }
+
+  // ---- drawing ----
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function jarPath() {
+    const j = jar, s = j.w * 0.035;
+    ctx.beginPath();
+    ctx.moveTo(j.cx - j.neck / 2, j.top);
+    ctx.bezierCurveTo(j.left - s, j.top + j.h * 0.06, j.left - s, j.top + j.h * 0.15, j.left, j.top + j.h * 0.2);
+    ctx.lineTo(j.left, j.bottom - j.r);
+    ctx.quadraticCurveTo(j.left, j.bottom, j.left + j.r, j.bottom);
+    ctx.lineTo(j.right - j.r, j.bottom);
+    ctx.quadraticCurveTo(j.right, j.bottom, j.right, j.bottom - j.r);
+    ctx.lineTo(j.right, j.top + j.h * 0.2);
+    ctx.bezierCurveTo(j.right + s, j.top + j.h * 0.15, j.right + s, j.top + j.h * 0.06, j.cx + j.neck / 2, j.top);
+  }
+  function drawJarBack() {
+    jarPath(); ctx.closePath();
+    const g = ctx.createLinearGradient(jar.left, 0, jar.right, 0);
+    g.addColorStop(0, 'rgba(0,229,255,0.16)'); g.addColorStop(0.5, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(255,46,196,0.16)');
+    ctx.fillStyle = g; ctx.fill();
+  }
+  function drawJarFront(t) {
+    // glass outline with neon glow
+    ctx.save();
+    jarPath();
+    ctx.lineWidth = Math.max(3, jar.w * 0.012); ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 18; ctx.stroke();
+    ctx.restore();
+    // highlights
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.strokeStyle = '#fff'; ctx.lineCap = 'round';
+    ctx.lineWidth = jar.w * 0.025; ctx.beginPath(); ctx.moveTo(jar.left + jar.w * 0.08, jar.top + jar.h * 0.28); ctx.lineTo(jar.left + jar.w * 0.08, jar.bottom - jar.r * 1.2); ctx.stroke();
+    ctx.lineWidth = jar.w * 0.012; ctx.beginPath(); ctx.moveTo(jar.left + jar.w * 0.14, jar.top + jar.h * 0.3); ctx.lineTo(jar.left + jar.w * 0.14, jar.top + jar.h * 0.48); ctx.stroke();
+    ctx.restore();
+    // rim (80s gradient band)
+    const rw = jar.neck * 1.08, rh = jar.rimH, rx = jar.cx - rw / 2, ry = jar.top - rh * 0.8;
+    const hue = (t / 40) % 360;
+    const g = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    g.addColorStop(0, '#ff2ec4'); g.addColorStop(0.33, '#ffd400'); g.addColorStop(0.66, '#00e5ff'); g.addColorStop(1, '#8a2be2');
+    ctx.save(); ctx.shadowColor = `hsl(${hue},100%,60%)`; ctx.shadowBlur = 22;
+    rr(rx, ry, rw, rh, rh / 2); ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke(); ctx.restore();
+    // label sign above the jar
+    const fs = Math.max(16, Math.min(jar.w * 0.085, 64)), ly = ry - fs * 0.9;
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `900 ${fs}px "Arial Black","Impact",system-ui,sans-serif`;
+    const tw = ctx.measureText('OASIS RADIO GIFT JAR').width;
+    const lg = ctx.createLinearGradient(jar.cx - tw / 2, 0, jar.cx + tw / 2, 0);
+    const sh = (Math.sin(t / 700) + 1) / 2;
+    lg.addColorStop(0, '#ff2ec4'); lg.addColorStop(0.25 + sh * 0.2, '#ffd400'); lg.addColorStop(0.75, '#00e5ff'); lg.addColorStop(1, '#ff2ec4');
+    ctx.lineWidth = Math.max(4, fs * 0.16); ctx.strokeStyle = '#2a004f'; ctx.lineJoin = 'round';
+    ctx.shadowColor = '#ff2ec4'; ctx.shadowBlur = 20;
+    ctx.strokeText('OASIS RADIO GIFT JAR', jar.cx, ly);
+    ctx.shadowBlur = 0; ctx.fillStyle = lg; ctx.fillText('OASIS RADIO GIFT JAR', jar.cx, ly);
+    ctx.restore();
+  }
+  function drawItems() {
+    for (const it of items) {
+      const b = it.body, r = it.r;
+      ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+      const src = it.img && it.img.complete && !it.img._bad && it.img.naturalWidth ? it.img : emojiCanvas(it.emoji);
+      ctx.drawImage(src, -r * 1.08, -r * 1.08, r * 2.16, r * 2.16);
+      ctx.restore();
+    }
+  }
+  function drawTags(now) {
+    for (let i = tags.length - 1; i >= 0; i--) {
+      const tg = tags[i], age = now - tg.born; if (age > 3500) { tags.splice(i, 1); continue; }
+      const a = age < 300 ? age / 300 : age > 2800 ? 1 - (age - 2800) / 700 : 1;
+      const fs = Math.max(14, Math.min(jar.w * 0.06, 40));
+      ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = `800 ${fs}px "Arial Black",system-ui,sans-serif`;
+      const y = tg.y - age * 0.02, w = ctx.measureText(tg.text).width + fs;
+      rr(tg.x - w / 2, y - fs * 0.75, w, fs * 1.5, fs * 0.75); ctx.fillStyle = 'rgba(42,0,79,0.75)'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#ffd400'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.shadowColor = '#ff2ec4'; ctx.shadowBlur = 10; ctx.fillText('🎁 ' + tg.text, tg.x, y);
+      ctx.restore();
+    }
+  }
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(33, now - last); last = now;
+    Engine.update(engine, dt);
+    for (let i = items.length - 1; i >= 0; i--) { const p = items[i].body.position; if (p.y > H + 200 || p.x < -200 || p.x > W + 200) { Composite.remove(engine.world, items[i].body); items.splice(i, 1); } }
+    ctx.clearRect(0, 0, W, H);
+    drawJarBack(); drawItems(); drawJarFront(now); drawTags(Date.now());
+    requestAnimationFrame(frame);
+  }
+
+  layout();
+  addEventListener('resize', () => { layout(); });
+  requestAnimationFrame(frame);
+
+  if (TEST) {
+    const FAKE = [{ giftName: 'Rose', diamonds: 1 }, { giftName: 'TikTok', diamonds: 1 }, { giftName: 'Heart Me', diamonds: 1 }, { giftName: 'Galaxy', diamonds: 1000 }, { giftName: 'Finger Heart', diamonds: 5 }, { giftName: 'Doughnut', diamonds: 30 }];
+    const WHO = ['Rosie Test', 'Doughnut Donna', 'Big Spender', 'Hearty Hattie', 'Burst Barry', 'Disco Dave'];
+    let k = 0;
+    setInterval(() => { const g = FAKE[k % FAKE.length]; drop({ ...g, display: WHO[k % WHO.length], count: k % 5 === 0 ? 3 : 1 }); k++; }, 1000);
+    return;
+  }
+  restore();
+
+  // ---- live data: same stable box link as overlay.html (ngrok -> cors proxy -> tiktok-welcomer SSE) ----
+  const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H_ = { 'ngrok-skip-browser-warning': '1' };
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, H_), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+          if (data) { try { const d = JSON.parse(data); if (d && d.type === 'gift_drop') drop(d); } catch (e) {} }
+        }
+      }
+    } catch (e) {}
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  run();
+})();
+</script>
+</body></html>
