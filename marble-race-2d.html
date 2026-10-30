@@ -1,0 +1,335 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio Marble Race</title>
+<!-- Oasis Radio MARBLE RACE – 720x1280 Link source for TikTok LIVE Studio (full-screen scene, has its own background).
+     Viewers who send a 100+ diamond gift join as a marble. Grumpy runs it from marble-control.html.
+     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: Halloween until end of Sun 1 Nov 2026 UK, then 80s)
+     ?channel=test listens to the test channel. -->
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;object-fit:contain}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="marble-course.js?v=1"></script>
+</head><body>
+<canvas id="c" width="720" height="1280"></canvas>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const TEST = q.get('test') === '1';
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const HW = THEME === 'halloween';
+  const T = HW ? {
+    title: '🎃 SPOOKY MARBLE RACE 🎃', sub: 'OASIS RADIO', ramp: '#ff7a00', ramp2: '#ffd2a0', wall: '#a74bff', peg: '#39ff14', bumper: '#ff7a00', spin: '#c86bff', door: '#39ff14', gate: '#ff7a00',
+    accent: '#ff7a00', accent2: '#39ff14', accent3: '#c86bff', text: '#fff3e0', panel: 'rgba(20,6,30,.82)',
+    signs: { B: 'BAT ALLEY 🦇', C: "WITCH'S WHIRL 🧹", D: 'GRAVEYARD JUMP 🪦', E: 'TRAPDOOR OF DOOM 🚪', F: 'PUMPKIN PATCH 🎃', G: 'CREEPY CRAWL 🕷️', H: 'DOUBLE TROUBLE 👻', I: 'FINAL FRIGHT 💀' }
+  } : {
+    title: '★ MARBLE RACE ★', sub: 'OASIS RADIO', ramp: '#00f0ff', ramp2: '#d6fdff', wall: '#ff2bd6', peg: '#ffe600', bumper: '#ff2bd6', spin: '#39ff14', door: '#ff7a00', gate: '#ffe600',
+    accent: '#ff2bd6', accent2: '#00f0ff', accent3: '#ffe600', text: '#ffffff', panel: 'rgba(25,5,45,.8)',
+    signs: { B: 'ZIG-ZAG ALLEY', C: 'SPIN CITY', D: 'THE BIG JUMP', E: 'TRAPDOOR!', F: 'BUMPER BASH', G: 'DROP ZONE', H: 'DOUBLE TRAP', I: 'FINAL STRAIGHT' }
+  };
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const VW = 720, VH = 1280;
+  const FONT = '"Arial Black","Impact",system-ui,sans-serif';
+
+  // ---------- background (screen space, pre-rendered) ----------
+  const bg = document.createElement('canvas'); bg.width = VW; bg.height = VH;
+  (function drawBg() {
+    const g = bg.getContext('2d');
+    if (HW) {
+      let gr = g.createLinearGradient(0, 0, 0, VH); gr.addColorStop(0, '#07010f'); gr.addColorStop(.55, '#1c0633'); gr.addColorStop(.85, '#3a0d3f'); gr.addColorStop(1, '#ff6a00'); g.fillStyle = gr; g.fillRect(0, 0, VW, VH);
+      for (let i = 0; i < 90; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .7})`; g.fillRect(Math.random() * VW, Math.random() * VH * .7, 2, 2); }
+      // moon
+      g.save(); g.shadowColor = '#ffe9a8'; g.shadowBlur = 60; g.fillStyle = '#fff1c4'; g.beginPath(); g.arc(560, 230, 95, 0, 7); g.fill(); g.restore();
+      g.fillStyle = 'rgba(200,170,110,.35)'; [[530, 200, 18], [590, 260, 12], [560, 290, 9]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); });
+      // haunted house silhouette on the hill
+      g.fillStyle = '#0a0310';
+      g.beginPath(); g.moveTo(0, 1180); g.quadraticCurveTo(200, 1060, 420, 1130); g.quadraticCurveTo(600, 1180, 720, 1120); g.lineTo(720, 1280); g.lineTo(0, 1280); g.fill();
+      g.beginPath(); g.moveTo(90, 1110); g.lineTo(90, 960); g.lineTo(70, 960); g.lineTo(140, 880); g.lineTo(210, 960); g.lineTo(190, 960); g.lineTo(190, 1000); g.lineTo(240, 1000); g.lineTo(240, 930); g.lineTo(225, 930); g.lineTo(262, 860); g.lineTo(300, 930); g.lineTo(285, 930); g.lineTo(285, 1090); g.fill();
+      g.fillStyle = '#ffb000'; g.shadowColor = '#ffb000'; g.shadowBlur = 14; [[120, 980], [160, 980], [120, 1030], [255, 950], [255, 1010]].forEach(([x, y]) => g.fillRect(x, y, 16, 22)); g.shadowBlur = 0;
+      // dead tree
+      g.strokeStyle = '#0a0310'; g.lineCap = 'round'; g.lineWidth = 14; g.beginPath(); g.moveTo(600, 1160); g.lineTo(610, 1000); g.stroke(); g.lineWidth = 6;
+      [[610, 1040, 670, 990], [607, 1070, 550, 1020], [610, 1010, 640, 950], [660, 995, 690, 1000]].forEach(([a, b, c, d]) => { g.beginPath(); g.moveTo(a, b); g.lineTo(c, d); g.stroke(); });
+      // graves
+      g.fillStyle = '#140820'; [[360, 1150], [420, 1160], [480, 1170]].forEach(([x, y]) => { g.beginPath(); g.moveTo(x, y + 40); g.lineTo(x, y + 10); g.arc(x + 15, y + 10, 15, Math.PI, 0); g.lineTo(x + 30, y + 40); g.fill(); });
+      // corner webs
+      function web(cx, cy, sx, sy) { g.save(); g.translate(cx, cy); g.scale(sx, sy); g.strokeStyle = 'rgba(230,230,255,.35)'; g.lineWidth = 1.5; for (let a = 0; a <= 6; a++) { const t = a / 6 * Math.PI / 2; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(t) * 170, Math.sin(t) * 170); g.stroke(); } for (let r = 30; r <= 170; r += 32) { g.beginPath(); for (let a = 0; a <= 6; a++) { const t = a / 6 * Math.PI / 2, x = Math.cos(t) * r, y = Math.sin(t) * r; if (!a) g.moveTo(x, y); else { const pt = (a - .5) / 6 * Math.PI / 2; g.quadraticCurveTo(Math.cos(pt) * r * .8, Math.sin(pt) * r * .8, x, y); } } g.stroke(); } g.restore(); }
+      web(0, 0, 1, 1); web(VW, 0, -1, 1);
+    } else {
+      let gr = g.createLinearGradient(0, 0, 0, VH); gr.addColorStop(0, '#120024'); gr.addColorStop(.45, '#3b0a6b'); gr.addColorStop(.7, '#c2187a'); gr.addColorStop(.8, '#ff7a3c'); gr.addColorStop(.801, '#1a0033'); gr.addColorStop(1, '#0a0016'); g.fillStyle = gr; g.fillRect(0, 0, VW, VH);
+      for (let i = 0; i < 110; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .8})`; g.fillRect(Math.random() * VW, Math.random() * VH * .5, 2, 2); }
+      // striped sun
+      const sy = 900; g.save(); g.beginPath(); g.arc(360, sy, 210, Math.PI, 0); g.closePath(); g.clip();
+      let sg = g.createLinearGradient(0, sy - 210, 0, sy); sg.addColorStop(0, '#ffe600'); sg.addColorStop(1, '#ff2bd6'); g.fillStyle = sg; g.fillRect(150, sy - 210, 420, 210);
+      g.fillStyle = '#7a1470'; for (let k = 0; k < 7; k++) g.fillRect(150, sy - 110 + k * 16, 420, 3 + k * 1.6); g.restore();
+      // mountains
+      g.fillStyle = '#25004a'; g.beginPath(); g.moveTo(0, 1024); [[80, 960], [170, 1000], [260, 930], [330, 1010], [420, 970], [520, 1000], [610, 940], [720, 1010]].forEach(([x, y]) => g.lineTo(x, y)); g.lineTo(720, 1025); g.lineTo(0, 1025); g.fill();
+      // perspective grid
+      g.strokeStyle = 'rgba(0,240,255,.75)'; g.lineWidth = 2; g.shadowColor = '#00f0ff'; g.shadowBlur = 8;
+      for (let i = -14; i <= 14; i++) { g.beginPath(); g.moveTo(360 + i * 18, 1025); g.lineTo(360 + i * 130, VH); g.stroke(); }
+      for (let k = 0; k < 9; k++) { const y = 1025 + Math.pow(k / 8, 2) * 255; g.beginPath(); g.moveTo(0, y); g.lineTo(VW, y); g.stroke(); }
+      g.shadowBlur = 0;
+    }
+    // darken for course readability
+    g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, 0, VW, VH);
+  })();
+
+  // ---------- helpers ----------
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function glowText(g, s, x, y, size, col, glow, align) { g.save(); g.font = `${size}px ${FONT}`; g.textAlign = align || 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = glow || col; g.shadowBlur = size * .45; g.lineWidth = Math.max(3, size * .14); g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0; g.fillText(s, x, y); g.restore(); }
+  function fit(g, s, max, size) { g.font = `${size}px ${FONT}`; while (size > 10 && g.measureText(s).width > max) { size -= 2; g.font = `${size}px ${FONT}`; } return size; }
+  function pumpkin(g, x, y, r, face) {
+    g.save(); g.translate(x, y);
+    g.fillStyle = '#ff7a00'; g.beginPath(); g.ellipse(0, 0, r * 1.1, r, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(150,50,0,.8)'; g.lineWidth = Math.max(1, r * .1); [-.5, 0, .5].forEach(k => { g.beginPath(); g.ellipse(k * r * .7, 0, r * .35, r * .95, 0, 0, 7); g.stroke(); });
+    g.fillStyle = '#2e7d1a'; g.fillRect(-r * .12, -r * 1.25, r * .24, r * .4);
+    if (face) { g.fillStyle = '#ffe14a'; g.shadowColor = '#ffb000'; g.shadowBlur = r * .5; g.beginPath(); g.moveTo(-r * .55, -r * .15); g.lineTo(-r * .3, -r * .5); g.lineTo(-r * .1, -r * .15); g.fill(); g.beginPath(); g.moveTo(r * .55, -r * .15); g.lineTo(r * .3, -r * .5); g.lineTo(r * .1, -r * .15); g.fill(); g.beginPath(); g.moveTo(-r * .6, r * .2); for (let i = 0; i <= 6; i++) g.lineTo(-r * .6 + i * r * .2, r * (i % 2 ? .35 : .55)); g.lineTo(r * .6, r * .2); g.quadraticCurveTo(0, r * .9, -r * .6, r * .2); g.fill(); }
+    g.restore();
+  }
+
+  // ---------- course (world space, pre-rendered once) ----------
+  let courseImg = null, courseFor = null;
+  function drawCourse(race) {
+    const c = document.createElement('canvas'); c.width = VW; c.height = race.H; const g = c.getContext('2d');
+    g.lineCap = 'round';
+    // section signs
+    for (const [k, y] of race.sections) { const s = T.signs[k]; if (!s) continue; g.save(); g.globalAlpha = .55; glowText(g, s, 360, y - 40, 34, k.charCodeAt(0) % 2 ? T.accent2 : T.accent3, null); g.restore(); }
+    for (const o of race.statics) {
+      if (o.kind === 'gate' || o.kind === 'door') continue;
+      if (o.kind === 'peg') { g.save(); g.fillStyle = T.peg; g.shadowColor = T.peg; g.shadowBlur = 12; g.beginPath(); g.arc(o.x, o.y, o.r, 0, 7); g.fill(); g.restore(); continue; }
+      if (o.kind === 'bumper') continue;   // drawn live (they flash)
+      const col = o.kind === 'wall' ? T.wall : o.kind === 'kicker' ? T.accent3 : T.ramp;
+      g.save(); g.strokeStyle = col; g.shadowColor = col; g.shadowBlur = 22; g.lineWidth = o.t; g.globalAlpha = o.kind === 'wall' ? .6 : 1;
+      g.beginPath(); g.moveTo(o.x1, o.y1); g.lineTo(o.x2, o.y2); g.stroke();
+      g.shadowBlur = 0; g.strokeStyle = o.kind === 'wall' ? col : T.ramp2; g.lineWidth = Math.max(2, o.t * .3); g.stroke(); g.restore();
+    }
+    // finish line (checkered)
+    const fy = race.FINISH; for (let x = 22, i = 0; x < 698; x += 24, i++) for (let r = 0; r < 2; r++) { g.fillStyle = (i + r) % 2 ? '#fff' : '#111'; g.fillRect(x, fy + r * 12, 24, 12); }
+    glowText(g, '🏁 FINISH 🏁', 360, fy - 34, 40, T.accent3);
+    if (HW) { // a few spiders hanging off ramps
+      g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1;
+      [[300, 1120, 70], [470, 2020, 90], [120, 4280, 60], [600, 5150, 80]].forEach(([x, y, len]) => { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + len); g.stroke(); g.fillStyle = '#111'; g.beginPath(); g.arc(x, y + len + 8, 9, 0, 7); g.fill(); g.strokeStyle = '#111'; g.lineWidth = 2; for (let s = -1; s <= 1; s += 2) for (let l = 0; l < 4; l++) { g.beginPath(); g.moveTo(x, y + len + 8); g.lineTo(x + s * 16, y + len + l * 5); g.stroke(); } g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.fillStyle = '#ff3030'; g.fillRect(x - 4, y + len + 5, 2, 2); g.fillRect(x + 2, y + len + 5, 2, 2); });
+    }
+    courseImg = c; courseFor = race;
+  }
+
+  // ---------- avatars ----------
+  const avatars = new Map();
+  function avatar(url) { if (!url) return null; let a = avatars.get(url); if (!a) { a = new Image(); a.referrerPolicy = 'no-referrer'; a.ok = false; a.onload = () => a.ok = true; a.src = url; avatars.set(url, a); } return a.ok ? a : null; }
+
+  function drawMarble(g, m, x, y, r, idx, label) {
+    const img = avatar(m.avatar);
+    g.save();
+    if (img) { g.beginPath(); g.arc(x, y, r, 0, 7); g.clip(); g.drawImage(img, x - r, y - r, r * 2, r * 2); g.restore(); g.save(); }
+    else if (HW && idx % 2 === 0) { pumpkin(g, x, y, r * .92, r > 20); }
+    else if (HW) { g.fillStyle = '#f4f4f4'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); const v = m.body ? m.body.velocity : { x: 0, y: 1 }, d = Math.hypot(v.x, v.y) || 1; g.fillStyle = m.color; g.beginPath(); g.arc(x + v.x / d * r * .35, y + v.y / d * r * .35, r * .48, 0, 7); g.fill(); g.fillStyle = '#000'; g.beginPath(); g.arc(x + v.x / d * r * .42, y + v.y / d * r * .42, r * .22, 0, 7); g.fill(); g.strokeStyle = 'rgba(220,0,0,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x - r * .9, y - r * .2); g.lineTo(x - r * .5, y - r * .1); g.stroke(); }
+    else { const gr = g.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r); gr.addColorStop(0, '#fff'); gr.addColorStop(.3, m.color); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+    g.restore();
+    g.save(); g.strokeStyle = m.color; g.lineWidth = Math.max(2, r * .16); g.shadowColor = m.color; g.shadowBlur = 8; g.beginPath(); g.arc(x, y, r + 1, 0, 7); g.stroke(); g.restore();
+    if (label) { g.save(); g.font = `bold ${label}px system-ui,sans-serif`; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.9)'; const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name; g.strokeText(s, x, y - r - 6); g.fillStyle = '#fff'; g.fillText(s, x, y - r - 6); g.restore(); }
+  }
+
+  // ---------- game state ----------
+  let mode = 'idle', race = null, roster = [], seedNow = 1, startAtLocal = 0, raceId = null, results = null, official = null, champs = [], auto = { on: false, minutes: 3 }, openedAtLocal = 0, reported = false, finishedAtLocal = 0;
+  let camY = 0, toasts = [], confetti = [];
+  const bumperHit = new Map();
+  function build(list, seed) { race = MarbleCourse.createRace(Matter, { seed, marbles: list }); if (!courseImg) drawCourse(race); else { courseImg && (courseFor = race); } race.marbles.forEach((m, i) => m.idx = i); }
+  function toast(s, col) { toasts.push({ s, col: col || T.accent3, t: performance.now() }); if (toasts.length > 4) toasts.shift(); }
+  function rosterKey(l) { return l.map(m => m.id).join('|'); }
+
+  let skew = 0;
+  function applyState(st, ev, extra) {
+    if (!st) return;
+    skew = (st.now || Date.now()) - Date.now();
+    champs = st.champs || []; auto = st.auto || auto;
+    const list = st.marbles || [];
+    if (ev === 'cheer') { const who = (extra && extra.name) || 'Someone'; toast(`📣 ${who} cheers their marble on!`, T.accent2); return; }
+    if (st.phase === 'idle') { mode = 'idle'; race = null; results = official = null; roster = []; return; }
+    if (st.phase === 'entries') {
+      if (mode !== 'entries') { mode = 'entries'; results = official = null; camY = 0; }
+      openedAtLocal = (st.openedAt || Date.now()) - skew;
+      if (ev === 'join' && extra && extra.marble) toast(`${HW ? '🎃' : '🎉'} ${extra.marble.name} is in the race!`, T.accent3);
+      if (rosterKey(list) !== rosterKey(roster) || !race) { roster = list; build(list, 1234); }
+      return;
+    }
+    if (st.phase === 'countdown' || (st.phase === 'racing' && ev === 'start')) {
+      if (raceId !== st.raceId) { raceId = st.raceId; roster = list; build(list, st.seed); startAtLocal = (st.startAt || Date.now()) - skew; mode = 'countdown'; reported = false; results = official = null; }
+      return;
+    }
+    if (st.phase === 'racing') { if (raceId !== st.raceId) { mode = 'inprogress'; raceId = st.raceId; roster = list; } return; }
+    if (st.phase === 'finished') {
+      if (st.results && st.results.length) { official = st.results; if (mode !== 'finished') finishNow(); }
+      else if (mode === 'inprogress' || mode === 'countdown') { mode = 'over'; }
+    }
+  }
+  function finishNow() {
+    if (race && !race.done) race.finish();
+    if (race) results = race.results.map(m => ({ id: m.id, name: m.name, place: m.place }));
+    mode = 'finished'; finishedAtLocal = performance.now();
+    for (let i = 0; i < 160; i++) confetti.push({ x: 360, y: 420, vx: (Math.random() - .5) * 16, vy: -Math.random() * 16 - 3, c: [T.accent, T.accent2, T.accent3, '#fff'][i % 4], r: Math.random() * 6.28, life: 0 });
+  }
+  function report() {
+    if (reported || !race || !raceId) return; reported = true;
+    const order = race.results.map(m => m.id);
+    if (TEST) { testFinish(order); return; }
+    fetch(BOX + '/api/marble/result', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, H_), body: JSON.stringify({ raceId, order }) }).then(r => r.json()).then(j => { if (j && j.state) applyState(j.state, 'result'); }).catch(() => {});
+  }
+
+  // ---------- main loop ----------
+  const STEP = 1000 / 60; let acc = 0, last = performance.now();
+  function frame(now) {
+    const dt = Math.min(100, now - last); last = now;
+    if (race && (mode === 'entries' || mode === 'countdown' || mode === 'racing' || mode === 'finished')) {
+      if (mode === 'countdown' && Date.now() >= startAtLocal) { mode = 'racing'; race.start(); toast('GO GO GO! 🏁', T.accent3); }
+      acc += dt; let n = 0; while (acc >= STEP && n < 4) { race.step(); acc -= STEP; n++; } if (n === 4) acc = 0;
+      if (mode === 'racing' && race.done) { finishNow(); report(); }
+    }
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+
+  function draw(now) {
+    ctx.drawImage(bg, 0, 0);
+    // live bats / scrolling glow lines
+    if (HW) { ctx.fillStyle = '#05010a'; for (let i = 0; i < 7; i++) { const t = now / 1000 + i * 1.7, x = (i * 137 + t * 40) % 820 - 50, y = 140 + i * 60 + Math.sin(t * 2 + i) * 30, f = Math.sin(t * 14 + i) * 8; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - 12, y - 10 - f, x - 26, y - 2 + f); ctx.quadraticCurveTo(x - 14, y + 2, x, y + 6); ctx.quadraticCurveTo(x + 14, y + 2, x + 26, y - 2 + f); ctx.quadraticCurveTo(x + 12, y - 10 - f, x, y); ctx.fill(); } }
+    if (!race) { drawHud(now); return; }
+    // camera
+    let target = 0;
+    if (mode === 'racing') { const l = race.leader(); target = l ? l.body.position.y - VH * .42 : race.H - VH; }
+    else if (mode === 'finished') target = race.H - VH;
+    target = Math.max(-60, Math.min(race.H - VH + 40, target));
+    camY += (target - camY) * (mode === 'racing' ? .07 : .04);
+    if (courseImg) { const sy = Math.max(0, camY), oy = sy - camY; ctx.drawImage(courseImg, 0, sy, VW, VH - oy, 0, oy, VW, VH - oy); }
+    ctx.save(); ctx.translate(0, -camY);
+    // gate + doors
+    if (!race.gate.open) { const o = race.gate; ctx.strokeStyle = T.gate; ctx.lineWidth = 12; ctx.setLineDash([22, 10]); ctx.shadowColor = T.gate; ctx.shadowBlur = 14; ctx.beginPath(); ctx.moveTo(o.x1, o.y1); ctx.lineTo(o.x2, o.y2); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur = 0; }
+    for (const d of race.doors) { ctx.save(); ctx.strokeStyle = T.door; ctx.shadowColor = T.door; ctx.shadowBlur = 14; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.beginPath(); if (d.open) { ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x1 + 6, d.y1 + (d.x2 - d.x1) * .9); ctx.moveTo(d.x2, d.y2); ctx.lineTo(d.x2 - 6, d.y2 + 30); } else { ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2); } ctx.stroke(); ctx.restore(); }
+    for (const s of race.spinners) { const b = s.body; if (Math.abs(b.position.y - camY - VH / 2) > VH) continue; ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle); ctx.fillStyle = T.spin; ctx.shadowColor = T.spin; ctx.shadowBlur = 18; rr(ctx, -s.len / 2, -7, s.len, 14, 7); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, 7); ctx.fill(); ctx.restore(); }
+    for (const o of race.statics) { if (o.kind !== 'bumper' || Math.abs(o.y - camY - VH / 2) > VH) continue; const b = o.body; if (b.plugin.hit) { bumperHit.set(b.id, now); b.plugin.hit = 0; } const k = Math.max(0, 1 - (now - (bumperHit.get(b.id) || 0)) / 250); const r = o.r * (1 + k * .15);
+      if (HW) { ctx.save(); if (k) { ctx.shadowColor = '#ffb000'; ctx.shadowBlur = 30 * k; } pumpkin(ctx, o.x, o.y, r, true); ctx.restore(); }
+      else { ctx.save(); ctx.fillStyle = k ? '#fff' : '#3a0030'; ctx.strokeStyle = T.bumper; ctx.lineWidth = 6; ctx.shadowColor = T.bumper; ctx.shadowBlur = 16 + 20 * k; ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, 7); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0; ctx.fillStyle = T.accent3; ctx.font = `${r}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('★', o.x, o.y + 1); ctx.restore(); } }
+    // marbles
+    const many = race.marbles.length > 16;
+    const lead = mode === 'racing' ? race.leader() : null;
+    for (const m of race.marbles) { const p = m.body.position; if (p.y < camY - 60 || p.y > camY + VH + 60) continue; drawMarble(ctx, m, p.x, p.y, race.R, m.idx, (mode === 'entries' || mode === 'countdown' ? race.marbles.length <= 8 : mode !== 'finished' && (!many || m === lead || (m.place && m.place <= 3))) ? (many ? 12 : 14) : 0); }
+    if (lead) { const p = lead.body.position; ctx.fillStyle = T.accent3; ctx.font = '22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('👑', p.x, p.y - race.R - 26); }
+    ctx.restore();
+    drawHud(now);
+  }
+
+  function panel(x, y, w, h, col) { ctx.save(); ctx.fillStyle = T.panel; ctx.strokeStyle = col || T.accent; ctx.lineWidth = 4; ctx.shadowColor = col || T.accent; ctx.shadowBlur = 18; rr(ctx, x, y, w, h, 18); ctx.fill(); ctx.stroke(); ctx.restore(); }
+  function champsPanel(y) {
+    if (!champs.length) return;
+    const rows = champs.slice(0, 5); const h = 66 + rows.length * 38; panel(110, y, 500, h, T.accent2);
+    glowText(ctx, HW ? '🏆 MARBLE CHAMPS 🦇' : '🏆 MARBLE CHAMPS', 360, y + 32, 30, T.accent2);
+    rows.forEach((c, i) => { ctx.font = `bold 24px system-ui,sans-serif`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${i + 1}. ${c.name.length > 18 ? c.name.slice(0, 17) + '…' : c.name}`, 140, y + 74 + i * 38); ctx.textAlign = 'right'; ctx.fillStyle = T.accent3; ctx.fillText(`${c.wins} win${c.wins === 1 ? '' : 's'}`, 580, y + 74 + i * 38); });
+  }
+  function drawHud(now) {
+    // title bar
+    const pulse = 1 + Math.sin(now / 400) * .03;
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, VW, 92); ctx.restore();
+    glowText(ctx, T.title, 360, 38, Math.round(fit(ctx, T.title, 660, 44) * pulse), T.accent3, T.accent);
+    glowText(ctx, T.sub, 360, 78, 20, T.accent2);
+    if (mode === 'idle' || !race) {
+      panel(70, 380, 580, 220, T.accent);
+      glowText(ctx, HW ? 'The spooky race is coming!' : 'The race is coming!', 360, 440, 34, '#fff', T.accent);
+      glowText(ctx, 'Send a 100+ 💎 gift', 360, 500, 40, T.accent3);
+      glowText(ctx, 'when entries open to join!', 360, 552, 28, '#fff', T.accent2);
+      champsPanel(650);
+    } else if (mode === 'entries') {
+      const n = race.marbles.length;
+      panel(40, 470, 640, 250, T.accent);
+      glowText(ctx, 'ENTRIES OPEN!', 360, 520, 50, T.accent3, T.accent);
+      glowText(ctx, 'Send a 100+ 💎 gift to join!', 360, 585, fit(ctx, 'Send a 100+ 💎 gift to join!', 600, 38), '#fff', T.accent2);
+      glowText(ctx, `${n} marble${n === 1 ? '' : 's'} on the line`, 360, 640, 30, T.accent2);
+      if (auto.on) { const left = Math.max(0, auto.minutes * 60000 - (Date.now() - openedAtLocal)); const s = Math.ceil(left / 1000); glowText(ctx, n >= 2 ? (left > 0 ? `Race starts in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Starting any second…') : 'Needs 2+ marbles to start', 360, 690, 26, T.accent3); }
+      else glowText(ctx, 'One marble each • extra gifts = cheers', 360, 690, 22, '#fff');
+      champsPanel(760);
+    } else if (mode === 'countdown') {
+      const s = Math.ceil((startAtLocal - Date.now()) / 1000); const frac = ((startAtLocal - Date.now()) % 1000) / 1000;
+      if (s >= 1 && s <= 3) glowText(ctx, String(s), 360, 560, Math.round(190 + 80 * frac), T.accent3, T.accent);
+      else if (s > 3) glowText(ctx, 'GET READY!', 360, 560, 80, T.accent3, T.accent);
+    } else if (mode === 'racing') {
+      const tt = race.t / 1000; glowText(ctx, `⏱ ${tt.toFixed(1)}s`, 24, 128, 26, '#fff', T.accent2, 'left');
+      const st = race.standings().slice(0, 5); panel(440, 108, 268, 34 + st.length * 34, T.accent2);
+      st.forEach((m, i) => { drawMarble(ctx, m, 470, 140 + i * 34, 12, m.idx, 0); ctx.font = 'bold 20px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = i === 0 ? T.accent3 : '#fff'; ctx.fillText(`${i + 1}. ${m.name.length > 13 ? m.name.slice(0, 12) + '…' : m.name}`, 492, 141 + i * 34); });
+      if (tt < 2) glowText(ctx, 'GO!', 360, 560, 200, T.accent3, T.accent);
+    } else if (mode === 'inprogress' || mode === 'over') {
+      panel(90, 480, 540, 150, T.accent); glowText(ctx, mode === 'over' ? 'Race over!' : 'Race in progress…', 360, 535, 40, '#fff', T.accent); glowText(ctx, 'Results coming up!', 360, 590, 28, T.accent3);
+    } else if (mode === 'finished') drawPodium(now);
+    // toasts
+    toasts = toasts.filter(t => now - t.t < 3500);
+    toasts.forEach((t, i) => { const a = Math.min(1, (3500 - (now - t.t)) / 500); ctx.save(); ctx.globalAlpha = a; const y = 1200 - (toasts.length - 1 - i) * 54; ctx.font = `bold 24px system-ui,sans-serif`; const w = Math.min(680, ctx.measureText(t.s).width + 40); ctx.fillStyle = 'rgba(0,0,0,.7)'; rr(ctx, 360 - w / 2, y - 22, w, 44, 22); ctx.fill(); ctx.strokeStyle = t.col; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.s, 360, y, 640); ctx.restore(); });
+  }
+  function drawPodium(now) {
+    const list = (official || results || []); const byId = new Map(race.marbles.map(m => [m.id, m]));
+    const top = list.slice(0, 3).map(r => byId.get(r.id) || { id: r.id, name: r.name, color: '#fff', idx: 0 });
+    const k = Math.min(1, (now - finishedAtLocal) / 600);
+    ctx.save(); ctx.fillStyle = `rgba(0,0,0,${.6 * k})`; ctx.fillRect(0, 92, VW, VH); ctx.restore();
+    if (top[0]) { const s = `WINNER: ${top[0].name}`; glowText(ctx, '🏁 🏁 🏁', 360, 190, 44, '#fff'); glowText(ctx, s, 360, 260, Math.round(fit(ctx, s, 660, 60) * (0.6 + .4 * k)), T.accent3, T.accent); glowText(ctx, 'Bragging rights for the night! 😎', 360, 322, 26, '#fff', T.accent2); }
+    const base = 760, cols = [[0, 360, 230, '#ffd700'], [1, 160, 160, '#c0c0c0'], [2, 560, 110, '#cd7f32']];
+    for (const [i, x, h, col] of cols) { const m = top[i]; if (!m) continue; const hh = h * k;
+      ctx.save(); ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 20; rr(ctx, x - 90, base - hh, 180, hh, 10); ctx.fill(); ctx.restore();
+      glowText(ctx, String(i + 1), x, base - hh + 50, 56, '#222', '#fff');
+      drawMarble(ctx, m, x, base - hh - 50, 40, m.idx || 0, 0);
+      const nm = m.name; glowText(ctx, nm, x, base - hh - 110, fit(ctx, nm, 200, 26), '#fff', col);
+    }
+    champsPanel(820);
+    // confetti
+    for (const c of confetti) { c.vy += .35; c.x += c.vx; c.y += c.vy; c.r += .2; c.life++; ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.r); ctx.fillStyle = c.c; ctx.fillRect(-5, -3, 10, 6); ctx.restore(); }
+    confetti = confetti.filter(c => c.y < VH + 20 && c.life < 300);
+  }
+
+  // ---------- live data (same stable box link as gift-jar.html) ----------
+  const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H_ = { 'ngrok-skip-browser-warning': '1' };
+  // ---------- test mode: 12 pretend names, endless races ----------
+  const FAKE = ['Neon Nina', 'Cassette Kev', 'Rubik Rita', 'Walkman Wayne', 'Synth Sue', 'Arcade Andy', 'Mixtape Mia', 'Boombox Barry', 'Leg-Warmer Liz', 'Pac-Man Pete', 'Big Hair Brenda', 'Atari Annie'];
+  const COLORS = ['#ff2bd6', '#00f0ff', '#ffe600', '#a74bff', '#39ff14', '#ff7a00', '#ff3860', '#3d7bff', '#ffffff', '#00ffa8', '#ff9cf0', '#c6ff00'];
+  let testSt = null, testChamps = {};
+  function testState(phase, extra) { testSt = Object.assign({ now: Date.now(), phase, champs: Object.entries(testChamps).map(([id, c]) => ({ id, name: c.name, wins: c.wins })).sort((a, b) => b.wins - a.wins), auto: { on: false, minutes: 3 } }, testSt && { marbles: testSt.marbles, raceId: testSt.raceId, seed: testSt.seed, startAt: testSt.startAt, openedAt: testSt.openedAt }, extra || {}); return testSt; }
+  function testLoop() {
+    const n = +(q.get('n') || 12);
+    testSt = null; applyState(testState('entries', { marbles: [], openedAt: Date.now() }), 'open');
+    let i = 0; const iv = setInterval(() => { if (i >= Math.min(n, FAKE.length * 3)) { clearInterval(iv); setTimeout(() => applyState(testState('countdown', { raceId: 'test' + Date.now(), seed: (Math.random() * 1e9) | 0, startAt: Date.now() + 4000 }), 'start'), 1200); return; }
+      const nm = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + (1 + Math.floor(i / FAKE.length)) : ''), m = { id: 't' + i, name: nm, color: COLORS[i % COLORS.length], avatar: null }; i++;
+      const st = testState('entries', { marbles: (testSt.marbles || []).concat(m) }); applyState(st, 'join', { marble: m });
+      if (i === 5) applyState(st, 'cheer', { name: FAKE[1] });
+    }, +(q.get('joinms') || 350));
+  }
+  function testFinish(order) {
+    const w = race.marbles.find(m => m.id === order[0]); const c = testChamps[w.id] || { name: w.name, wins: 0 }; c.wins++; testChamps[w.id] = c;
+    const st = testState('finished', { results: order.map((id, i) => ({ place: i + 1, id, name: race.marbles.find(m => m.id === id).name })) }); applyState(st, 'result');
+    setTimeout(testLoop, +(q.get('pause') || 15000));
+  }
+  if (TEST) { testLoop(); requestAnimationFrame(frame); return; }
+
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+  fetch(BOX + '/api/marble/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(st => applyState(st, 'init')).catch(() => {});
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, H_), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      fetch(BOX + '/api/marble/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(st => applyState(st, 'init')).catch(() => {});
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+          if (data) { try { const d = JSON.parse(data); if (d && d.type === 'marble') { if (d.ev === 'cheer') toast(`📣 ${d.name || 'Someone'} cheers their marble on!`, T.accent2); else applyState(d.state, d.ev, d); } } catch (e) {} }
+        }
+      }
+    } catch (e) {}
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  run();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
