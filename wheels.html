@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio – AI Creators Night Wheels</title>
+<style>
+  :root{--neon-pink:#ff2bd6;--neon-cyan:#22e6ff;--neon-yellow:#ffe600;--panel:#17122b;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:"Arial Black","Helvetica Neue",Arial,sans-serif;color:#fff}
+  body{background:radial-gradient(ellipse at 50% 30%,#3a1162 0%,#1a0b33 45%,#07040f 100%)}
+  body::before{content:"";position:fixed;left:0;right:0;bottom:0;height:38%;pointer-events:none;
+    background:linear-gradient(transparent 0,rgba(255,43,214,.10) 100%),
+      repeating-linear-gradient(90deg,rgba(34,230,255,.18) 0 2px,transparent 2px 80px),
+      repeating-linear-gradient(0deg,rgba(255,43,214,.18) 0 2px,transparent 2px 40px);
+    transform:perspective(400px) rotateX(55deg);transform-origin:bottom;opacity:.55}
+  body.transparent{background:transparent}
+  body.transparent::before{display:none}
+  #title{position:absolute;top:1.6vh;left:0;right:0;text-align:center;font-size:clamp(18px,3.4vh,44px);letter-spacing:.08em;
+    background:linear-gradient(90deg,var(--neon-pink),var(--neon-yellow),var(--neon-cyan));-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 8px rgba(255,43,214,.6))}
+  #stage{position:absolute;top:8vh;left:0;right:0;bottom:15vh;display:flex;justify-content:space-evenly;align-items:center}
+  .wheelBox{display:flex;flex-direction:column;align-items:center}
+  .wheelLabel{font-size:clamp(16px,3vh,40px);letter-spacing:.12em;margin-bottom:1vh;text-shadow:0 0 10px var(--neon-cyan),0 0 22px var(--neon-cyan)}
+  .wheelWrap{position:relative;cursor:pointer}
+  .wheelWrap canvas{display:block}
+  .result{margin-top:1.2vh;min-height:1.3em;font-size:clamp(18px,3.6vh,50px);text-align:center;color:var(--neon-yellow);
+    text-shadow:0 0 8px #ff8a00,0 0 18px #ff2bd6;max-width:30vw;line-height:1.1}
+  .result.pop{animation:pop .6s ease-out}
+  @keyframes pop{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+  #banner{position:absolute;left:3vw;right:3vw;bottom:6.2vh;text-align:center;font-size:clamp(14px,2.8vh,38px);padding:.5vh 1vw;border-radius:14px;
+    background:rgba(10,4,25,.75);border:3px solid var(--neon-pink);box-shadow:0 0 16px var(--neon-pink),inset 0 0 12px rgba(34,230,255,.4);opacity:0;transition:opacity .4s}
+  #banner.show{opacity:1}
+  #banner b{color:var(--neon-cyan)} #banner span{color:var(--neon-yellow)}
+  #controls{position:absolute;bottom:1.2vh;left:0;right:0;display:flex;justify-content:center;gap:10px}
+  button{font-family:inherit;cursor:pointer;border:2px solid var(--neon-cyan);background:#1d1340;color:#fff;border-radius:10px;padding:6px 14px;font-size:clamp(12px,1.8vh,22px);box-shadow:0 0 8px rgba(34,230,255,.5)}
+  button:hover{background:#2c1d5e}
+  #spinAll{border-color:var(--neon-pink);box-shadow:0 0 12px var(--neon-pink);font-size:clamp(14px,2.2vh,28px)}
+  body.hideui #controls{display:none}
+  #panel{position:absolute;top:0;right:0;bottom:0;width:min(420px,40vw);background:var(--panel);border-left:3px solid var(--neon-pink);padding:14px;overflow:auto;
+    transform:translateX(105%);transition:transform .3s;font-family:Arial,sans-serif;z-index:5}
+  #panel.open{transform:none}
+  #panel h3{margin:10px 0 4px;font-family:"Arial Black",Arial;color:var(--neon-cyan);font-size:16px}
+  #panel textarea{width:100%;height:150px;background:#0c0820;color:#fff;border:1px solid #5a3f9a;border-radius:6px;font-size:15px;padding:6px}
+  #panel label{display:block;margin:6px 0;font-size:14px}
+  #panel .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  #panel button{font-size:13px;padding:4px 10px}
+  #history{font-size:13px;padding-left:18px;margin:4px 0}
+  #history li{margin-bottom:4px}
+  .hint{font-size:12px;color:#aaa}
+</style>
+</head>
+<body>
+<div id="title">🤖 AI CREATORS NIGHT 🎵</div>
+<div id="stage"></div>
+<div id="banner"></div>
+<div id="controls">
+  <button id="spinAll" title="Spacebar">🎰 SPIN ALL</button>
+  <button id="muteBtn" title="M">🔊</button>
+  <button id="editBtn" title="E">✏️ Edit</button>
+</div>
+<div id="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font-family:'Arial Black'">Wheel settings</b><button id="closePanel">✖</button></div>
+  <p class="hint">One entry per line. Changes save automatically on this computer.<br>Keys: Space = spin all, 1/2/3 = spin one wheel, E = this panel, M = mute, H = hide buttons.</p>
+  <div id="editors"></div>
+  <label><input type="checkbox" id="removeWinner"> Remove the winner before the next spin</label>
+  <label><input type="checkbox" id="soundOn" checked> Ticking sound</label>
+  <div class="row"><button id="resetDefaults">Restore default lists</button><button id="clearHist">Clear history</button></div>
+  <h3>RESULTS HISTORY</h3>
+  <ol id="history"></ol>
+</div>
+<script>
+(() => {
+const DEFAULTS = {
+  challenge: ["Challenge 1","Challenge 2","Challenge 3","Challenge 4","Challenge 5","Challenge 6","Challenge 7","Challenge 8"],
+  genre: ["Pop","ANY","Afrobeats","Ambient","Hip Hop","ANY","Alternative","ANY","House","Jazz","ANY","Indie","Parody","Trap","Gospel","Classical","Soul","ANY","Synthwave","Metal","Funk","EDM","Reggaeton","R&B","Rock"],
+  era: ["70's","ANY","80's","60's","ANY","00's","50's","ANY","40's","30's"]
+};
+const WHEELS = [
+  {key:"challenge", label:"CHALLENGE", style:"vinyl"},
+  {key:"genre", label:"GENRE", colors:["#556b16","#8fb52b","#c9dc6a","#f2ea9a","#e9bb00","#fff4b0","#7a9a1f","#d8e24f"], text:["#fff","#fff","#223","#223","#223","#223","#fff","#223"]},
+  {key:"era", label:"ERA", colors:["#ff3fa4","#ffe53b","#19b5ff","#7be05a","#ff9a3c","#f7c46c"], text:["#fff","#222","#fff","#123","#222","#222"]}
+];
+const LS = "oasisWheels.v1";
+const params = new URLSearchParams(location.search);
+if (params.get("transparent")==="1") document.body.classList.add("transparent");
+if (params.get("hideui")==="1") document.body.classList.add("hideui");
+
+let saved = {}; try { saved = JSON.parse(localStorage.getItem(LS)||"{}"); } catch(e){}
+const state = { lists:{}, history: saved.history||[], removeWinner: !!saved.removeWinner, sound: saved.sound!==false };
+for (const w of WHEELS) {
+  const p = params.get(w.key);
+  if (p) state.lists[w.key] = p.split("|").map(s=>s.trim()).filter(Boolean);
+  else state.lists[w.key] = (saved.lists && saved.lists[w.key] && saved.lists[w.key].length) ? saved.lists[w.key] : DEFAULTS[w.key].slice();
+}
+function save(){ localStorage.setItem(LS, JSON.stringify({lists:state.lists, history:state.history.slice(0,100), removeWinner:state.removeWinner, sound:state.sound})); }
+
+// ---- crypto random ----
+function rand01(){ const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]/4294967296; }
+function randInt(n){ // unbiased
+  const lim = Math.floor(4294967296/n)*n; const a=new Uint32Array(1);
+  do { crypto.getRandomValues(a); } while (a[0]>=lim); return a[0]%n;
+}
+
+// ---- audio ----
+let actx=null;
+function tick(){
+  if(!state.sound) return;
+  try{
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
+    o.type="triangle"; o.frequency.setValueAtTime(1800,t); o.frequency.exponentialRampToValueAtTime(500,t+0.03);
+    g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.06);
+  }catch(e){}
+}
+let lastTickAt=0;
+function ding(){
+  if(!state.sound||!actx) return;
+  const t=actx.currentTime;
+  [880,1320,1760].forEach((f,i)=>{const o=actx.createOscillator(),g=actx.createGain();o.type="sine";o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t+i*0.07);g.gain.exponentialRampToValueAtTime(0.15,t+i*0.07+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+i*0.07+0.6);
+    o.connect(g).connect(actx.destination);o.start(t+i*0.07);o.stop(t+i*0.07+0.7);});
+}
+
+const logo = new Image(); logo.src = "images/oasis-logo-wheel.png?v=1"; logo.onload=()=>wheels.forEach(draw);
+const TAU = Math.PI*2;
+
+// ---- build DOM ----
+const stage=document.getElementById("stage");
+const wheels = WHEELS.map((cfg,i)=>{
+  const box=document.createElement("div"); box.className="wheelBox";
+  box.innerHTML=`<div class="wheelLabel">${cfg.label}</div><div class="wheelWrap"><canvas></canvas></div><div class="result"></div>`;
+  stage.appendChild(box);
+  const w={cfg, idx:i, box, canvas:box.querySelector("canvas"), resultEl:box.querySelector(".result"),
+    rot: rand01()*TAU, spinning:false, winner:null, pendingRemove:null, size:300, pulse:0};
+  w.ctx=w.canvas.getContext("2d");
+  box.querySelector(".wheelWrap").addEventListener("click",()=>spin(w));
+  return w;
+});
+
+function layout(){
+  const W=innerWidth, H=innerHeight;
+  const size=Math.floor(Math.min((W*0.95)/3 - 16, H*0.6));
+  const dpr=window.devicePixelRatio||1;
+  for(const w of wheels){
+    w.size=size; w.canvas.style.width=w.canvas.style.height=size+"px";
+    w.canvas.width=w.canvas.height=Math.round(size*dpr); w.dpr=dpr; draw(w);
+  }
+}
+addEventListener("resize",layout);
+
+function entries(w){ return state.lists[w.cfg.key]; }
+
+function draw(w){
+  const ctx=w.ctx, S=w.canvas.width, c=S/2, items=entries(w), n=Math.max(items.length,1), seg=TAU/n;
+  const ptrW=S*0.07;
+  const R=c - ptrW*0.55 - S*0.01;           // leave room for pointer on right
+  const vinyl=w.cfg.style==="vinyl";
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,S,S);
+  const cx=c - ptrW*0.3, cy=c;
+  // outer rim
+  ctx.save(); ctx.shadowColor="rgba(0,0,0,.6)"; ctx.shadowBlur=S*0.03;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU); ctx.fillStyle=vinyl?"#f2f2f2":"#1b1033"; ctx.fill(); ctx.restore();
+  const r = vinyl? R*0.92 : R*0.975;
+  const hl = w.winner!=null && !w.spinning;
+  const pulse = hl ? (0.5+0.5*Math.sin(w.pulse)) : 0;
+  for(let i=0;i<n;i++){
+    const a0=w.rot+i*seg, a1=a0+seg;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a0,a1); ctx.closePath();
+    let fill, tcol;
+    if(vinyl){ fill = i%2? "#151515":"#222"; tcol="#fff"; }
+    else { const k=i%w.cfg.colors.length; fill=w.cfg.colors[k]; tcol=w.cfg.text[k]; }
+    if(hl && i===w.winner && vinyl){ fill="#ff2bd6"; }
+    ctx.fillStyle=fill; ctx.fill();
+    if(!vinyl){ ctx.strokeStyle="rgba(0,0,0,.25)"; ctx.lineWidth=S*0.002; ctx.stroke(); }
+    // text
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(a0+seg/2);
+    const label=items[i]||"";
+    let fs=Math.min(S*0.075, (seg*r*0.62)); fs=Math.max(fs,S*0.022);
+    ctx.font=`bold ${fs}px "Arial Black",Arial,sans-serif`;
+    const maxW=r*0.68; let tw=ctx.measureText(label).width;
+    if(tw>maxW){ fs=fs*maxW/tw; ctx.font=`bold ${fs}px "Arial Black",Arial,sans-serif`; }
+    ctx.fillStyle=tcol; ctx.textAlign="right"; ctx.textBaseline="middle";
+    if(vinyl){ ctx.shadowColor="rgba(0,0,0,.8)"; ctx.shadowBlur=4; }
+    ctx.fillText(label, r*0.93, 0); ctx.restore();
+  }
+  if(vinyl){ // grooves + sheen
+    ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.clip();
+    for(let g=r*0.33; g<r; g+=r*0.035){ ctx.beginPath(); ctx.arc(cx,cy,g,0,TAU); ctx.strokeStyle="rgba(255,255,255,.06)"; ctx.lineWidth=S*0.0025; ctx.stroke(); }
+    const sh=ctx.createLinearGradient(cx-r,cy-r,cx+r,cy+r); sh.addColorStop(0,"rgba(255,255,255,0)"); sh.addColorStop(.45,"rgba(255,255,255,.10)"); sh.addColorStop(.55,"rgba(255,255,255,0)");
+    ctx.fillStyle=sh; ctx.fillRect(cx-r,cy-r,2*r,2*r); ctx.restore();
+  }
+  // highlight: dim others, glow winner
+  if(hl){
+    for(let i=0;i<n;i++){ if(i===w.winner) continue; const a0=w.rot+i*seg;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a0,a0+seg); ctx.closePath(); ctx.fillStyle="rgba(0,0,0,.68)"; ctx.fill(); }
+    const a0=w.rot+w.winner*seg;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a0,a0+seg); ctx.closePath();
+    ctx.fillStyle=`rgba(255,255,255,${(0.10+0.16*pulse).toFixed(3)})`; ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a0,a0+seg); ctx.closePath();
+    ctx.shadowColor="#fff"; ctx.shadowBlur=S*(0.02+0.03*pulse);
+    ctx.strokeStyle=`rgba(255,${230-80*pulse|0},${60+180*pulse|0},1)`; ctx.lineWidth=S*(0.008+0.006*pulse); ctx.lineJoin="round"; ctx.stroke(); ctx.restore();
+  }
+  // hub
+  const hr=r*0.24;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,hr,0,TAU);
+  ctx.fillStyle="#120826"; ctx.shadowColor="#22e6ff"; ctx.shadowBlur=S*0.02; ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.arc(cx,cy,hr,0,TAU); ctx.strokeStyle=vinyl?"#ff2bd6":"#fff"; ctx.lineWidth=S*0.008; ctx.stroke();
+  if(logo.complete && logo.naturalWidth){
+    const lw=hr*1.7, lh=lw*logo.naturalHeight/logo.naturalWidth;
+    ctx.drawImage(logo,cx-lw/2,cy-lh/2,lw,lh);
+  }
+  // pointer (right side, pointing left)
+  const px=cx+R-S*0.012;
+  ctx.save(); ctx.beginPath(); ctx.moveTo(px-ptrW*0.55,cy); ctx.lineTo(px+ptrW*0.55,cy-ptrW*0.42); ctx.lineTo(px+ptrW*0.55,cy+ptrW*0.42); ctx.closePath();
+  ctx.fillStyle="#ffe600"; ctx.shadowColor="#ff2bd6"; ctx.shadowBlur=S*0.02; ctx.fill();
+  ctx.lineWidth=S*0.005; ctx.strokeStyle="#7a3b00"; ctx.stroke(); ctx.restore();
+  w.geom={cx,cy,r};
+}
+
+// index of segment under pointer (angle 0 = right)
+function indexAtPointer(w){
+  const n=entries(w).length, seg=TAU/n;
+  let local=((-w.rot)%TAU+TAU)%TAU; return Math.floor(local/seg)%n;
+}
+
+function easeOut(t){ return 1-Math.pow(1-t,4); } // quartic: fast start, long slow finish
+
+function spin(w){
+  if(w.spinning) return;
+  if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(actx && actx.state==="suspended") actx.resume();
+  // remove previous winner if option set
+  if(state.removeWinner && w.pendingRemove!=null){
+    const list=entries(w); if(list.length>1){ list.splice(w.pendingRemove,1); save(); syncEditors(); }
+  }
+  w.pendingRemove=null; w.winner=null;
+  const items=entries(w), n=items.length; if(!n) return;
+  const seg=TAU/n;
+  const target=randInt(n);
+  const within=0.08+0.84*rand01();               // land somewhere inside the segment, not on a line
+  const desiredLocal=(target+within)*seg;        // local angle that must sit under the pointer
+  const desiredRot=-desiredLocal;
+  let delta=((desiredRot - w.rot)%TAU+TAU)%TAU;
+  const turns=5+randInt(4);                       // 5–8 extra full turns
+  delta+=turns*TAU;
+  const dur=6000+rand01()*4000;                   // 6–10 s
+  const start=performance.now(), from=w.rot;
+  w.spinning=true; w.resultEl.textContent=""; w.resultEl.classList.remove("pop");
+  updateBanner();
+  let lastIdx=indexAtPointer(w);
+  function frame(now){
+    const t=Math.min(1,(now-start)/dur);
+    w.rot=from+delta*easeOut(t);
+    const idx=indexAtPointer(w);
+    if(idx!==lastIdx){ lastIdx=idx; if(now-lastTickAt>28){ tick(); lastTickAt=now; } }
+    draw(w);
+    if(t<1) requestAnimationFrame(frame); else finish(w,target);
+  }
+  requestAnimationFrame(frame);
+}
+
+function finish(w,target){
+  w.spinning=false;
+  const idx=indexAtPointer(w);
+  w.winner=idx; w.pendingRemove=idx;
+  const val=entries(w)[idx];
+  w.resultEl.textContent=val; void w.resultEl.offsetWidth; w.resultEl.classList.add("pop");
+  ding();
+  state.history.unshift({t:new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), wheel:w.cfg.label, value:val});
+  save(); renderHistory(); updateBanner();
+  if(idx!==target) console.warn("target mismatch",idx,target);
+}
+
+function updateBanner(){
+  const b=document.getElementById("banner");
+  const anyRes=wheels.some(w=>w.winner!=null&&!w.spinning);
+  if(!anyRes){ b.classList.remove("show"); return; }
+  b.innerHTML=wheels.map(w=>`<b>${w.cfg.label}:</b> <span>${(w.winner!=null&&!w.spinning)?esc(entries(w)[w.winner]):"…"}</span>`).join(" &nbsp;|&nbsp; ");
+  b.classList.add("show");
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+function spinAll(){ wheels.forEach(spin); }
+
+// pulse animation for highlight
+function pulseLoop(){
+  for(const w of wheels){ if(w.winner!=null && !w.spinning){ w.pulse+=0.12; draw(w); } }
+  setTimeout(()=>requestAnimationFrame(pulseLoop),33);
+}
+
+// ---- editor panel ----
+const editors=document.getElementById("editors");
+const tas={};
+for(const w of wheels){
+  const h=document.createElement("h3"); h.textContent=w.cfg.label;
+  const ta=document.createElement("textarea"); ta.value=entries(w).join("\n");
+  ta.addEventListener("input",()=>{
+    const list=ta.value.split("\n").map(s=>s.trim()).filter(Boolean);
+    state.lists[w.cfg.key]=list.length?list:["(empty)"]; w.winner=null; w.pendingRemove=null; w.resultEl.textContent="";
+    save(); draw(w); updateBanner();
+  });
+  tas[w.cfg.key]=ta; editors.append(h,ta);
+}
+function syncEditors(){ for(const w of wheels) tas[w.cfg.key].value=entries(w).join("\n"); }
+function renderHistory(){
+  document.getElementById("history").innerHTML=state.history.slice(0,60).map(h=>`<li>${h.t} – <b>${esc(h.wheel)}</b>: ${esc(h.value)}</li>`).join("");
+}
+const panel=document.getElementById("panel");
+const togglePanel=()=>panel.classList.toggle("open");
+document.getElementById("editBtn").onclick=togglePanel;
+document.getElementById("closePanel").onclick=togglePanel;
+document.getElementById("spinAll").onclick=spinAll;
+const rw=document.getElementById("removeWinner"); rw.checked=state.removeWinner; rw.onchange=()=>{state.removeWinner=rw.checked; save();};
+const so=document.getElementById("soundOn"), mb=document.getElementById("muteBtn");
+function setSound(v){ state.sound=v; so.checked=v; mb.textContent=v?"🔊":"🔇"; save(); }
+so.onchange=()=>setSound(so.checked); mb.onclick=()=>setSound(!state.sound); setSound(state.sound);
+document.getElementById("resetDefaults").onclick=()=>{ if(!confirm("Put all three wheels back to the default lists?")) return;
+  for(const w of wheels){ state.lists[w.cfg.key]=DEFAULTS[w.cfg.key].slice(); w.winner=null; w.pendingRemove=null; w.resultEl.textContent=""; draw(w);} save(); syncEditors(); updateBanner(); };
+document.getElementById("clearHist").onclick=()=>{ state.history=[]; save(); renderHistory(); };
+
+addEventListener("keydown",e=>{
+  if(e.target.tagName==="TEXTAREA"||e.target.tagName==="INPUT") return;
+  if(e.code==="Space"||(e.key==="Enter"&&e.ctrlKey)){ e.preventDefault(); spinAll(); }
+  else if(e.key==="e"||e.key==="E") togglePanel();
+  else if(e.key==="m"||e.key==="M") setSound(!state.sound);
+  else if(e.key==="h"||e.key==="H") document.body.classList.toggle("hideui");
+  else if(["1","2","3"].includes(e.key)) spin(wheels[+e.key-1]);
+});
+
+// test hook (read-only)
+window.__wheels={ wheels, indexAtPointer, entries, spinAll };
+layout(); renderHistory(); pulseLoop();
+})();
+</script>
+</body>
+</html>
