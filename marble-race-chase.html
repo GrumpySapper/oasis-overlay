@@ -1,0 +1,807 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio Marble Race 3D – Chase Cam</title>
+<!-- Oasis Radio MARBLE RACE (3D CHASE) – 720x1280 Link source for TikTok LIVE Studio (full-screen scene, has its own background).
+     Viewers who send a 100+ diamond gift join as a marble. Grumpy runs it from marble-control.html.
+     Physics: real 3D (Rapier, deterministic fixed 60 Hz) on a winding downhill track (marble-track3d.js); a chase camera follows the leading pack.
+     Old versions: marble-race-classic.html (3D view of the vertical course), marble-race-2d.html (flat 2D).
+     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: Halloween until end of Sun 1 Nov 2026 UK, then 80s)
+     ?channel=test listens to the test channel.   ?quality=low  no shadows / lower res.   ?fps=1 shows the frame rate.
+     If WebGL is missing it switches to marble-race-2d.html; if the chase version fails to start it switches to marble-race-classic.html. -->
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#wrap{position:absolute;left:50%;top:50%;width:720px;height:1280px;transform-origin:0 0}
+#wrap canvas{position:absolute;left:0;top:0;width:720px;height:1280px;display:block}
+</style>
+<script>
+(function () { // safety net: no WebGL or 3D not running after 12s -> classic 2D race
+  function go2d() { if (!window.__m3dOK) location.replace('marble-race-2d.html' + location.search); }
+  function goClassic() { if (!window.__m3dOK) location.replace('marble-race-classic.html' + location.search); }
+  window.__m3dFail = goClassic;
+  try { var c = document.createElement('canvas'); if (!(c.getContext('webgl2') || c.getContext('webgl'))) go2d(); } catch (e) { go2d(); }
+  setTimeout(goClassic, 20000);
+  window.addEventListener('error', function (e) { if (!window.__m3dOK && e && /three|module|import|rapier|wasm|MarbleTrack/i.test(String(e.message || ''))) goClassic(); });
+})();
+</script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
+<script src="marble-track3d.js?v=4"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+</head><body>
+<div id="wrap"><canvas id="g3" width="720" height="1280"></canvas><canvas id="c" width="720" height="1280"></canvas></div>
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+// wait (max 2.5s) for the Montserrat web font so signs + name tags render in it
+const fontWait = Promise.race([Promise.all(['900 40px Montserrat', '800 20px Montserrat'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]).catch(() => {});
+// Rapier 3D physics (WASM inlined): our own copy first, CDN as backup
+let RAPIER;
+try { RAPIER = await import('./marble-lib/rapier3d-compat-0.21.0.mjs'); } catch (e) { RAPIER = await import('https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.21.0/dist/rapier.mjs'); }
+try { await RAPIER.init(); } catch (e) { console.error(e); window.__m3dFail && window.__m3dFail(); }
+await fontWait;
+(() => {
+  const q = new URLSearchParams(location.search);
+  const TEST = q.get('test') === '1';
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const HW = THEME === 'halloween';
+  const LOWQ = q.get('quality') === 'low', SHOWFPS = q.get('fps') === '1', HQ = q.get('quality') === 'high';
+  const T = HW ? {
+    title: '🎃 SPOOKY MARBLE RACE 🎃', sub: 'OASIS RADIO', ramp: '#ff7a00', ramp2: '#ffd2a0', wall: '#a74bff', peg: '#39ff14', bumper: '#ff7a00', spin: '#c86bff', door: '#39ff14', gate: '#ff7a00',
+    accent: '#ff7a00', accent2: '#39ff14', accent3: '#c86bff', text: '#fff3e0', panel: 'rgba(20,6,30,.82)',
+    signs: { B: 'BAT ALLEY 🦇', C: "WITCH'S WHIRL 🧹", D: 'GRAVEYARD JUMP 🪦', E: 'TRAPDOOR OF DOOM 🚪', F: 'PUMPKIN PATCH 🎃', G: 'CREEPY CRAWL 🕷️', H: 'DOUBLE TROUBLE 👻', I: 'FINAL FRIGHT 💀' }
+  } : {
+    title: '★ MARBLE RACE ★', sub: 'OASIS RADIO', ramp: '#00f0ff', ramp2: '#d6fdff', wall: '#ff2bd6', peg: '#ffe600', bumper: '#ff2bd6', spin: '#39ff14', door: '#ff7a00', gate: '#ffe600',
+    accent: '#ff2bd6', accent2: '#00f0ff', accent3: '#ffe600', text: '#ffffff', panel: 'rgba(25,5,45,.8)',
+    signs: { B: 'ZIG-ZAG ALLEY', C: 'SPIN CITY', D: 'THE BIG JUMP', E: 'TRAPDOOR!', F: 'BUMPER BASH', G: 'DROP ZONE', H: 'DOUBLE TRAP', I: 'FINAL STRAIGHT' }
+  };
+  const wrap = document.getElementById('wrap');
+  function fitWrap() { const s = Math.min(innerWidth / 720, innerHeight / 1280); wrap.style.transform = `scale(${s}) translate(-50%,-50%)`; wrap.style.left = '50%'; wrap.style.top = '50%'; wrap.style.transform = `translate(-50%,-50%) scale(${s})`; wrap.style.transformOrigin = '50% 50%'; }
+  addEventListener('resize', fitWrap); fitWrap();
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const VW = 720, VH = 1280;
+  const FONT = '"Montserrat","Arial Black","Impact",system-ui,sans-serif', UI = '"Montserrat","Segoe UI",system-ui,sans-serif';
+  // ---------- HD render scale: the 720x1280 page is rendered internally at 1.5x–2.5x (1080x1920+), never below native ----------
+  const DPR = window.devicePixelRatio || 1;
+  function nativeScale() { return Math.max(1, Math.min(innerWidth / 720, innerHeight / 1280) * DPR); }
+  function wantScale() { if (q.get('scale')) return Math.max(1, +q.get('scale')); const n = nativeScale(); return Math.min(2.5, LOWQ ? n : Math.max(n, HQ ? 2 : 1.5)); }
+  let RS = wantScale();
+  function sizeOverlay() { cv.width = Math.round(VW * RS); cv.height = Math.round(VH * RS); }
+  sizeOverlay();
+
+  // ---------- helpers ----------
+  function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function glowText(g, s, x, y, size, col, glow, align) { g.save(); g.font = `900 ${size}px ${FONT}`; g.textAlign = align || 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = glow || col; g.shadowBlur = size * .4 * RS; g.lineWidth = Math.max(3, size * .16); g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0; g.fillText(s, x, y); g.restore(); }
+  function fit(g, s, max, size) { g.font = `900 ${size}px ${FONT}`; while (size > 10 && g.measureText(s).width > max) { size -= 2; g.font = `900 ${size}px ${FONT}`; } return size; }
+  function pumpkin(g, x, y, r, face) {
+    g.save(); g.translate(x, y);
+    g.fillStyle = '#ff7a00'; g.beginPath(); g.ellipse(0, 0, r * 1.1, r, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(150,50,0,.8)'; g.lineWidth = Math.max(1, r * .1); [-.5, 0, .5].forEach(k => { g.beginPath(); g.ellipse(k * r * .7, 0, r * .35, r * .95, 0, 0, 7); g.stroke(); });
+    g.fillStyle = '#2e7d1a'; g.fillRect(-r * .12, -r * 1.25, r * .24, r * .4);
+    if (face) { g.fillStyle = '#ffe14a'; g.shadowColor = '#ffb000'; g.shadowBlur = r * .5; g.beginPath(); g.moveTo(-r * .55, -r * .15); g.lineTo(-r * .3, -r * .5); g.lineTo(-r * .1, -r * .15); g.fill(); g.beginPath(); g.moveTo(r * .55, -r * .15); g.lineTo(r * .3, -r * .5); g.lineTo(r * .1, -r * .15); g.fill(); g.beginPath(); g.moveTo(-r * .6, r * .2); for (let i = 0; i <= 6; i++) g.lineTo(-r * .6 + i * r * .2, r * (i % 2 ? .35 : .55)); g.lineTo(r * .6, r * .2); g.quadraticCurveTo(0, r * .9, -r * .6, r * .2); g.fill(); }
+    g.restore();
+  }
+
+  // ---------- avatars ----------
+  const avatars = new Map();
+  // profile pictures: load straight from TikTok's CDN with CORS (it sends ACAO:*); if that fails, go through the box server's
+  // /api/marble/avatar proxy (fetch + blob, so the ngrok header can be sent). If both fail the marble keeps its normal look.
+  function loadAvatar(url, cb) {
+    let a = avatars.get(url);
+    if (!a) { a = { img: null, ok: false, failed: false, cbs: [] }; avatars.set(url, a);
+      const done = img => { a.img = img; a.ok = true; a.cbs.splice(0).forEach(f => { try { f(img); } catch (e) {} }); };
+      const fail = () => { a.failed = true; a.cbs.length = 0; };
+      const viaBox = () => { if (!/^https:\/\//.test(url)) return fail();
+        fetch(BOX + '/api/marble/avatar?u=' + encodeURIComponent(url), { headers: H_ }).then(r => { if (!r.ok) throw 0; return r.blob(); })
+          .then(b => { if (!/^image\//.test(b.type)) throw 0; const i = new Image(); i.onload = () => done(i); i.onerror = fail; i.src = URL.createObjectURL(b); }).catch(fail); };
+      const i = new Image(); i.crossOrigin = 'anonymous'; i.referrerPolicy = 'no-referrer'; i.onload = () => done(i); i.onerror = viaBox; i.src = url; }
+    if (cb) { if (a.ok) cb(a.img); else if (!a.failed) a.cbs.push(cb); }
+    return a.ok ? a.img : null;
+  }
+  function avatar(url) { return url ? loadAvatar(url) : null; }
+  // test-mode placeholder avatars (gradient + initials), as data URLs
+  function placeholderAvatar(name, col, k) { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 256, 256); gr.addColorStop(0, col); gr.addColorStop(1, ['#1b0b3a', '#002a3a', '#3a0b1b'][k % 3]); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(128, 104, 54, 0, 7); g.fill(); g.beginPath(); g.ellipse(128, 262, 100, 92, 0, 0, 7); g.fill();
+    const ini = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase(); g.font = `900 104px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(ini, 128, 136); g.fillStyle = '#fff'; g.fillText(ini, 128, 136); return c.toDataURL('image/png'); }
+
+  function drawMarble(g, m, x, y, r, idx, label) {
+    const img = avatar(m.avatar);
+    g.save();
+    if (img) { g.beginPath(); g.arc(x, y, r, 0, 7); g.clip(); g.drawImage(img, x - r, y - r, r * 2, r * 2); g.restore(); g.save(); }
+    else if (HW && idx % 2 === 0) { pumpkin(g, x, y, r * .92, r > 20); }
+    else if (HW) { g.fillStyle = '#f4f4f4'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); const v = m.vel ? { x: m.vel.x, y: -m.vel.y } : { x: 0, y: 1 }, d = Math.hypot(v.x, v.y) || 1; g.fillStyle = m.color; g.beginPath(); g.arc(x + v.x / d * r * .35, y + v.y / d * r * .35, r * .48, 0, 7); g.fill(); g.fillStyle = '#000'; g.beginPath(); g.arc(x + v.x / d * r * .42, y + v.y / d * r * .42, r * .22, 0, 7); g.fill(); g.strokeStyle = 'rgba(220,0,0,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x - r * .9, y - r * .2); g.lineTo(x - r * .5, y - r * .1); g.stroke(); }
+    else { const gr = g.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r); gr.addColorStop(0, '#fff'); gr.addColorStop(.3, m.color); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+    g.restore();
+    g.save(); g.strokeStyle = m.color; g.lineWidth = Math.max(2, r * .16); g.shadowColor = m.color; g.shadowBlur = 8; g.beginPath(); g.arc(x, y, r + 1, 0, 7); g.stroke(); g.restore();
+    if (label) { g.save(); g.font = `800 ${label}px ${UI}`; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.9)'; const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name; g.strokeText(s, x, y - r - 6); g.fillStyle = '#fff'; g.fillText(s, x, y - r - 6); g.restore(); }
+  }
+
+
+  // =====================================================================
+  //                              3D SCENE
+  // =====================================================================
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('g3'), antialias: !LOWQ, powerPreference: 'high-performance', preserveDrawingBuffer: q.get('rec') === '1' }); }
+  catch (e) { location.replace('marble-race-2d.html' + location.search); return; }
+  renderer.setPixelRatio(RS); renderer.setSize(VW, VH, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const MAXANI = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 8;
+  document.getElementById('g3').addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(() => location.reload(), 1500); });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, VW / VH, .1, 2200);
+  // post: HDR (half-float) + 4x MSAA render -> bloom on neon/emissive parts -> ACES/sRGB output -> SMAA edge smoothing
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(VW, VH, { type: THREE.HalfFloatType, samples: LOWQ ? 0 : 4 }));
+  composer.setPixelRatio(RS); composer.setSize(VW, VH);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(VW, VH), HW ? .32 : .4, .35, 1.0); composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  const smaa = new SMAAPass(VW * RS, VH * RS); if (!LOWQ) composer.addPass(smaa);
+  function applyScale(s) { RS = s; renderer.setPixelRatio(RS); renderer.setSize(VW, VH, false); composer.setPixelRatio(RS); composer.setSize(VW, VH); sizeOverlay(); }
+  addEventListener('resize', () => { const s = wantScale(); if (Math.abs(s - RS) > .01 && !fpsS.degraded) applyScale(s); });
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const C = s => new THREE.Color(s);
+  function canvasTex(w, h, fn, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, MAXANI); return t; }
+
+  // ---------- sky ----------
+  scene.background = canvasTex(256, 1024, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h);
+    if (HW) { gr.addColorStop(0, '#05010c'); gr.addColorStop(.5, '#1c0633'); gr.addColorStop(.8, '#3a0d3f'); gr.addColorStop(1, '#a8400a'); }
+    else { gr.addColorStop(0, '#0c001c'); gr.addColorStop(.45, '#3b0a6b'); gr.addColorStop(.75, '#c2187a'); gr.addColorStop(1, '#ff7a3c'); }
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .8})`; g.fillRect(Math.random() * w, Math.random() * h * .65, 1, 1); }
+  });
+
+  // ---------- materials ----------
+  const mStd = (col, o = {}) => new THREE.MeshPhysicalMaterial(Object.assign({ color: C(col), roughness: .3, metalness: .25, clearcoat: .6, clearcoatRoughness: .12 }, o));
+  const mGlow = (col, k = 1) => new THREE.MeshStandardMaterial({ color: C(col), emissive: C(col), emissiveIntensity: k, roughness: .4, metalness: 0, toneMapped: true });
+  const MAT = {
+    ramp: mStd(HW ? '#3a1a52' : '#1b0b3a', { emissive: C(T.ramp), emissiveIntensity: .06, roughness: .3, metalness: .5 }),
+    rampTop: mStd(T.ramp, { emissive: C(T.ramp), emissiveIntensity: .18, roughness: .25, metalness: .3, clearcoat: .4, envMapIntensity: .7 }),
+    kick: mStd(T.accent3, { emissive: C(T.accent3), emissiveIntensity: .5 }),
+    rail: mStd('#e8e8f0', { metalness: 1, roughness: .12, clearcoat: 1 }), railK: mStd('#e8e8f0', { metalness: 1, roughness: .12 }),
+    neon: mGlow(T.ramp, 1.9), neonK: mGlow(T.accent3, 1.9),
+    wall: mStd(HW ? '#2a0f40' : '#2a0040', { emissive: C(T.wall), emissiveIntensity: .12, transparent: true, opacity: .9 }),
+    wallEdge: mGlow(T.wall, 1.6),
+    peg: mStd(T.peg, { emissive: C(T.peg), emissiveIntensity: .7, metalness: .6, roughness: .2 }),
+    spin: mStd(T.spin, { emissive: C(T.spin), emissiveIntensity: .45, metalness: .4, roughness: .25 }),
+    hub: mStd('#ffffff', { metalness: .9, roughness: .15 }),
+    door: mStd(T.door, { emissive: C(T.door), emissiveIntensity: .6 }),
+    gate: mStd(T.gate, { emissive: C(T.gate), emissiveIntensity: .8 }),
+  };
+
+  // back panel texture (bricks for Halloween, neon grid for 80s) – tiles down the whole course
+  const backTex = canvasTex(512, 512, (g, w, h) => {
+    g.scale(2, 2); w = 256; h = 256;
+    if (HW) { g.fillStyle = '#140820'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(167,75,255,.22)'; g.lineWidth = 3;
+      for (let r = 0; r < 8; r++) { const y = r * 32; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (r % 2) * 32; x < w; x += 64) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } }
+      g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * w, Math.random() * h, 20, 6);
+    } else { g.fillStyle = '#12002a'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(255,43,214,.55)'; g.lineWidth = 3; g.shadowColor = '#ff2bd6'; g.shadowBlur = 6;
+      for (let k = 0; k <= 4; k++) { g.beginPath(); g.moveTo(k * 64, 0); g.lineTo(k * 64, h); g.stroke(); g.beginPath(); g.moveTo(0, k * 64); g.lineTo(w, k * 64); g.stroke(); } }
+  });
+  backTex.wrapS = backTex.wrapT = THREE.RepeatWrapping;
+
+  // ---------- marbles ----------
+  const marbleGeo = new THREE.SphereGeometry(1, 64, 48);
+  const pumpkinGeo = (() => { const g = new THREE.SphereGeometry(1, 80, 56), p = g.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const a = Math.atan2(v.z, v.x), k = 1 - .085 * Math.pow(Math.abs(Math.sin(a * 5)), .6) * (1 - Math.abs(v.y)); v.x *= k * 1.06; v.z *= k * 1.06; v.y *= .86; p.setXYZ(i, v.x, v.y, v.z); }
+    g.computeVertexNormals(); return g; })();
+  function faceTex(glow) { return canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#000'; g.fillRect(0, 0, 512, 256); g.fillStyle = glow;
+    g.beginPath(); g.moveTo(88, 120); g.lineTo(108, 82); g.lineTo(128, 120); g.fill(); g.beginPath(); g.moveTo(168, 120); g.lineTo(148, 82); g.lineTo(128 + 0, 120); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(140, 120); g.lineTo(160, 82); g.lineTo(178, 120); g.fill();
+    g.beginPath(); g.moveTo(80, 140); for (let i = 0; i <= 8; i++) g.lineTo(80 + i * 12, i % 2 ? 150 : 164); g.lineTo(176, 140); g.quadraticCurveTo(128, 196, 80, 140); g.fill(); }); }
+  const pumpkinFace = faceTex('#ffd23a');
+  const pumpkinRidge = canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#ff7a00'; g.fillRect(0, 0, 512, 256); const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(120,40,0,.5)'); gr.addColorStop(.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(120,40,0,.6)'); g.fillStyle = gr; g.fillRect(0, 0, 512, 256); });
+  const stemGeo = new THREE.CylinderGeometry(.12, .18, .45, 8);
+  const stemMat = mStd('#2e7d1a', { roughness: .8, metalness: 0 });
+  function pumpkinMesh(r, lit) {
+    const m = new THREE.Mesh(pumpkinGeo, new THREE.MeshPhysicalMaterial({ map: pumpkinRidge, color: 0xffffff, roughness: .38, metalness: .02, clearcoat: .5, clearcoatRoughness: .25, emissive: 0xffb000, emissiveMap: lit ? pumpkinFace : null, emissiveIntensity: lit ? 1.6 : 0 }));
+    m.scale.setScalar(r); const s = new THREE.Mesh(stemGeo, stemMat); s.position.y = 1.0; m.add(s); m.castShadow = true; return m;
+  }
+  const texCache = new Map();
+  function marbleMat(m, idx) {
+    const kind = HW ? (idx % 2 === 0 ? 'pumpkin' : 'eye') : 'glass';
+    const key = kind + m.color; if (texCache.has(key)) return texCache.get(key);
+    let mat;
+    if (kind === 'eye') {
+      const tex = canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#f6f2ee'; g.fillRect(0, 0, 512, 256); g.strokeStyle = 'rgba(200,0,0,.55)'; g.lineWidth = 2;
+        for (let i = 0; i < 14; i++) { let x = 128 + (Math.random() - .5) * 300, y = 97 + (Math.random() - .5) * 150; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (128 - x) * .25 + (Math.random() - .5) * 20; y += (97 - y) * .25 + (Math.random() - .5) * 14; g.lineTo(x, y); } g.stroke(); }
+        g.fillStyle = m.color; g.beginPath(); g.ellipse(128, 97, 40, 44, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 4; g.stroke();
+        g.fillStyle = '#000'; g.beginPath(); g.ellipse(128, 97, 17, 19, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(118, 86, 6, 0, 7); g.fill(); });
+      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .1, metalness: 0, clearcoat: 1, clearcoatRoughness: .03, envMapIntensity: 1.3, sheen: .3, sheenColor: C('#ffd0d0') });
+    } else if (kind === 'glass') {
+      const col = C(m.color); const hsl = {}; col.getHSL(hsl);
+      const tex = canvasTex(1024, 512, (g) => { g.scale(2, 2); const base = new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.1), Math.max(.14, hsl.l * .42));
+        g.fillStyle = '#' + base.getHexString(); g.fillRect(0, 0, 512, 256);
+        for (let b = 0; b < 3; b++) { g.strokeStyle = b === 1 ? 'rgba(255,255,255,.9)' : m.color; g.lineWidth = b === 1 ? 16 : 30; g.beginPath(); for (let x = 0; x <= 512; x += 8) { const y = 128 + Math.sin(x / 512 * Math.PI * 4 + b * 2.1) * 70; x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); } });
+      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .2, metalness: 0, emissive: col, emissiveMap: tex, emissiveIntensity: .45 });
+    } else mat = null;
+    texCache.set(key, mat); return mat;
+  }
+  const shellCache = new Map();
+  function glassShell(col, wr = .5) { const key = col + wr; let s = shellCache.get(key); if (!s) { s = LOWQ ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: .28, roughness: 0, clearcoat: 1, envMapIntensity: 2.2 })
+      : new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 1, thickness: 9, ior: 1.5, roughness: .03, metalness: 0, clearcoat: 1, clearcoatRoughness: .02, attenuationColor: C(col), attenuationDistance: 4.5 * wr, envMapIntensity: 2.0, specularIntensity: 1 });
+      shellCache.set(key, s); } return s; }
+  // avatar marble: the viewer's round profile picture always faces the camera inside a glossy clear glass bubble with a ring in their colour
+  // avatar marbles: the viewer's round profile picture is drawn as a glossy disc locked to their marble (crisp, true colours, always readable)
+  function avatarDisc(img, col) { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    g.save(); g.beginPath(); g.arc(128, 128, 118, 0, 7); g.clip(); g.fillStyle = col; g.fillRect(0, 0, 256, 256);
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, sc = 236 / Math.min(iw, ih); g.drawImage(img, 128 - iw * sc / 2, 128 - ih * sc / 2, iw * sc, ih * sc);
+    const v = g.createRadialGradient(128, 128, 78, 128, 128, 120); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.5)'); g.fillStyle = v; g.fillRect(0, 0, 256, 256);
+    const hl = g.createRadialGradient(92, 70, 4, 100, 84, 92); hl.addColorStop(0, 'rgba(255,255,255,.75)'); hl.addColorStop(.35, 'rgba(255,255,255,.18)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl; g.beginPath(); g.ellipse(100, 82, 74, 52, -.5, 0, 7); g.fill(); g.restore();
+    g.lineWidth = 18; g.strokeStyle = col; g.beginPath(); g.arc(128, 128, 118, 0, 7); g.stroke();
+    g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(128, 128, 108, 0, 7); g.stroke();
+    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(128, 128, 126, 0, 7); g.stroke(); return c; }
+  function addAvatar(g, m, R) { if (!m.avatar) return; loadAvatar(m.avatar, img => { if (g.userData.av) return; try { g.userData.av = avatarDisc(img, m.color || '#ffffff'); g.userData.avR = R; if (HW) g.userData.spin.visible = false; } catch (e) {} }); }
+  const _av = new THREE.Vector3(), _rt = new THREE.Vector3();
+  function drawAvatarDiscs() { if (mode === 'idle') return; const list = []; _rt.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    for (const g of meshes.values()) if (g.userData.av && g.visible && g.parent) list.push(g); for (const g of podMeshes) if (g.userData.av && g.visible && g.parent) list.push(g);
+    for (const g of list) { g.getWorldPosition(_av); const c = toScreen(_av.x, _av.y, _av.z); if (!c.ok) continue; _av.addScaledVector(_rt, g.userData.avR * (g.parent === finale ? FS : 1)); const e = toScreen(_av.x, _av.y, _av.z);
+      const r = Math.hypot(e.x - c.x, e.y - c.y) * 1.08; if (r < 3 || c.y < -r || c.y > VH + r) continue;
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = r * .5 * RS; ctx.shadowOffsetY = r * .15 * RS; ctx.drawImage(g.userData.av, c.x - r, c.y - r, r * 2, r * 2); ctx.restore(); } }
+  function makeMarbleMesh(m, idx, R) {
+    let mesh;
+    if (HW && idx % 2 === 0) mesh = pumpkinMesh(R, true);
+    else if (!HW) {   // real glass: refractive clear shell (transmission) around a glowing swirl core
+      mesh = new THREE.Group(); mesh.scale.setScalar(R);
+      const core = new THREE.Mesh(marbleGeo, marbleMat(m, idx)); core.scale.setScalar(.66); mesh.add(core);
+      const shell = new THREE.Mesh(marbleGeo, glassShell(m.color, R < 5 ? R : R * FS)); shell.castShadow = true; mesh.add(shell);
+    }
+    else { mesh = new THREE.Mesh(marbleGeo, marbleMat(m, idx)); mesh.scale.setScalar(R); mesh.castShadow = true; }
+    const g = new THREE.Group(); g.add(mesh); g.userData.spin = mesh; addAvatar(g, m, R); return g;
+  }
+
+  // =====================================================================
+  //        THE 3D DOWNHILL TRACK (same geometry the physics uses)
+  // =====================================================================
+  const TR = MarbleTrack3D.createTrack(), MR = MarbleTrack3D.R;
+  const PROF = (i) => MarbleTrack3D.profile(TR.W[i], TR.H[i]);
+  const NP = PROF(0).length;
+  const featS = k => TR.feats.find(f => f.key === k);
+  let kickS = 0, landS = 0; for (let i = 0; i < TR.N; i++) { if ((TR.F[i] & 2) && !kickS) kickS = TR.S[i]; if ((TR.F[i] & 4) && !landS) landS = TR.S[i]; }
+  function trackFrame(s, o) {
+    o = o || { p: new THREE.Vector3(), t: new THREE.Vector3(), r: new THREE.Vector3(), u: new THREE.Vector3(), w: 6 };
+    const f = Math.max(0, Math.min(TR.N - 1.001, s / TR.DS - 1)), i = Math.floor(f), k = f - i;
+    const L = (A, v) => v.set(A[i * 3] + (A[i * 3 + 3] - A[i * 3]) * k, A[i * 3 + 1] + (A[i * 3 + 4] - A[i * 3 + 1]) * k, A[i * 3 + 2] + (A[i * 3 + 5] - A[i * 3 + 2]) * k);
+    L(TR.P, o.p); L(TR.T, o.t).normalize(); L(TR.Rt, o.r).normalize(); L(TR.Up, o.u).normalize(); o.w = TR.W[i]; return o;
+  }
+  let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9, maxY = -1e9;
+  for (let i = 0; i < TR.N; i++) { minX = Math.min(minX, TR.P[i * 3]); maxX = Math.max(maxX, TR.P[i * 3]); minZ = Math.min(minZ, TR.P[i * 3 + 2]); maxZ = Math.max(maxZ, TR.P[i * 3 + 2]); maxY = Math.max(maxY, TR.P[i * 3 + 1]); }
+  const GROUND = TR.minY - 3.2, CENTER = new THREE.Vector3((minX + maxX) / 2, GROUND, (minZ + maxZ) / 2);
+  const track = new THREE.Group(); scene.add(track);
+  // floor/wall texture: glossy panels, lane lines and chevrons pointing down the track (they stream past = sense of speed)
+  const trackTex = canvasTex(512, 512, (g, w, h) => {
+    const base = HW ? ['#2b0f45', '#1a0830', '#3d1760'] : ['#10002a', '#07001a', '#1d0548'];
+    const gr = g.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, base[2]); gr.addColorStop(.22, base[0]); gr.addColorStop(.5, base[1]); gr.addColorStop(.78, base[0]); gr.addColorStop(1, base[2]); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.strokeStyle = HW ? 'rgba(255,122,0,.75)' : 'rgba(0,240,255,.85)'; g.lineWidth = 6; [.2, .8].forEach(x => { g.beginPath(); g.moveTo(x * w, 0); g.lineTo(x * w, h); g.stroke(); });
+    g.strokeStyle = HW ? 'rgba(200,107,255,.35)' : 'rgba(255,43,214,.45)'; g.lineWidth = 3; for (let y = 0; y < h; y += 64) { g.beginPath(); g.moveTo(0, y); g.lineTo(w * .16, y); g.moveTo(w * .84, y); g.lineTo(w, y); g.stroke(); }
+    g.fillStyle = HW ? 'rgba(255,122,0,.5)' : 'rgba(255,43,214,.55)';
+    for (let y = 0; y < h; y += 256) { g.beginPath(); g.moveTo(w * .36, y + 40); g.lineTo(w * .5, y + 110); g.lineTo(w * .64, y + 40); g.lineTo(w * .64, y + 80); g.lineTo(w * .5, y + 150); g.lineTo(w * .36, y + 80); g.closePath(); g.fill(); }
+  });
+  trackTex.wrapS = trackTex.wrapT = THREE.RepeatWrapping;
+  const trackMat = new THREE.MeshPhysicalMaterial({ map: trackTex, emissiveMap: trackTex, emissive: 0xffffff, emissiveIntensity: HW ? .22 : .26, roughness: .34, metalness: .4, clearcoat: .55, clearcoatRoughness: .12, envMapIntensity: .3, side: THREE.DoubleSide });
+  const shellMat = mStd(HW ? '#140622' : '#0a0018', { roughness: .4, metalness: .6, envMapIntensity: .35, side: THREE.DoubleSide });
+  const chrome = mStd('#dcdce8', { metalness: 1, roughness: .14, clearcoat: 1 });
+  const lipMat = mGlow(HW ? T.accent : T.accent, 2.2), lipMat2 = mGlow(HW ? T.accent3 : T.accent2, 2.2), kickMat = mGlow(T.accent3, 2.4);
+  (function buildTrackMesh() {
+    const pos = [], uv = [], ind = [], opos = [], oind = []; const v = new THREE.Vector3();
+    const W = (i, a, b, arr) => arr.push(TR.P[i * 3] + TR.Rt[i * 3] * a + TR.Up[i * 3] * b, TR.P[i * 3 + 1] + TR.Rt[i * 3 + 1] * a + TR.Up[i * 3 + 1] * b, TR.P[i * 3 + 2] + TR.Rt[i * 3 + 2] * a + TR.Up[i * 3 + 2] * b);
+    for (let i = 0; i < TR.N; i++) { const pr = PROF(i); const L = [0]; for (let k = 1; k < NP; k++) L.push(L[k - 1] + Math.hypot(pr[k][0] - pr[k - 1][0], pr[k][1] - pr[k - 1][1]));
+      for (let k = 0; k < NP; k++) { const [a, b] = pr[k]; W(i, a, b, pos); uv.push(L[k] / L[NP - 1], TR.S[i] / 3.2);
+        const p0 = pr[Math.max(0, k - 1)], p1 = pr[Math.min(NP - 1, k + 1)]; let dx = p1[0] - p0[0], dy = p1[1] - p0[1]; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl; W(i, a + dy * .3, b - dx * .3, opos); } }
+    for (let i = 0; i < TR.N - 1; i++) { if ((TR.F[i] & 1) || (TR.F[i + 1] & 1)) continue; for (let k = 0; k < NP - 1; k++) { const a = i * NP + k, b = a + 1, c = a + NP, d = c + 1; ind.push(a, b, c, b, d, c); oind.push(a, c, b, b, c, d); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(ind); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, trackMat); m.receiveShadow = true; m.castShadow = true; track.add(m);
+    // outer shell + lip caps
+    const cap = []; for (let i = 0; i < TR.N; i++) for (const k of [0, NP - 1]) { cap.push(pos[(i * NP + k) * 3], pos[(i * NP + k) * 3 + 1], pos[(i * NP + k) * 3 + 2]); }
+    const base = opos.length / 3; opos.push(...cap);
+    for (let i = 0; i < TR.N - 1; i++) { if ((TR.F[i] & 1) || (TR.F[i + 1] & 1)) continue; for (const [s, k] of [[0, 0], [1, NP - 1]]) { const a = i * NP + k, c = a + NP, ca = base + i * 2 + s, cc = ca + 2; oind.push(a, c, ca, ca, c, cc); } }
+    const og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.Float32BufferAttribute(opos, 3)); og.setIndex(oind); og.computeVertexNormals();
+    const om = new THREE.Mesh(og, shellMat); om.castShadow = true; track.add(om);
+    // neon lips (glowing rails along both edges), split at the jump gap; the kicker lip glows in the 3rd colour
+    function tube(list, rad, mat) { if (list.length < 2) return; const P = [], I = []; const S = 6;
+      list.forEach(([p, r, u], j) => { for (let k = 0; k < S; k++) { const a = k / S * Math.PI * 2; P.push(p.x + (r.x * Math.cos(a) + u.x * Math.sin(a)) * rad, p.y + (r.y * Math.cos(a) + u.y * Math.sin(a)) * rad, p.z + (r.z * Math.cos(a) + u.z * Math.sin(a)) * rad); } });
+      for (let j = 0; j < list.length - 1; j++) for (let k = 0; k < S; k++) { const a = j * S + k, b = j * S + (k + 1) % S, c = a + S, d = b + S; I.push(a, c, b, b, c, d); }
+      const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); tg.setIndex(I); tg.computeVertexNormals(); track.add(new THREE.Mesh(tg, mat)); }
+    for (const side of [0, 1]) { let run = [], kind = null;
+      const flush = () => { tube(run, .1, kind === 'k' ? kickMat : side ? lipMat2 : lipMat); run = []; };
+      for (let i = 0; i < TR.N; i++) { const kd = (TR.F[i] & 2) ? 'k' : 'n'; if (TR.F[i] & 1) { flush(); kind = null; continue; } if (kind && kd !== kind) { const last = run[run.length - 1]; flush(); run.push(last); } kind = kd;
+        const pr = PROF(i), [a, b] = pr[side ? NP - 1 : 0]; const r = new THREE.Vector3(TR.Rt[i * 3], TR.Rt[i * 3 + 1], TR.Rt[i * 3 + 2]), u = new THREE.Vector3(TR.Up[i * 3], TR.Up[i * 3 + 1], TR.Up[i * 3 + 2]);
+        run.push([new THREE.Vector3(TR.P[i * 3], TR.P[i * 3 + 1], TR.P[i * 3 + 2]).addScaledVector(r, a + (side ? .15 : -.15)).addScaledVector(u, b + .04), r, u]); }
+      flush(); }
+    // split-section divider fin with a glowing top
+    const dv = [], di = [], top = [];
+    for (let i = 0; i < TR.N; i++) { if (!(TR.F[i] & 8)) continue; const r = new THREE.Vector3(TR.Rt[i * 3], TR.Rt[i * 3 + 1], TR.Rt[i * 3 + 2]), u = new THREE.Vector3(TR.Up[i * 3], TR.Up[i * 3 + 1], TR.Up[i * 3 + 2]), p = new THREE.Vector3(TR.P[i * 3], TR.P[i * 3 + 1], TR.P[i * 3 + 2]);
+      dv.push(p.x, p.y, p.z, p.x + u.x * 1.1, p.y + u.y * 1.1, p.z + u.z * 1.1); top.push([p.clone().addScaledVector(u, 1.1), r, u]); }
+    for (let k = 0; k < dv.length / 6 - 1; k++) { const a = k * 2; di.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    if (dv.length) { const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(dv, 3)); dg.setIndex(di); dg.computeVertexNormals(); const dm = new THREE.Mesh(dg, mStd(T.accent2, { side: THREE.DoubleSide, emissive: C(T.accent2), emissiveIntensity: .35, metalness: .5, roughness: .25 })); dm.castShadow = true; track.add(dm); tube(top, .12, kickMat); }
+    // end cap wall
+    const li = TR.N - 1, pr = PROF(li), ep = []; pr.forEach(([a, b]) => W(li, a, b, ep)); W(li, 0, TR.H[li] * .5, ep); const ei = []; for (let k = 0; k < NP - 1; k++) ei.push(NP, k, k + 1);
+    const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(ep, 3)); eg.setIndex(ei); eg.computeVertexNormals(); track.add(new THREE.Mesh(eg, shellMat));
+  })();
+  // support pillars (chrome) down to the ground; the helix gets a central tower with spokes
+  const occupied = new Map(); const cell = (x, z) => Math.floor(x / 4) + ',' + Math.floor(z / 4);
+  for (let i = 0; i < TR.N; i += 2) { const r = TR.W[i] / 2 + 2.5; for (let dx = -r; dx <= r; dx += 2) for (let dz = -r; dz <= r; dz += 2) occupied.set(cell(TR.P[i * 3] + dx, TR.P[i * 3 + 2] + dz), Math.max(occupied.get(cell(TR.P[i * 3] + dx, TR.P[i * 3 + 2] + dz)) || -1e9, TR.P[i * 3 + 1])); }
+  const isFree = (x, z, m = 1) => { for (let dx = -m; dx <= m; dx++) for (let dz = -m; dz <= m; dz++) if (occupied.has(cell(x + dx * 4, z + dz * 4))) return false; return true; };
+  (function supports() {
+    const H = featS('helix'); const hi0 = Math.round(H.s0 / TR.DS), hi1 = Math.round(H.s1 / TR.DS); let hx = 0, hz = 0, hn = 0; for (let i = hi0; i < hi1; i++) { hx += TR.P[i * 3]; hz += TR.P[i * 3 + 2]; hn++; } hx /= hn; hz /= hn;
+    track.userData.helix = new THREE.Vector3(hx, (TR.P[hi0 * 3 + 1] + TR.P[hi1 * 3 + 1]) / 2, hz); track.userData.helixTop = TR.P[hi0 * 3 + 1];
+    const mats = []; const tmp = new THREE.Object3D();
+    for (let i = 6; i < TR.N; i += 12) { if (TR.F[i] & 1) continue; if (i > hi0 && i < hi1) continue;
+      const bx = TR.P[i * 3] - TR.Up[i * 3] * .35, by = TR.P[i * 3 + 1] - TR.Up[i * 3 + 1] * .35, bz = TR.P[i * 3 + 2] - TR.Up[i * 3 + 2] * .35; let blocked = false;
+      for (let j = 0; j < TR.N; j += 2) { if (Math.abs(TR.S[j] - TR.S[i]) < 8) continue; if (TR.P[j * 3 + 1] < by && Math.hypot(TR.P[j * 3] - bx, TR.P[j * 3 + 2] - bz) < TR.W[j] / 2 + .9) { blocked = true; break; } }
+      if (blocked) continue; const h = by - GROUND; if (h < .3) continue; tmp.position.set(bx, GROUND + h / 2, bz); tmp.scale.set(1, h, 1); tmp.updateMatrix(); mats.push(tmp.matrix.clone()); }
+    const pil = new THREE.InstancedMesh(new THREE.CylinderGeometry(.2, .26, 1, 12), chrome, mats.length); mats.forEach((m, k) => pil.setMatrixAt(k, m)); pil.castShadow = true; track.add(pil);
+    const top = TR.P[hi0 * 3 + 1] + 3; const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.5, top - GROUND, 24), chrome); tower.position.set(hx, (top + GROUND) / 2, hz); tower.castShadow = true; track.add(tower);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.3, .12, 8, 32), lipMat2); ring.rotation.x = Math.PI / 2; ring.position.set(hx, top, hz); track.add(ring);
+    const spokes = []; for (let i = hi0; i < hi1; i += 9) { const px = TR.P[i * 3] - TR.Up[i * 3] * .4, py = TR.P[i * 3 + 1] - TR.Up[i * 3 + 1] * .4 - .1, pz = TR.P[i * 3 + 2] - TR.Up[i * 3 + 2] * .4; const L = Math.hypot(px - hx, pz - hz);
+      tmp.position.set((px + hx) / 2, py, (pz + hz) / 2); tmp.scale.set(1, 1, L); tmp.rotation.set(0, Math.atan2(px - hx, pz - hz), 0); tmp.updateMatrix(); spokes.push(tmp.matrix.clone()); }
+    const sp = new THREE.InstancedMesh(new THREE.BoxGeometry(.18, .18, 1), chrome, spokes.length); spokes.forEach((m, k) => sp.setMatrixAt(k, m)); track.add(sp);
+  })();
+  // arches with signs over the track (start, every section, finish) + start gate + checkered finish line
+  function sign3d(text, col, w, bare) {
+    const tex = canvasTex(2048, 256, (g, cw, ch) => { g.scale(2, 2); cw = 1024; ch = 128; if (!bare) { g.fillStyle = 'rgba(8,0,20,.82)'; rr(g, 6, 8, cw - 12, ch - 16, 26); g.fill(); g.lineWidth = 5; g.strokeStyle = col; g.stroke(); } let fs = 66; g.font = `900 ${fs}px ${FONT}`; while (g.measureText(text).width > cw - 80 && fs > 30) { fs -= 3; g.font = `900 ${fs}px ${FONT}`; }
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = col; g.shadowBlur = 20; g.lineWidth = 9; g.strokeStyle = 'rgba(0,0,0,.9)'; g.strokeText(text, cw / 2, ch / 2 + 3); g.fillStyle = col; g.fillText(text, cw / 2, ch / 2 + 3); g.shadowBlur = 0; g.fillStyle = '#fff'; g.globalAlpha = .35; g.fillText(text, cw / 2, ch / 2 + 3); });
+    return new THREE.Mesh(new THREE.PlaneGeometry(w, w / 8), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, fog: false, toneMapped: false }));
+  }
+  const NAMES = HW ? { start: 'THE CRYPT GATES', curve: "WITCH'S WHIRL 🧹", chicane: 'BAT ALLEY 🦇', jump: 'GRAVEYARD JUMP 🪦', helix: 'SPIRAL OF DOOM 🌀', drop: 'DEAD DROP 💀', split: 'DOUBLE TROUBLE 👻', sweeper: 'PUMPKIN PATCH 🎃', rollers: 'CREEPY CRAWL 🕷️', final: 'FINAL FRIGHT 💀', finish: '🏁 FINISH 🏁' }
+    : { start: 'START', curve: 'NEON BEND', chicane: 'ZIG-ZAG ALLEY', jump: 'THE BIG JUMP', helix: 'SPIN CITY', drop: 'DROP ZONE', split: 'DOUBLE TRAP', sweeper: 'TURBO SWEEP', rollers: 'ROLLER DISCO', final: 'FINAL STRAIGHT', finish: '🏁 FINISH 🏁' };
+  function arch(s, text, col, hgt = 6.2) {
+    const f = trackFrame(s); const th = new THREE.Vector3(f.t.x, 0, f.t.z).normalize(), rh = new THREE.Vector3(-th.z, 0, th.x); const half = f.w / 2 + .8;
+    const g = new THREE.Group(); const post = new THREE.CylinderGeometry(.16, .2, hgt + 1.2, 12);
+    for (const sd of [-1, 1]) { const p = new THREE.Mesh(post, chrome); p.position.copy(f.p).addScaledVector(rh, sd * half); p.position.y += hgt / 2 - .6 + (sd * f.r.y * half > 0 ? 0 : 0); p.castShadow = true; g.add(p);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(.26, 16, 12), mGlow(col, 2.6)); bulb.position.copy(p.position); bulb.position.y += hgt / 2 + .6; g.add(bulb); }
+    const sg = sign3d(text, col, (half * 2 + .6) * .78); sg.position.copy(f.p); sg.position.y += hgt; sg.lookAt(sg.position.clone().sub(th)); sg.material.side = THREE.FrontSide; g.add(sg); const sgb = new THREE.Mesh(sg.geometry, sg.material); sgb.position.copy(sg.position); sgb.lookAt(sgb.position.clone().add(th)); g.add(sgb);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + .6, .14, .14), lipMat); bar.position.copy(sg.position); bar.position.y -= (half * 2 + .6) / 16 + .08; bar.lookAt(bar.position.clone().sub(th)); g.add(bar);
+    track.add(g); return g;
+  }
+  for (const f of TR.feats) { if (f.key === 'runoff' || f.key === 'finish') continue; arch(f.key === 'start' ? TR.gateS + 4 : f.s0 + 1, NAMES[f.key] || f.key.toUpperCase(), ['curve', 'helix', 'split', 'rollers'].includes(f.key) ? T.accent2 : T.accent3); }
+  arch(TR.finishS, NAMES.finish, '#ffffff', 6.4);
+  const checker = canvasTex(256, 64, (g) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 4; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#fff'; g.fillRect(x * 16, y * 16, 16, 16); } });
+  (function finishLine() { const f = trackFrame(TR.finishS); const m = new THREE.Mesh(new THREE.PlaneGeometry(f.w - .4, 1.2), new THREE.MeshStandardMaterial({ map: checker, emissive: 0xffffff, emissiveMap: checker, emissiveIntensity: .35, roughness: .5, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.matrixAutoUpdate = false; const z = f.u.clone(), x = f.r.clone(), y = new THREE.Vector3().crossVectors(z, x); m.matrix.makeBasis(x, y, z).setPosition(f.p.clone().addScaledVector(f.u, .03)); track.add(m); })();
+  const gateMesh = (() => { const f = trackFrame(TR.gateS); const g = new THREE.Mesh(new RoundedBoxGeometry(f.w + .6, .5, .3, 3, .1), mStd(T.accent3, { emissive: C(T.accent3), emissiveIntensity: 1.2 }));
+    g.position.copy(f.p).addScaledVector(f.u, 1); g.lookAt(g.position.clone().add(new THREE.Vector3(f.t.x, 0, f.t.z))); g.userData.y0 = g.position.y; track.add(g); return g; })();
+
+  // =====================================================================
+  //                   SCENERY (theme) + SKY + GROUND
+  // =====================================================================
+  const rnd = MarbleTrack3D.mulberry(77);
+  scene.fog = HW ? new THREE.Fog(0x1a0630, 45, 250) : new THREE.Fog(0x2a0850, 60, 300);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(900, 64), mStd(HW ? '#120619' : '#0a0016', { roughness: HW ? .95 : .3, metalness: HW ? 0 : .5, clearcoat: HW ? 0 : .5 }));
+  ground.rotation.x = -Math.PI / 2; ground.position.set(CENTER.x, GROUND, CENTER.z); ground.receiveShadow = true; scene.add(ground);
+  const glowSprite = (col, size) => { const t = canvasTex(128, 128, (g) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }); const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true })); s.scale.set(size, size, 1); return s; };
+  // far horizon ring (follows the camera's position, never its rotation -> reads as infinitely far away)
+  const horizon = new THREE.Group(); scene.add(horizon);
+  { const tex = canvasTex(4096, 512, (g, w, h) => { g.clearRect(0, 0, w, h);
+      const glow = g.createLinearGradient(0, h * .35, 0, h); glow.addColorStop(0, 'rgba(0,0,0,0)'); glow.addColorStop(1, HW ? 'rgba(255,110,20,.55)' : 'rgba(255,43,214,.6)'); g.fillStyle = glow; g.fillRect(0, h * .35, w, h * .65);
+      const pts = []; let y = h * .62; for (let x = 0; x <= w; x += 32) { y += (Math.random() - .5) * (HW ? 40 : 90); y = Math.max(h * (HW ? .45 : .25), Math.min(h * .8, y)); pts.push([x, y]); } pts[pts.length - 1][1] = pts[0][1];
+      g.beginPath(); g.moveTo(0, h); pts.forEach(([x, yy]) => g.lineTo(x, yy)); g.lineTo(w, h); g.closePath(); g.fillStyle = HW ? '#07020c' : '#1a0036'; g.fill();
+      if (HW) { // tree + house silhouettes on the hills
+        g.fillStyle = '#07020c'; for (let k = 0; k < 26; k++) { const x = Math.random() * w, by = pts[Math.round(x / 32)] ? pts[Math.round(x / 32)][1] : h * .6; g.fillRect(x - 3, by - 70, 6, 72); for (let b = 0; b < 4; b++) { g.save(); g.translate(x, by - 30 - b * 10); g.rotate((b % 2 ? 1 : -1) * (.6 + Math.random() * .4)); g.fillRect(0, -2, 34 - b * 5, 4); g.restore(); } }
+        for (let k = 0; k < 3; k++) { const x = (k + .3) * w / 3, by = pts[Math.round(x / 32)][1]; g.fillRect(x, by - 80, 110, 82); g.beginPath(); g.moveTo(x - 10, by - 80); g.lineTo(x + 55, by - 130); g.lineTo(x + 120, by - 80); g.fill(); g.fillRect(x + 80, by - 150, 26, 80); g.beginPath(); g.moveTo(x + 74, by - 150); g.lineTo(x + 93, by - 190); g.lineTo(x + 112, by - 150); g.fill();
+          g.fillStyle = '#ffb000'; [[20, -60], [70, -60], [45, -30], [88, -120]].forEach(([dx, dy]) => g.fillRect(x + dx, by + dy, 12, 14)); g.fillStyle = '#07020c'; } }
+      else { g.lineWidth = 5; g.strokeStyle = '#00f0ff'; g.shadowColor = '#00f0ff'; g.shadowBlur = 16; g.beginPath(); pts.forEach(([x, yy], k) => k ? g.lineTo(x, yy) : g.moveTo(x, yy)); g.stroke();
+        g.lineWidth = 2; g.strokeStyle = 'rgba(255,43,214,.7)'; g.shadowBlur = 0; for (let k = 1; k < pts.length - 1; k += 3) { g.beginPath(); g.moveTo(pts[k][0], pts[k][1]); g.lineTo(pts[k][0] + (Math.random() - .5) * 60, h); g.stroke(); } } });
+    tex.wrapS = THREE.RepeatWrapping; tex.repeat.x = 2;
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(780, 780, 190, 96, 1, true), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: true }));
+    ring.position.y = 95 - 20; ring.renderOrder = -5; horizon.add(ring); }
+  // sky objects that stay ahead of the camera (moon / synthwave sun), bats + neon shapes around the view
+  const skyGroup = new THREE.Group(); scene.add(skyGroup);
+  const bats = [], tris = []; let sunMat = null; const props = [];
+  if (HW) {
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(38, 32, 24), new THREE.MeshBasicMaterial({ fog: false, depthWrite: false, map: canvasTex(256, 128, (g) => { g.fillStyle = '#fff1c4'; g.fillRect(0, 0, 256, 128); g.fillStyle = 'rgba(190,160,100,.45)'; for (let i = 0; i < 18; i++) { g.beginPath(); g.arc(Math.random() * 256, Math.random() * 128, 4 + Math.random() * 12, 0, 7); g.fill(); } }) }));
+    moon.position.set(95, 150, -620); moon.renderOrder = -4; skyGroup.add(moon); const mg = glowSprite('rgba(255,233,168,.5)', 260); mg.position.copy(moon.position); mg.renderOrder = -4; skyGroup.add(mg);
+    for (let i = 0; i < 9; i++) { const b = makeBat(); b.userData.i = i; b.scale.setScalar(.05 + rnd() * .04); bats.push(b); skyGroup.add(b); }
+  } else {
+    sunMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, uniforms: { t: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+      fragmentShader: 'varying vec2 vUv; uniform float t; void main(){ vec2 p=vUv-0.5; float r=length(p); if(r>0.5) discard; vec3 c=mix(vec3(1.0,0.17,0.84),vec3(1.0,0.9,0.0),vUv.y); float y=vUv.y; if(y<0.55){ float band=fract((y*14.0)+t*0.25); float w=0.12+(0.55-y)*0.9; if(band<w) discard; } gl_FragColor=vec4(c*1.6,1.0); }' });
+    const sunM = new THREE.Mesh(new THREE.PlaneGeometry(330, 330), sunMat); sunM.position.set(0, 30, -700); sunM.renderOrder = -4; skyGroup.add(sunM);
+    const sg = glowSprite('rgba(255,43,214,.45)', 800); sg.position.set(0, 30, -720); sg.renderOrder = -5; skyGroup.add(sg);
+    for (let i = 0; i < 10; i++) { const tri = new THREE.Mesh(new THREE.TorusGeometry(3 + rnd() * 4, .25, 3, 3), mGlow(['#ff2bd6', '#00f0ff', '#ffe600'][i % 3], 2)); tri.position.set((rnd() - .5) * 140, 14 + rnd() * 50, -70 - rnd() * 110); tri.userData.r = (rnd() - .5) * .002; tris.push(tri); skyGroup.add(tri); }
+    const grid = new THREE.GridHelper(1800, 180, 0xff2bd6, 0x00f0ff); grid.position.set(CENTER.x, GROUND + .03, CENTER.z); grid.material.transparent = true; grid.material.opacity = .55; scene.add(grid);
+  }
+  function hauntedHouse(scale) {
+    const h = new THREE.Group(); const wallM = mStd('#1b0d24', { roughness: .9, metalness: 0 }), roofM = mStd('#0d0614', { roughness: .8, metalness: 0 }); const win = new THREE.MeshBasicMaterial({ color: 0xffb000, fog: false });
+    const box = (w, hh, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), m); b.position.set(x, y, z); b.castShadow = b.receiveShadow = true; h.add(b); return b; };
+    const roof = (r, hh, x, y, z) => { const c = new THREE.Mesh(new THREE.ConeGeometry(r, hh, 4), roofM); c.rotation.y = Math.PI / 4; c.position.set(x, y, z); h.add(c); };
+    box(260, 170, 140, 0, 85, 0, wallM); roof(200, 110, 0, 225, 0); box(90, 300, 90, -150, 150, 10, wallM); roof(78, 140, -150, 370, 10); box(70, 220, 70, 150, 110, 20, wallM); roof(62, 110, 150, 275, 20);
+    [[-150, 230], [-150, 150], [-40, 110], [40, 110], [150, 150], [0, 40]].forEach(([x, y], i) => { const w = new THREE.Mesh(new THREE.PlaneGeometry(i === 5 ? 34 : 24, i === 5 ? 60 : 32), win); w.position.set(x, y, (x === -150 ? 56 : x === 150 ? 56 : 71)); h.add(w); });
+    const glow = glowSprite('rgba(255,170,0,.5)', 520); glow.position.set(0, 120, 60); h.add(glow); h.scale.setScalar(scale); return h; }
+  function deadTree() { const t = new THREE.Group(); const m = mStd('#0c0510', { roughness: 1, metalness: 0 });
+    const br = (len, r, x, y, a) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(r * .5, r, len, 6), m); c.position.set(x, y, 0); c.rotation.z = a; c.castShadow = true; t.add(c); return c; };
+    br(220, 14, 0, 110, 0); br(110, 6, 30, 200, -.8); br(100, 6, -30, 180, .9); br(70, 4, 50, 260, -.3); br(60, 4, -55, 240, .5); return t; }
+  function makeBat() { const g = new THREE.Group(); const m = new THREE.MeshBasicMaterial({ color: 0x050008, side: THREE.DoubleSide, fog: false });
+    const shape = new THREE.Shape(); shape.moveTo(0, 0); shape.quadraticCurveTo(12, 10, 28, 4); shape.quadraticCurveTo(22, -2, 24, -8); shape.quadraticCurveTo(14, -4, 10, -10); shape.quadraticCurveTo(6, -4, 0, -4);
+    const wg = new THREE.ShapeGeometry(shape); const L = new THREE.Mesh(wg, m), Rr = new THREE.Mesh(wg, m); Rr.scale.x = -1; const wl = new THREE.Group(), wr = new THREE.Group(); wl.add(L); wr.add(Rr); g.add(wl, wr);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(4, 8, 6), m); b.scale.set(1, 1.6, 1); g.add(b); g.userData = { wl, wr }; return g; }
+  // props along the course, never on or under the track
+  function spot(near = 5, far = 26) { for (let tries = 0; tries < 40; tries++) { const i = Math.floor(rnd() * TR.N), side = rnd() < .5 ? -1 : 1, d = TR.W[i] / 2 + near + rnd() * (far - near);
+      const x = TR.P[i * 3] + TR.Rt[i * 3] * d * side, z = TR.P[i * 3 + 2] + TR.Rt[i * 3 + 2] * d * side; if (isFree(x, z, 0) && isFree(x, z, 1)) return new THREE.Vector3(x, GROUND, z); } return null; }
+  if (HW) {
+    for (let k = 0; k < 3; k++) { const p = spot(10, 34); if (!p) continue; const h = hauntedHouse(.045); h.position.copy(p); h.rotation.y = rnd() * 6.28; scene.add(h); }
+    for (let k = 0; k < 16; k++) { const p = spot(3, 30); if (!p) continue; const t = deadTree(); t.scale.setScalar(.025 + rnd() * .02); t.position.copy(p); t.rotation.y = rnd() * 6.28; scene.add(t); }
+    const stoneM = mStd('#3a3446', { roughness: .9, metalness: 0 }); const gm = []; const tmp = new THREE.Object3D();
+    for (let k = 0; k < 40; k++) { const p = spot(2, 18); if (!p) continue; tmp.position.set(p.x, GROUND + .8, p.z); tmp.rotation.set(0, rnd() * 6.28, (rnd() - .5) * .25); tmp.scale.setScalar(.8 + rnd() * .5); tmp.updateMatrix(); gm.push(tmp.matrix.clone()); }
+    const graves = new THREE.InstancedMesh(new RoundedBoxGeometry(1.1, 1.6, .3, 2, .25), stoneM, gm.length); gm.forEach((m, k) => graves.setMatrixAt(k, m)); graves.castShadow = true; graves.receiveShadow = true; scene.add(graves);
+    for (let k = 0; k < 14; k++) { const p = spot(1.5, 12); if (!p) continue; const r = .5 + rnd() * .7; const pm = pumpkinMesh(r, true); pm.position.set(p.x, GROUND + r * .8, p.z); pm.rotation.y = rnd() * 6.28; scene.add(pm); const gl = glowSprite('rgba(255,150,0,.45)', r * 7); gl.position.set(p.x, GROUND + r, p.z); scene.add(gl); }
+    for (let k = 0; k < 18; k++) { const p = spot(0, 40); if (!p) continue; const w = glowSprite('rgba(150,90,255,.16)', 30 + rnd() * 20); w.material.fog = true; w.position.set(p.x, GROUND + 3, p.z); scene.add(w); }
+  } else {
+    for (let k = 0; k < 12; k++) { const p = spot(6, 34); if (!p) continue; const h = 4 + rnd() * 8; const col = ['#ff2bd6', '#00f0ff', '#ffe600'][k % 3];
+      const py = new THREE.Mesh(new THREE.ConeGeometry(h * .8, h, 4), mStd('#12002a', { metalness: .8, roughness: .2 })); py.position.set(p.x, GROUND + h / 2, p.z); py.rotation.y = rnd(); py.castShadow = true; scene.add(py);
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(py.geometry), new THREE.LineBasicMaterial({ color: C(col) })); e.position.copy(py.position); e.rotation.copy(py.rotation); scene.add(e); }
+    const trunkM = mStd('#2a0d40', { roughness: .6 }), leafM = mGlow('#39ff14', .5);
+    for (let k = 0; k < 14; k++) { const p = spot(2, 26); if (!p) continue; const g = new THREE.Group(); const h = 5 + rnd() * 4; const tr = new THREE.Mesh(new THREE.CylinderGeometry(.18, .32, h, 8), trunkM); tr.position.y = h / 2; tr.rotation.z = (rnd() - .5) * .2; g.add(tr);
+      for (let l = 0; l < 7; l++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(.5, 3.4, 4), leafM); lf.scale.z = .25; lf.position.set(0, h, 0); lf.rotation.set(0, l / 7 * 6.28, 0); lf.rotateX(Math.PI / 2 - .5); lf.translateY(1.5); g.add(lf); }
+      g.position.copy(p); scene.add(g); }
+    for (let k = 0; k < 8; k++) { const p = spot(4, 30); if (!p) continue; const col = ['#ff2bd6', '#00f0ff', '#ffe600', '#39ff14'][k % 4]; const h = 7 + rnd() * 5;
+      const pl = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, h, 16), chrome); pl.position.set(p.x, GROUND + h / 2, p.z); scene.add(pl); const rg = new THREE.Mesh(new THREE.TorusGeometry(.6, .1, 8, 24), mGlow(col, 2.4)); rg.rotation.x = Math.PI / 2; rg.position.set(p.x, GROUND + h, p.z); scene.add(rg); }
+  }
+
+  // ---------- lights ----------
+  scene.add(new THREE.HemisphereLight(HW ? 0x9a7cff : 0xff9cf0, HW ? 0x2a0a10 : 0x200040, HW ? .62 : .7));
+  const sun = new THREE.DirectionalLight(HW ? 0xffe0b0 : 0xffffff, HW ? 1.8 : 1.7);
+  sun.castShadow = true; sun.shadow.mapSize.set(LOWQ ? 1024 : 2048, LOWQ ? 1024 : 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
+  Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 140 });
+  scene.add(sun, sun.target);
+  const rim = new THREE.DirectionalLight(HW ? 0xff7a00 : 0x00f0ff, HW ? 1.1 : 1.3); scene.add(rim, rim.target);
+
+  // ---------- podium set (old finale, scaled down and placed past the end of the track) ----------
+  const FS = 1 / 40, PODIUM_Y = 0;
+  const finale = new THREE.Group(); scene.add(finale); finale.scale.setScalar(FS);
+  { const li = TR.N - 1; const th = new THREE.Vector3(TR.T[li * 3], 0, TR.T[li * 3 + 2]).normalize(); let p = new THREE.Vector3(TR.P[li * 3], GROUND, TR.P[li * 3 + 2]).addScaledVector(th, 46);
+    finale.position.copy(p); finale.position.y = GROUND + .02; finale.rotation.y = -Math.atan2(th.x, -th.z); }
+  if (HW) {
+    const fh = hauntedHouse(1.7); fh.position.set(-40, PODIUM_Y, -900); finale.add(fh);
+    const ft = deadTree(); ft.scale.setScalar(1.6); ft.position.set(520, PODIUM_Y, -500); finale.add(ft);
+    const stoneM = mStd('#3a3446', { roughness: .9, metalness: 0 });
+    [[-480, -380], [-360, -470], [380, -420], [260, -560], [-560, -160], [560, -200]].forEach(([x, z], i) => { const s = new THREE.Mesh(new THREE.BoxGeometry(50, 80, 14), stoneM); s.position.set(x, PODIUM_Y + 40, z); s.rotation.z = (i % 2 ? .12 : -.1); s.castShadow = true; finale.add(s); });
+    [[-330, 120, 34], [330, 140, 30], [-200, 260, 22], [230, 280, 26], [-470, 40, 40], [470, 60, 36], [0, -260, 46]].forEach(([x, z, r]) => { const p = pumpkinMesh(r, true); p.position.set(x, PODIUM_Y + r * .8, z); p.rotation.y = -x / 900; finale.add(p); });
+    const fm = glowSprite('rgba(255,140,0,.35)', 1400); fm.position.set(0, PODIUM_Y + 200, -300); finale.add(fm);
+  } else {
+    [[-430, -260, '#00f0ff'], [430, -260, '#ff2bd6'], [-300, -600, '#ffe600'], [300, -600, '#39ff14']].forEach(([x, z, c]) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(22, 22, 420, 24), mStd('#ffffff', { metalness: 1, roughness: .1 })); p.position.set(x, PODIUM_Y + 210, z); p.castShadow = true; finale.add(p); const ring = new THREE.Mesh(new THREE.TorusGeometry(30, 4, 8, 32), mGlow(c, 2)); ring.rotation.x = Math.PI / 2; ring.position.set(x, PODIUM_Y + 420, z); finale.add(ring); const ring2 = ring.clone(); ring2.position.y = PODIUM_Y + 20; finale.add(ring2); });
+  }
+  const podium = [[0, 0, 230, '#ffd700'], [1, -230, 160, '#c0c0c0'], [2, 230, 110, '#cd7f32']].map(([i, x, h, col]) => {
+    const g = new THREE.Group(); g.position.set(x, PODIUM_Y, 0);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(190, h, 150), mStd(col, { metalness: .55, roughness: .3, emissive: C(col), emissiveIntensity: .22 })); b.position.y = h / 2; b.castShadow = b.receiveShadow = true; g.add(b);
+    const num = sign3d(String(i + 1), '#ffffff', 600, true); num.scale.setScalar(1.3); num.material.side = THREE.FrontSide; num.position.set(0, h / 2, 76); g.add(num);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(194, 5, 154), mGlow(HW ? T.accent : T.accent2, 1.8)); edge.position.y = h; g.add(edge);
+    finale.add(g); return { g, h, x, col, slot: null };
+  });
+
+  // =====================================================================
+  //   CAMERA DIRECTOR: smooth chase cam + cutaways (start crane, jump slow-mo, helix overhead, finish line, podium)
+  // =====================================================================
+  const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), s: 0, shot: '', shotT: 0, jumpDone: false, helixDone: false, firstFin: 0, fov: 60, yaw: 0, init: false, shake: 0 };
+  let timeScale = 1; const _f1 = trackFrame(0), _f2 = trackFrame(0), _tp = new THREE.Vector3(), _tl = new THREE.Vector3(), UPW = new THREE.Vector3(0, 1, 0), _up = new THREE.Vector3();
+  const HELIX = featS('helix');
+  function resetDirector() { cam.jumpDone = cam.helixDone = false; cam.firstFin = 0; cam.shot = ''; }
+  function packPos(l, out) { out.set(0, 0, 0); let w = 0; for (const m of race.marbles) { if (m.finished || l.s - m.s > 6 || m.s > l.s + .1) continue; const k = m === l ? 3 : 1; out.x += m.pos.x * k; out.y += m.pos.y * k; out.z += m.pos.z * k; w += k; } return out.multiplyScalar(1 / Math.max(1, w)); }
+  function placeCamera(dt, now) {
+    let shot = 'orbit', fov = 60, k = 1 - Math.exp(-dt / 200), roll = 0; timeScale = 1;
+    const l = race && mode === 'racing' ? race.leader() : null;
+    if (race && mode === 'racing' && race.results.some(m => m.finishMs != null) && !cam.firstFin) cam.firstFin = now;
+    if (mode === 'finished' && now - finishedAtLocal > 900) shot = 'podium';
+    else if (!race || mode === 'idle' || mode === 'inprogress' || mode === 'over' || (mode === 'finished')) shot = mode === 'finished' ? 'finish' : 'orbit';
+    else if (mode === 'entries') shot = 'pen';
+    else if (mode === 'countdown') shot = 'crane';
+    else if (mode === 'racing') {
+      const t = race.t, sinceShot = now - cam.shotT;
+      if (cam.shot === 'jump' && sinceShot < 2900) shot = 'jump';
+      else if (cam.shot === 'helix' && sinceShot < 3400) shot = 'helix';
+      else if (t < 3000) shot = 'start';
+      else if (l && !cam.jumpDone && l.s > kickS - 10 && l.s < kickS) { shot = 'jump'; cam.jumpDone = true; }
+      else if (l && !cam.helixDone && l.s > HELIX.s0 + 40 && l.s < HELIX.s1 - 30) { shot = 'helix'; cam.helixDone = true; }
+      else if ((cam.firstFin && now - cam.firstFin < 3200) || (l && l.s > TR.finishS - 12)) shot = 'finish';
+      else shot = 'chase';
+    }
+    const cut = shot !== cam.shot; if (cut) { cam.shot = shot; cam.shotT = now; if (shot === 'chase' && l) cam.s = l.s - 1.5; }
+    const st = now - cam.shotT;
+    if (shot === 'orbit') { const a = now / 1000 * .05; _tl.copy(CENTER); _tl.y = (GROUND + maxY) / 2 - 8; _tp.set(CENTER.x + Math.cos(a) * 95, maxY + 30, CENTER.z + Math.sin(a) * 95); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 600); }
+    else if (shot === 'pen') { const a = now / 1000 * .16; trackFrame(5.5, _f1); _tl.copy(_f1.p).addScaledVector(_f1.u, .6); _tp.copy(_tl).add(_up.set(Math.cos(a) * 9.5, 6.5, Math.sin(a) * 9.5)); fov = 55; k = cut ? 1 : 1 - Math.exp(-dt / 500); }
+    else if (shot === 'crane') { trackFrame(1, _f1); trackFrame(TR.gateS + 6, _f2); const kk = Math.min(1, st / 3800), e = kk * kk * (3 - 2 * kk);
+      _tp.copy(_f1.p).addScaledVector(_f1.t, -9 + e * 6.5).addScaledVector(_f1.r, 7 * (1 - e)); _tp.y += 17 - e * 7; _tl.copy(_f2.p).lerp(trackFrame(5, _f2).p, .6 * (1 - e)); fov = 56; k = cut ? 1 : 1 - Math.exp(-dt / 120); }
+    else if (shot === 'start') { trackFrame(1, _f1); trackFrame(TR.gateS + 8 + st / 1000 * 8, _f2); _tp.copy(_f1.p).addScaledVector(_f1.t, -2.5 + st / 1000 * 3); _tp.y += 10 - Math.min(1, st / 3000) * 2; _tl.copy(_f2.p); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 150); }
+    else if (shot === 'jump') { const gs = (kickS + landS) / 2; trackFrame(gs, _f1); trackFrame(landS + 9, _f2); _tp.copy(_f2.p); _tp.y += 3.4; trackFrame(kickS - 1, _f2); _tl.copy(_f2.p); _tl.y += .6; if (l) _tl.lerp(l.pos, .3); fov = 56;
+      timeScale = st > 500 && st < 2300 ? .33 : 1; k = cut ? 1 : 1 - Math.exp(-dt / 250); }
+    else if (shot === 'helix') { const hc = track.userData.helix; if (l) { _up.set(l.pos.x - hc.x, 0, l.pos.z - hc.z); const d = _up.length() || 1; _up.multiplyScalar(1 / d); _tp.set(hc.x + _up.x * 4.5, l.pos.y + 4, hc.z + _up.z * 4.5); _tl.copy(l.pos); _tl.y -= .3; } fov = 62; k = cut ? 1 : 1 - Math.exp(-dt / 160); }
+    else if (shot === 'finish') { trackFrame(TR.finishS + 6, _f1); trackFrame(TR.finishS - 7, _f2); _tp.copy(_f1.p).addScaledVector(_f1.r, 2.6).addScaledVector(_f1.u, 2.1); _tl.copy(_f2.p).addScaledVector(_f2.u, .5); if (l && l.s > TR.finishS - 14) _tl.lerp(l.pos, .3); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 300); }
+    else if (shot === 'chase' && l) {
+      cam.s += (l.s - 1.2 - cam.s) * (1 - Math.exp(-dt / 380));
+      trackFrame(cam.s - 8.5, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 2.4); _tp.y += 3.3;
+      trackFrame(cam.s + 6, _f2); packPos(l, _tl); _tl.lerp(_f2.p, .45); _tl.y += .2;
+      roll = (_f1.u.x * _f1.r.x + _f1.u.z * _f1.r.z) * 0; fov = 62;
+      _up.copy(_f1.u); roll = Math.asin(Math.max(-1, Math.min(1, -_f1.r.y))) * .35; k = cut ? 1 : 1 - Math.exp(-dt / 150);
+    }
+    if (shot === 'podium') { const t = now / 1000; const tp = new THREE.Vector3(Math.sin(t * .25) * 160, PODIUM_Y + 420, 1250 + Math.cos(t * .25) * 50), tl = new THREE.Vector3(0, PODIUM_Y + 185, 0);
+      finale.updateMatrixWorld(); finale.localToWorld(tp); finale.localToWorld(tl); _tp.copy(tp); _tl.copy(tl); fov = 52; k = cut ? 1 : .06; }
+    if (cut || !cam.init) { cam.pos.copy(_tp); cam.look.copy(_tl); cam.fov = fov; cam.roll = roll; cam.init = true; }
+    else { cam.pos.lerp(_tp, k); cam.look.lerp(_tl, Math.min(1, k * 1.4)); cam.fov += (fov - cam.fov) * k; cam.roll = (cam.roll || 0) + (roll - (cam.roll || 0)) * k * .5; }
+    camera.position.copy(cam.pos);
+    if (cam.shake > .01) { camera.position.x += (Math.random() - .5) * cam.shake * .2; camera.position.y += (Math.random() - .5) * cam.shake * .2; cam.shake *= .88; }
+    if (Math.abs(camera.fov - cam.fov) > .01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
+    camera.up.set(0, 1, 0); camera.lookAt(cam.look); if (cam.roll) camera.rotateZ(cam.roll);
+    // sun/shadows follow the action; sky objects stay ahead; horizon ring follows position only
+    sun.position.copy(cam.look).add(_up.set(18, 38, 12)); sun.target.position.copy(cam.look); rim.position.copy(cam.look).add(_up.set(-20, 6, -18)); rim.target.position.copy(cam.look);
+    const dx = cam.look.x - cam.pos.x, dz = cam.look.z - cam.pos.z; if (dx * dx + dz * dz > .01) { const yw = Math.atan2(-dx, -dz); let d = yw - cam.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); cam.yaw += cut ? d : d * Math.min(1, dt / 900); }
+    skyGroup.position.copy(cam.pos); skyGroup.rotation.y = cam.yaw; horizon.position.set(cam.pos.x, GROUND, cam.pos.z);
+  }
+
+  // ---------- marbles in the scene ----------
+  const meshes = new Map();   // id -> group
+  function syncMarbles() {
+    const keep = new Set();
+    if (race) race.marbles.forEach((m, i) => { keep.add(m.id); let g = meshes.get(m.id); if (!g || g.userData.idx !== m.idx) { if (g) scene.remove(g); g = makeMarbleMesh(m, m.idx, MR); g.userData.idx = m.idx; meshes.set(m.id, g); scene.add(g); } g.userData.m = m; });
+    for (const [id, g] of meshes) if (!keep.has(id)) { scene.remove(g); meshes.delete(id); }
+  }
+  const podMeshes = [];
+  function setupPodium() {
+    podMeshes.forEach(g => finale.remove(g)); podMeshes.length = 0;
+    const list = (official || results || []); const byId = new Map(race.marbles.map(m => [m.id, m]));
+    list.slice(0, 3).forEach((r, i) => { const m = byId.get(r.id) || { id: r.id, name: r.name, avatar: r.avatar || null, color: '#ffffff', idx: i }; const g = makeMarbleMesh(m, m.idx || 0, 44); const p = podium[i]; g.position.set(p.x, PODIUM_Y + p.h + 44 + 400, 0); g.userData = Object.assign(g.userData, { m, i, targetY: PODIUM_Y + p.h + 44, vy: 0, delay: i === 0 ? 900 : i === 1 ? 500 : 200 }); finale.add(g); podMeshes.push(g); });
+  }
+
+  // =====================================================================
+  //                              GAME STATE (unchanged rules)
+  // =====================================================================
+  let mode = 'idle', race = null, roster = [], startAtLocal = 0, raceId = null, results = null, official = null, champs = [], auto = { on: false, minutes: 3 }, openedAtLocal = 0, reported = false, finishedAtLocal = 0;
+  let toasts = [], confetti = [], banner = null, lastSection = null;
+  function build(list, seed) { if (race && race.free) race.free(); race = MarbleTrack3D.createRace(RAPIER, { seed, marbles: list }); race.marbles.forEach((m, i) => m.idx = i); lastSection = null; resetDirector(); syncMarbles(); }
+  function toast(s, col) { toasts.push({ s, col: col || T.accent3, t: performance.now() }); if (toasts.length > 4) toasts.shift(); }
+  function rosterKey(l) { return l.map(m => m.id).join('|'); }
+
+  let skew = 0;
+  function applyState(st, ev, extra) {
+    if (!st) return;
+    skew = (st.now || Date.now()) - Date.now();
+    champs = st.champs || []; auto = st.auto || auto;
+    const list = st.marbles || [];
+    if (ev === 'cheer') { const who = (extra && extra.name) || 'Someone'; toast(`📣 ${who} cheers their marble on!`, T.accent2); return; }
+    if (st.phase === 'idle') { mode = 'idle'; if (race && race.free) race.free(); race = null; results = official = null; roster = []; syncMarbles(); return; }
+    if (st.phase === 'entries') {
+      if (mode !== 'entries') { mode = 'entries'; results = official = null; }
+      openedAtLocal = (st.openedAt || Date.now()) - skew;
+      if (ev === 'join' && extra && extra.marble) toast(`${HW ? '🎃' : '🎉'} ${extra.marble.name} is in the race!`, T.accent3);
+      if (rosterKey(list) !== rosterKey(roster) || !race) { roster = list; build(list, 1234); }
+      return;
+    }
+    if (st.phase === 'countdown' || (st.phase === 'racing' && ev === 'start')) {
+      if (raceId !== st.raceId) { raceId = st.raceId; roster = list; build(list, st.seed); startAtLocal = (st.startAt || Date.now()) - skew; mode = 'countdown'; reported = false; results = official = null; }
+      return;
+    }
+    if (st.phase === 'racing') { if (raceId !== st.raceId) { mode = 'inprogress'; raceId = st.raceId; roster = list; } return; }
+    if (st.phase === 'finished') {
+      if (st.results && st.results.length) { official = st.results; if (mode !== 'finished') finishNow(); else if (race) setupPodium(); }
+      else if (mode === 'inprogress' || mode === 'countdown') { mode = 'over'; }
+    }
+  }
+  function finishNow() {
+    if (race && !race.done) race.finish();
+    if (race) results = race.results.map(m => ({ id: m.id, name: m.name, place: m.place }));
+    mode = 'finished'; finishedAtLocal = performance.now();
+    if (race) setupPodium();
+    for (let i = 0; i < 160; i++) confetti.push({ x: 360, y: 420, vx: (Math.random() - .5) * 16, vy: -Math.random() * 16 - 3, c: [T.accent, T.accent2, T.accent3, '#fff'][i % 4], r: Math.random() * 6.28, life: 0 });
+  }
+  function report() {
+    if (reported || !race || !raceId) return; reported = true;
+    const order = race.results.map(m => m.id);
+    if (TEST) { testFinish(order); return; }
+    fetch(BOX + '/api/marble/result', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, H_), body: JSON.stringify({ raceId, order }) }).then(r => r.json()).then(j => { if (j && j.state) applyState(j.state, 'result'); }).catch(() => {});
+  }
+
+  // =====================================================================
+  //                              MAIN LOOP
+  // =====================================================================
+  const STEP = 1000 / 60; let acc = 0, last = performance.now(), lastDraw = 0;
+  const fpsS = { n: 0, t0: performance.now(), fps: 60, lowSince: 0, degraded: false, stage: 0 };
+  window.__m3d = { get fps() { return fpsS.fps; }, get degraded() { return fpsS.degraded; }, get mode() { return mode; }, get raceT() { return race ? race.t : 0; }, get shot() { return cam.shot; }, get leaderS() { const l = race && race.leader(); return l ? l.s : 0; }, get scale() { return RS; }, grab(type) { const c = document.createElement('canvas'); c.width = renderer.domElement.width; c.height = renderer.domElement.height; const g = c.getContext('2d'); g.drawImage(renderer.domElement, 0, 0); g.drawImage(cv, 0, 0, c.width, c.height); return type === 'png' ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .92); }, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; } };
+  function frame(now) {
+    const dt = Math.min(100, now - last); last = now;
+    if (race && (mode === 'entries' || mode === 'countdown' || mode === 'racing' || mode === 'finished')) {
+      if (mode === 'countdown' && Date.now() >= startAtLocal) { mode = 'racing'; race.start(); toast('GO GO GO! 🏁', T.accent3); }
+      acc += dt * timeScale; let n = 0; while (acc >= STEP && n < 4) { race.step(); acc -= STEP; n++; } if (n === 4) acc = 0;
+      if (mode === 'racing' && race.done) { finishNow(); report(); }
+    }
+    const MAXF = +(q.get('maxfps') || 0);   // optional render cap (used for offline recording)
+    if (!MAXF || now - lastDraw >= 1000 / MAXF - 1) { const ddt = now - lastDraw; lastDraw = now;
+      try { draw3d(now, Math.min(100, ddt)); } catch (e) { console.error(e); }
+      drawOverlay(now); }
+    if (!window.__m3dOK) window.__m3dOK = true;
+    // frame-rate watchdog: if the PC can't keep up, drop shadows + resolution (never below playable)
+    fpsS.n++; if (now - fpsS.t0 >= 1000) { fpsS.fps = fpsS.n * 1000 / (now - fpsS.t0); fpsS.n = 0; fpsS.t0 = now;
+      // gentle auto-quality: only if it stays under 28 fps for 8s. Steps: less supersampling -> native res -> no shadows. Never below native res. &quality=high locks it.
+      if (fpsS.fps < 28 && !HQ && fpsS.stage < 3) { if (!fpsS.lowSince) fpsS.lowSince = now; else if (now - fpsS.lowSince > 8000) { fpsS.lowSince = 0; fpsS.stage++; fpsS.degraded = true; const n = nativeScale();
+          if (fpsS.stage === 1 && RS > Math.max(n, 1.25) + .01) applyScale(Math.max(n, 1.25)); else if (fpsS.stage <= 2 && RS > n + .01) { fpsS.stage = 2; applyScale(n); } else { fpsS.stage = 3; renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); } } } else fpsS.lowSince = 0; }
+    requestAnimationFrame(frame);
+  }
+
+  const v3 = new THREE.Vector3(), _w = new THREE.Vector3();
+  function draw3d(now, dt) {
+    const t = now / 1000;
+    const gy = gateMesh.userData.y0 - (race && race.started ? 3 : 0); gateMesh.position.y += (gy - gateMesh.position.y) * Math.min(1, dt / 160); gateMesh.visible = gateMesh.position.y > gateMesh.userData.y0 - 2.7;
+    for (const [, g] of meshes) { const m = g.userData.m; g.position.set(m.pos.x, m.pos.y, m.pos.z); g.userData.spin.quaternion.set(m.rot.x, m.rot.y, m.rot.z, m.rot.w); g.visible = true; }
+    for (const g of podMeshes) { const u = g.userData; if (now - finishedAtLocal < u.delay + 900) { g.visible = false; continue; } g.visible = true; u.vy -= .9 * dt / 16.7; g.position.y += u.vy * dt / 16.7; if (g.position.y < u.targetY) { g.position.y = u.targetY; u.vy = Math.abs(u.vy) > 3 ? -u.vy * .45 : 0; } g.userData.spin.rotation.set(0, Math.sin(now / 900 + u.i) * .45, 0); }
+    bats.forEach((b, i) => { const u = b.userData; b.position.set(((i * 17 + t * (5 + i * .7)) % 80) - 40, 7 + (i % 4) * 4 + Math.sin(t * 1.3 + i) * 2, -28 - i * 5); const f = Math.sin(t * 16 + i) * .9; u.wl.rotation.y = f; u.wr.rotation.y = -f; });
+    if (sunMat) sunMat.uniforms.t.value = t; tris.forEach(tr => { tr.rotation.z += tr.userData.r * dt; tr.rotation.y += tr.userData.r * dt * .5; });
+    placeCamera(dt, now);
+    composer.render();
+  }
+
+  function toScreen(x, y, z) { v3.set(x, y, z).project(camera); return { x: (v3.x + 1) / 2 * VW, y: (1 - v3.y) / 2 * VH, ok: v3.z < 1 && v3.z > -1 }; }
+  function nameTag(m, sx, sy, size, crown) {
+    const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name;
+    ctx.save(); ctx.font = `800 ${size}px ${UI}`; const img = avatar(m.avatar); const tw = ctx.measureText(s).width, aw = img ? size + 6 : 0, w = tw + aw + 18, h = size + 10;
+    const x = sx - w / 2, y = sy - h;
+    const tg = ctx.createLinearGradient(0, y, 0, y + h); tg.addColorStop(0, 'rgba(40,30,60,.88)'); tg.addColorStop(1, 'rgba(5,0,15,.88)'); ctx.fillStyle = tg; rr(ctx, x, y, w, h, h / 2); ctx.fill(); ctx.strokeStyle = m.color; ctx.lineWidth = 2.5; ctx.shadowColor = m.color; ctx.shadowBlur = 8 * RS; ctx.stroke(); ctx.shadowBlur = 0;
+    if (img) { ctx.save(); ctx.beginPath(); ctx.arc(x + 9 + size / 2, y + h / 2, size / 2, 0, 7); ctx.clip(); ctx.drawImage(img, x + 9, y + h / 2 - size / 2, size, size); ctx.restore(); }
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.lineJoin = 'round'; ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.95)'; ctx.strokeText(s, x + 9 + aw, y + h / 2 + 1); ctx.fillStyle = crown ? T.accent3 : '#fff'; ctx.fillText(s, x + 9 + aw, y + h / 2 + 1);
+    if (crown) { ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('👑', sx, y - 14); }
+    ctx.restore(); return { x, y: y - (crown ? 28 : 0), w, h: h + (crown ? 28 : 0) };
+  }
+  function drawLabels() {
+    if (!race || mode === 'finished' || mode === 'idle' || mode === 'inprogress' || mode === 'over') return;
+    const many = race.marbles.length > 16, lead = mode === 'racing' ? race.leader() : null;
+    const items = [];
+    for (const m of race.marbles) { const p = m.pos; const s = toScreen(p.x, p.y + MR * 2.1, p.z); if (!s.ok || s.y < 100 || s.y > VH + 20 || s.x < -60 || s.x > VW + 60) continue; if (m !== lead && camera.position.distanceTo(_w.set(p.x, p.y, p.z)) > 34) continue;
+      let pri = m === lead ? 3 : (m.place && m.place <= 3) ? 2 : 1; if (mode === 'racing') { const st = race.standings(); const r = st.indexOf(m); if (r >= 0 && r < 5) pri = Math.max(pri, 2.5 - r * .1); }
+      if (mode !== 'racing' && race.marbles.length > 12) continue;
+      if (mode === 'racing' && many && pri < 2) continue;
+      items.push({ m, s, pri }); }
+    items.sort((a, b) => b.pri - a.pri);
+    const boxes = []; const size = many ? 17 : 20;
+    for (const it of items) { ctx.font = `800 ${size}px ${UI}`; const sz = it.m === lead ? size + 7 : size, w = Math.min(14, it.m.name.length) * sz * .68 + 26 + sz, h = sz + 10 + (it.m === lead ? 28 : 0);
+      const bx = { x: it.s.x - w / 2, y: it.s.y - h, w, h };
+      if (boxes.some(o => bx.x < o.x + o.w && bx.x + bx.w > o.x && bx.y < o.y + o.h && bx.y + bx.h > o.y)) continue;
+      boxes.push(bx); nameTag(it.m, it.s.x, it.s.y, it.m === lead ? size + 7 : size, it.m === lead); }
+  }
+
+  function drawOverlay(now) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.setTransform(RS, 0, 0, RS, 0, 0);
+    drawAvatarDiscs();
+    drawLabels();
+    drawSectionBanner(now);
+    drawHud(now);
+    if (SHOWFPS) { ctx.save(); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#0f0'; ctx.fillText(`${fpsS.fps.toFixed(0)} fps  ${Math.round(VW * RS)}x${Math.round(VH * RS)}${fpsS.stage ? ' step ' + fpsS.stage : ''}`, 10, 1270); ctx.restore(); }
+  }
+  function drawSectionBanner(now) {
+    if (mode !== 'racing' || !race) { banner = null; return; }
+    const l = race.leader(); if (l) { let sec = null; for (const f of TR.feats) if (l.s >= f.s0 - 1) sec = f.key; if (sec && sec !== lastSection) { lastSection = sec; if (NAMES[sec] && sec !== 'start' && sec !== 'runoff' && cam.shot !== 'chase') banner = { s: NAMES[sec], t: now }; } }
+    if (!banner) return; const a = now - banner.t; if (a > 1800) { banner = null; return; }
+    const k = a < 250 ? a / 250 : a > 1400 ? (1800 - a) / 400 : 1; ctx.save(); ctx.globalAlpha = k; const sc = .8 + .2 * Math.min(1, a / 250);
+    ctx.translate(360, 345); ctx.scale(sc, sc); glowText(ctx, banner.s, 0, 0, fit(ctx, banner.s, 420, 40), T.accent3, T.accent); ctx.restore();
+  }
+
+  function panel(x, y, w, h, col) { col = col || T.accent; ctx.save(); const gr = ctx.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(48,22,80,.86)'); gr.addColorStop(1, 'rgba(10,2,24,.9)');
+    ctx.fillStyle = gr; ctx.shadowColor = col; ctx.shadowBlur = 26 * RS; rr(ctx, x, y, w, h, 22); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke(); ctx.globalAlpha = .35; ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; rr(ctx, x + 5, y + 5, w - 10, h - 10, 18); ctx.stroke();
+    ctx.globalAlpha = .12; const sh = ctx.createLinearGradient(0, y, 0, y + h * .5); sh.addColorStop(0, '#fff'); sh.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = sh; rr(ctx, x + 3, y + 3, w - 6, h * .5, 20); ctx.fill(); ctx.restore(); }
+  function champsPanel(y) {
+    if (!champs.length) return;
+    const rows = champs.slice(0, 5); const h = 66 + rows.length * 38; panel(110, y, 500, h, T.accent2);
+    glowText(ctx, HW ? '🏆 MARBLE CHAMPS 🦇' : '🏆 MARBLE CHAMPS', 360, y + 32, 30, T.accent2);
+    rows.forEach((c, i) => { ctx.font = `800 24px ${UI}`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${i + 1}. ${c.name.length > 18 ? c.name.slice(0, 17) + '…' : c.name}`, 140, y + 74 + i * 38); ctx.textAlign = 'right'; ctx.fillStyle = T.accent3; ctx.fillText(`${c.wins} win${c.wins === 1 ? '' : 's'}`, 580, y + 74 + i * 38); });
+  }
+  function drawHud(now) {
+    const pulse = 1 + Math.sin(now / 400) * .03;
+    ctx.save(); const tg = ctx.createLinearGradient(0, 0, 0, 110); tg.addColorStop(0, 'rgba(0,0,0,.7)'); tg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = tg; ctx.fillRect(0, 0, VW, 110); ctx.restore();
+    glowText(ctx, T.title, 360, 38, Math.round(fit(ctx, T.title, 660, 44) * pulse), T.accent3, T.accent);
+    glowText(ctx, T.sub, 360, 78, 20, T.accent2);
+    if (mode === 'idle' || !race) {
+      panel(70, 380, 580, 220, T.accent);
+      glowText(ctx, HW ? 'The spooky race is coming!' : 'The race is coming!', 360, 440, 34, '#fff', T.accent);
+      glowText(ctx, 'Send a 100+ 💎 gift', 360, 500, 40, T.accent3);
+      glowText(ctx, 'when entries open to join!', 360, 552, 28, '#fff', T.accent2);
+      champsPanel(650);
+    } else if (mode === 'entries') {
+      const n = race.marbles.length;
+      panel(40, 600, 640, 250, T.accent);
+      glowText(ctx, 'ENTRIES OPEN!', 360, 650, 50, T.accent3, T.accent);
+      glowText(ctx, 'Send a 100+ 💎 gift to join!', 360, 715, fit(ctx, 'Send a 100+ 💎 gift to join!', 600, 38), '#fff', T.accent2);
+      glowText(ctx, `${n} marble${n === 1 ? '' : 's'} on the line`, 360, 770, 30, T.accent2);
+      if (auto.on) { const left = Math.max(0, auto.minutes * 60000 - (Date.now() - openedAtLocal)); const s = Math.ceil(left / 1000); glowText(ctx, n >= 2 ? (left > 0 ? `Race starts in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Starting any second…') : 'Needs 2+ marbles to start', 360, 820, 26, T.accent3); }
+      else glowText(ctx, 'One marble each • extra gifts = cheers', 360, 820, 22, '#fff');
+      champsPanel(880);
+    } else if (mode === 'countdown') {
+      const s = Math.ceil((startAtLocal - Date.now()) / 1000); const frac = ((startAtLocal - Date.now()) % 1000) / 1000;
+      if (s >= 1 && s <= 3) glowText(ctx, String(s), 360, 700, Math.round(190 + 80 * frac), T.accent3, T.accent);
+      else if (s > 3) glowText(ctx, 'GET READY!', 360, 700, 80, T.accent3, T.accent);
+    } else if (mode === 'racing') {
+      const tt = race.t / 1000; glowText(ctx, `⏱ ${tt.toFixed(1)}s`, 24, 128, 26, '#fff', T.accent2, 'left');
+      const st = race.standings().slice(0, 5); panel(440, 108, 268, 34 + st.length * 34, T.accent2);
+      st.forEach((m, i) => { drawMarble(ctx, m, 470, 140 + i * 34, 12, m.idx, 0); ctx.font = `800 21px ${UI}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; const tx = `${i + 1}. ${m.name.length > 12 ? m.name.slice(0, 11) + '…' : m.name}`; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(tx, 492, 141 + i * 34); ctx.fillStyle = i === 0 ? T.accent3 : '#fff'; ctx.fillText(tx, 492, 141 + i * 34); });
+      drawProgress(st[0]);
+      if (tt < 2) glowText(ctx, 'GO!', 360, 640, 200, T.accent3, T.accent);
+    } else if (mode === 'inprogress' || mode === 'over') {
+      panel(90, 480, 540, 150, T.accent); glowText(ctx, mode === 'over' ? 'Race over!' : 'Race in progress…', 360, 535, 40, '#fff', T.accent); glowText(ctx, 'Results coming up!', 360, 590, 28, T.accent3);
+    } else if (mode === 'finished') drawPodium(now);
+    toasts = toasts.filter(t => now - t.t < 3500);
+    toasts.forEach((t, i) => { const a = Math.min(1, (3500 - (now - t.t)) / 500); ctx.save(); ctx.globalAlpha = a; const y = 1200 - (toasts.length - 1 - i) * 54; ctx.font = `800 24px ${UI}`; const w = Math.min(680, ctx.measureText(t.s).width + 40); ctx.fillStyle = 'rgba(0,0,0,.7)'; rr(ctx, 360 - w / 2, y - 22, w, 44, 22); ctx.fill(); ctx.strokeStyle = t.col; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.s, 360, y, 640); ctx.restore(); });
+  }
+  // track progress strip: every marble as a dot from START to the flag, leader with their picture
+  function drawProgress(lead) {
+    const x0 = 34, x1 = 404, y = 172; ctx.save(); ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+    const gr = ctx.createLinearGradient(x0, 0, x1, 0); gr.addColorStop(0, T.accent2); gr.addColorStop(1, T.accent); ctx.strokeStyle = gr; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+    for (const f of TR.feats) { if (f.key === 'start' || f.key === 'runoff') continue; const x = x0 + (x1 - x0) * Math.min(1, f.s0 / TR.finishS); ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(x - 1, y - 7, 2, 14); }
+    ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🏁', x1 + 16, y);
+    const list = race.marbles.slice().sort((a, b) => a.s - b.s);
+    for (const m of list) { if (m === lead) continue; const x = x0 + (x1 - x0) * Math.max(0, Math.min(1, m.s / TR.finishS)); ctx.fillStyle = m.color || '#fff'; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.fill(); ctx.stroke(); }
+    if (lead) { const x = x0 + (x1 - x0) * Math.max(0, Math.min(1, lead.s / TR.finishS)); drawMarble(ctx, lead, x, y, 12, lead.idx, 0); }
+    ctx.restore();
+  }
+  function drawPodium(now) {
+    const list = (official || results || []); const byId = new Map(race.marbles.map(m => [m.id, m]));
+    const top = list.slice(0, 3).map(r => byId.get(r.id) || { id: r.id, name: r.name, color: '#fff', idx: 0 });
+    const k = Math.min(1, (now - finishedAtLocal - 900) / 600);
+    if (k <= 0) { glowText(ctx, '🏁 FINISHED! 🏁', 360, 560, 70, T.accent3, T.accent); return; }
+    if (top[0]) { const s = `WINNER: ${top[0].name}`; glowText(ctx, '🏁 🏁 🏁', 360, 170, 44, '#fff'); glowText(ctx, s, 360, 240, Math.round(fit(ctx, s, 660, 60) * (0.6 + .4 * k)), T.accent3, T.accent); glowText(ctx, 'Bragging rights for the night! 😎', 360, 300, 26, '#fff', T.accent2); }
+    // names above the 3D podium marbles
+    podMeshes.forEach(g => { if (!g.visible) return; const m = g.userData.m, p = podium[g.userData.i]; finale.localToWorld(_w.set(g.position.x, g.position.y + 60, g.position.z)); const s = toScreen(_w.x, _w.y, _w.z); const nm = m.name; glowText(ctx, nm, s.x, s.y - 14, fit(ctx, nm, 210, 28), '#fff', p.col); });
+    champsPanel(960);
+    for (const c of confetti) { c.vy += .35; c.x += c.vx; c.y += c.vy; c.r += .2; c.life++; ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.r); ctx.fillStyle = c.c; ctx.fillRect(-5, -3, 10, 6); ctx.restore(); }
+    confetti = confetti.filter(c => c.y < VH + 20 && c.life < 300);
+  }
+
+  // ---------- live data (same stable box link as gift-jar.html) ----------
+  const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H_ = { 'ngrok-skip-browser-warning': '1' };
+  // ---------- test mode: 12 pretend names, endless races ----------
+  const FAKE = ['Neon Nina', 'Cassette Kev', 'Rubik Rita', 'Walkman Wayne', 'Synth Sue', 'Arcade Andy', 'Mixtape Mia', 'Boombox Barry', 'Leg-Warmer Liz', 'Pac-Man Pete', 'Big Hair Brenda', 'Atari Annie'];
+  const COLORS = ['#ff2bd6', '#00f0ff', '#ffe600', '#a74bff', '#39ff14', '#ff7a00', '#ff3860', '#3d7bff', '#ffffff', '#00ffa8', '#ff9cf0', '#c6ff00'];
+  let testSt = null, testChamps = {};
+  function testState(phase, extra) { testSt = Object.assign({ now: Date.now(), phase, champs: Object.entries(testChamps).map(([id, c]) => ({ id, name: c.name, wins: c.wins })).sort((a, b) => b.wins - a.wins), auto: { on: false, minutes: 3 } }, testSt && { marbles: testSt.marbles, raceId: testSt.raceId, seed: testSt.seed, startAt: testSt.startAt, openedAt: testSt.openedAt }, extra || {}); return testSt; }
+  function testLoop() {
+    const n = +(q.get('n') || 12);
+    testSt = null; applyState(testState('entries', { marbles: [], openedAt: Date.now() }), 'open');
+    let i = 0; const iv = setInterval(() => { if (i >= Math.min(n, FAKE.length * 3)) { clearInterval(iv); setTimeout(() => applyState(testState('countdown', { raceId: 'test' + Date.now(), seed: (Math.random() * 1e9) | 0, startAt: Date.now() + 4000 }), 'start'), 1200); return; }
+      const nm = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + (1 + Math.floor(i / FAKE.length)) : ''), m = { id: 't' + i, name: nm, color: COLORS[i % COLORS.length], avatar: i % 4 === 3 ? null : placeholderAvatar(nm, COLORS[i % COLORS.length], i) }; i++;
+      const st = testState('entries', { marbles: (testSt.marbles || []).concat(m) }); applyState(st, 'join', { marble: m });
+      if (i === 5) applyState(st, 'cheer', { name: FAKE[1] });
+    }, +(q.get('joinms') || 350));
+  }
+  function testFinish(order) {
+    const w = race.marbles.find(m => m.id === order[0]); const c = testChamps[w.id] || { name: w.name, wins: 0 }; c.wins++; testChamps[w.id] = c;
+    const st = testState('finished', { results: order.map((id, i) => ({ place: i + 1, id, name: race.marbles.find(m => m.id === id).name })) }); applyState(st, 'result');
+    setTimeout(testLoop, +(q.get('pause') || 15000));
+  }
+  if (TEST) { testLoop(); requestAnimationFrame(frame); return; }
+
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+  fetch(BOX + '/api/marble/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(st => applyState(st, 'init')).catch(() => {});
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, H_), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      fetch(BOX + '/api/marble/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(st => applyState(st, 'init')).catch(() => {});
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+          if (data) { try { const d = JSON.parse(data); if (d && d.type === 'marble') { if (d.ev === 'cheer') toast(`📣 ${d.name || 'Someone'} cheers their marble on!`, T.accent2); else applyState(d.state, d.ev, d); } } catch (e) {} }
+        }
+      }
+    } catch (e) {}
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  run();
+  requestAnimationFrame(frame);
+
+})();
+</script>
+</body></html>
