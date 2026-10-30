@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<title>Camel Race – Grumpy's control</title>
+<style>
+:root{--pink:#ff2bd6;--cyan:#00f0ff;--yel:#ffe600;--pur:#a74bff;--grn:#39ff14;--org:#ff7a00}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#12002a;color:#fff;padding:14px 14px 40px;max-width:560px;margin:auto}
+h1{font-size:22px;margin:4px 0 2px;color:var(--yel);text-shadow:0 0 10px var(--pink)}.sub{color:#bba;font-size:13px;margin-bottom:12px}
+.card{background:#220a44;border:2px solid #4a2380;border-radius:14px;padding:12px;margin:10px 0}
+.phase{font-size:20px;font-weight:800}.phase b{color:var(--cyan)}
+button{font:inherit;font-weight:800;font-size:18px;border:0;border-radius:12px;padding:16px 10px;width:100%;color:#111;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.97)}button:disabled{opacity:.4}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.open{background:var(--cyan)}.start{background:var(--grn)}.reset{background:#ff5a7a}.test{background:var(--yel)}.ghost{background:#3a2366;color:#fff;font-size:15px;padding:12px}
+ul{list-style:none;margin:6px 0 0;padding:0}li{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #3a1d66}
+li .dot{width:16px;height:16px;border-radius:50%;flex:none}li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li button{width:auto;padding:6px 12px;font-size:14px;background:#ff5a7a}
+input,select{font:inherit;font-size:17px;padding:10px;border-radius:10px;border:2px solid #4a2380;background:#0e0020;color:#fff;width:100%}
+label.sw{display:flex;align-items:center;gap:10px;font-weight:700}label.sw input{width:28px;height:28px}
+.msg{min-height:22px;color:var(--yel);font-weight:700;margin-top:8px}.small{font-size:13px;color:#bba}
+</style></head><body>
+<h1>🐪 Camel Race – control</h1>
+<div class="sub">Only for Grumpy. Viewers join by sending a 100+ 💎 gift while entries are open.</div>
+<div class="sub" style="color:#ffcf6a">Shares entries, races and champs with the Marble Race – keep only ONE race overlay (camel <i>or</i> marble) in your Live Studio scene.</div>
+
+<div class="card" id="keyCard" hidden>
+  <div style="font-weight:700;margin-bottom:6px">Enter the game key (once, it's remembered on this phone)</div>
+  <input id="key" type="password" autocomplete="off" placeholder="game key">
+  <div class="row"><button class="open" id="saveKey">Save key</button><button class="ghost" id="cancelKey">Cancel</button></div>
+</div>
+
+<div class="card">
+  <div class="phase">Status: <b id="phase">…</b></div>
+  <div class="small" id="info"></div>
+  <div class="row">
+    <button class="open" id="bOpen">🎟️ Open entries</button>
+    <button class="start" id="bStart">🏁 Start race</button>
+  </div>
+  <div class="row">
+    <button class="test" id="bTest">➕ Add test camels</button>
+    <button class="reset" id="bReset">⏹ Reset</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">Camels (<span id="count">0</span>)</div>
+  <ul id="list"></ul>
+</div>
+
+<div class="card">
+  <div style="font-weight:800;margin-bottom:6px">✋ Add an entrant by hand</div>
+  <div class="small" style="margin-bottom:8px">For someone whose gift didn't register. Only works while entries are open. Their camel shows initials (no profile picture).</div>
+  <input id="hName" placeholder="Name shown on the camel" maxlength="40" autocomplete="off">
+  <input id="hUser" placeholder="@tiktok handle (optional)" maxlength="40" autocomplete="off" autocapitalize="off" style="margin-top:8px">
+  <div class="row" style="grid-template-columns:1fr"><button class="open" id="bHand">🐪 Add to race</button></div>
+</div>
+<div class="card">
+  <label class="sw"><input type="checkbox" id="autoOn"> Auto mode</label>
+  <div class="small" style="margin:6px 0">Starts the race by itself once entries have been open this long with 2+ camels, then re-opens entries 45s after each race.</div>
+  <select id="autoMin"><option value="1">1 minute</option><option value="2">2 minutes</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option></select>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">🏆 Race Champs (this show, shared with marbles)</div>
+  <ul id="champs"></ul>
+  <div class="small" id="last"></div>
+  <div class="row"><button class="ghost" id="bChamps">Clear champs</button><button class="ghost" id="bKey">Change key</button></div>
+</div>
+
+<script>
+const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H = { 'ngrok-skip-browser-warning': '1' };
+const $ = id => document.getElementById(id);
+let KEY = localStorage.getItem('marbleKey') || '', st = null;
+const NAMES = { idle: 'Waiting (entries closed)', entries: 'ENTRIES OPEN', countdown: 'Countdown 3-2-1…', racing: 'RACING!', finished: 'Finished' };
+function showKey(v) { $('keyCard').hidden = !v; if (v) $('key').focus(); }
+function msg(s, bad) { $('msg').textContent = s || ''; $('msg').style.color = bad ? '#ff7a9a' : ''; }
+async function call(path, body) {
+  if (!KEY) { showKey(true); msg('Enter the key first', true); return null; }
+  try {
+    const r = await fetch(BOX + '/api/marble/' + path, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json', 'x-key': KEY }, H), body: JSON.stringify(body || {}) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 403) { msg('Wrong key – enter it again', true); showKey(true); return null; }
+    if (j.state) render(j.state);
+    if (j.ok === false) msg('⚠️ ' + (j.error || 'not possible right now'), true); else msg('✅ Done');
+    return j;
+  } catch (e) { msg('Can\'t reach Bob\'s box – try again', true); return null; }
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function render(s) {
+  st = s; $('phase').textContent = NAMES[s.phase] || s.phase;
+  const n = s.marbles.length; $('count').textContent = n;
+  let info = `${n} camel${n === 1 ? '' : 's'} • ${s.races} race${s.races === 1 ? '' : 's'} this show`;
+  if (s.phase === 'entries' && s.auto.on) { const left = Math.max(0, s.auto.minutes * 60000 - (s.now - s.openedAt)); info += ` • auto start in ${Math.ceil(left / 1000)}s${n < 2 ? ' (needs 2+)' : ''}`; }
+  $('info').textContent = info;
+  $('bStart').disabled = !(s.phase === 'entries' && n >= 1);
+  const canRemove = ['entries', 'idle', 'finished'].includes(s.phase);
+  $('list').innerHTML = s.marbles.map(m => `<li><i class="dot" style="background:${esc(m.color)}"></i><span>${esc(m.name)} <small style="color:#998">@${esc(m.id)}</small></span>${canRemove ? `<button data-id="${esc(m.id)}">Remove</button>` : ''}</li>`).join('') || '<li><span class="small">No camels yet.</span></li>';
+  $('champs').innerHTML = s.champs.map((c, i) => `<li><span>${i + 1}. ${esc(c.name)}</span><b style="color:var(--yel)">${c.wins} win${c.wins === 1 ? '' : 's'}</b></li>`).join('') || '<li><span class="small">No winners yet.</span></li>';
+  $('last').textContent = s.results && s.results.length ? `Last race: 🥇 ${s.results[0].name}${s.results[1] ? ' 🥈 ' + s.results[1].name : ''}${s.results[2] ? ' 🥉 ' + s.results[2].name : ''}` : '';
+  if (document.activeElement !== $('autoMin')) $('autoMin').value = String(s.auto.minutes);
+  $('autoOn').checked = !!s.auto.on;
+}
+async function refresh() { try { const r = await fetch(BOX + '/api/marble/state', { headers: H, cache: 'no-store' }); render(await r.json()); } catch (e) { $('phase').textContent = 'offline – retrying'; } }
+$('bOpen').onclick = () => { if (st && ['countdown', 'racing'].includes(st.phase) && !confirm('A race is running. Open new entries anyway?')) return; call('open'); };
+$('bStart').onclick = () => call('start');
+$('bReset').onclick = () => { if (confirm('Reset? This clears the camels on screen.')) call('reset'); };
+$('bTest').onclick = () => call('add-test', { n: 6 });
+$('bChamps').onclick = () => { if (confirm('Clear the Race Champs tally? (also clears marble champs)')) call('reset-champs'); };
+$('list').onclick = e => { const id = e.target.dataset && e.target.dataset.id; if (id && confirm('Remove ' + id + '?')) call('remove', { id }); };
+$('autoOn').onchange = () => call('auto', { on: $('autoOn').checked, minutes: +$('autoMin').value });
+$('autoMin').onchange = () => call('auto', { on: $('autoOn').checked, minutes: +$('autoMin').value });
+$('bHand').onclick = async () => {
+  const name = $('hName').value.trim(), h = $('hUser').value.trim().replace(/^@+/, '');
+  if (!name && !h) { msg('Type a name first', true); return; }
+  if (!st || st.phase !== 'entries') { msg('Open entries first', true); return; }
+  const slug = (name || h).toLowerCase().replace(/[^a-z0-9_.]+/g, '_').slice(0, 24) || 'guest';
+  const user = /^[A-Za-z0-9_.]{2,30}$/.test(h) ? h : 'hand_' + slug;
+  const j = await call('test-gift', { user, nick: name || h, diamonds: 100 });
+  if (j && j.ok !== false) { if (j.joined) { msg('✅ ' + (name || h) + ' is on a camel'); $('hName').value = ''; $('hUser').value = ''; } else msg('⚠️ Not added: ' + ((j.result && j.result.error) || 'already in, full, or entries closed'), true); }
+};
+$('bKey').onclick = () => showKey(true);
+$('cancelKey').onclick = () => showKey(false);
+$('saveKey').onclick = async () => { const k = $('key').value.trim(); if (!k) return; const old = KEY; KEY = k; const j = await call('check'); if (j && j.ok) { localStorage.setItem('marbleKey', k); $('key').value = ''; showKey(false); msg('✅ Key saved on this phone'); } else KEY = old; };
+if (!KEY) showKey(true);
+refresh(); setInterval(refresh, 2000);
+</script>
+</body></html>
