@@ -20,6 +20,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
   window.addEventListener('error', function (e) { if (!window.__m3dOK && e && /three|module|import/i.test(String(e.message || ''))) go2d(); });
 })();
 </script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
 <script src="marble-course.js?v=1"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
@@ -28,6 +29,14 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 <script type="module">
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+// wait (max 2.5s) for the Montserrat web font so signs + name tags render in it
+try { await Promise.race([Promise.all(['900 40px Montserrat', '800 20px Montserrat'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch (e) {}
 (() => {
   const q = new URLSearchParams(location.search);
   const TEST = q.get('test') === '1';
@@ -48,12 +57,19 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   addEventListener('resize', fitWrap); fitWrap();
   const cv = document.getElementById('c'), ctx = cv.getContext('2d');
   const VW = 720, VH = 1280;
-  const FONT = '"Arial Black","Impact",system-ui,sans-serif';
+  const FONT = '"Montserrat","Arial Black","Impact",system-ui,sans-serif', UI = '"Montserrat","Segoe UI",system-ui,sans-serif';
+  // ---------- HD render scale: the 720x1280 page is rendered internally at 1.5x–2.5x (1080x1920+), never below native ----------
+  const DPR = window.devicePixelRatio || 1;
+  function nativeScale() { return Math.max(1, Math.min(innerWidth / 720, innerHeight / 1280) * DPR); }
+  function wantScale() { if (q.get('scale')) return Math.max(1, +q.get('scale')); const n = nativeScale(); return Math.min(2.5, LOWQ ? n : Math.max(n, HQ ? 2 : 1.5)); }
+  let RS = wantScale();
+  function sizeOverlay() { cv.width = Math.round(VW * RS); cv.height = Math.round(VH * RS); }
+  sizeOverlay();
 
   // ---------- helpers ----------
   function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-  function glowText(g, s, x, y, size, col, glow, align) { g.save(); g.font = `${size}px ${FONT}`; g.textAlign = align || 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = glow || col; g.shadowBlur = size * .45; g.lineWidth = Math.max(3, size * .14); g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0; g.fillText(s, x, y); g.restore(); }
-  function fit(g, s, max, size) { g.font = `${size}px ${FONT}`; while (size > 10 && g.measureText(s).width > max) { size -= 2; g.font = `${size}px ${FONT}`; } return size; }
+  function glowText(g, s, x, y, size, col, glow, align) { g.save(); g.font = `900 ${size}px ${FONT}`; g.textAlign = align || 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = glow || col; g.shadowBlur = size * .4 * RS; g.lineWidth = Math.max(3, size * .16); g.strokeStyle = 'rgba(0,0,0,.85)'; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.shadowBlur = 0; g.fillText(s, x, y); g.restore(); }
+  function fit(g, s, max, size) { g.font = `900 ${size}px ${FONT}`; while (size > 10 && g.measureText(s).width > max) { size -= 2; g.font = `900 ${size}px ${FONT}`; } return size; }
   function pumpkin(g, x, y, r, face) {
     g.save(); g.translate(x, y);
     g.fillStyle = '#ff7a00'; g.beginPath(); g.ellipse(0, 0, r * 1.1, r, 0, 0, 7); g.fill();
@@ -65,7 +81,27 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
   // ---------- avatars ----------
   const avatars = new Map();
-  function avatar(url) { if (!url) return null; let a = avatars.get(url); if (!a) { a = new Image(); a.referrerPolicy = 'no-referrer'; a.ok = false; a.onload = () => a.ok = true; a.src = url; avatars.set(url, a); } return a.ok ? a : null; }
+  // profile pictures: load straight from TikTok's CDN with CORS (it sends ACAO:*); if that fails, go through the box server's
+  // /api/marble/avatar proxy (fetch + blob, so the ngrok header can be sent). If both fail the marble keeps its normal look.
+  function loadAvatar(url, cb) {
+    let a = avatars.get(url);
+    if (!a) { a = { img: null, ok: false, failed: false, cbs: [] }; avatars.set(url, a);
+      const done = img => { a.img = img; a.ok = true; a.cbs.splice(0).forEach(f => { try { f(img); } catch (e) {} }); };
+      const fail = () => { a.failed = true; a.cbs.length = 0; };
+      const viaBox = () => { if (!/^https:\/\//.test(url)) return fail();
+        fetch(BOX + '/api/marble/avatar?u=' + encodeURIComponent(url), { headers: H_ }).then(r => { if (!r.ok) throw 0; return r.blob(); })
+          .then(b => { if (!/^image\//.test(b.type)) throw 0; const i = new Image(); i.onload = () => done(i); i.onerror = fail; i.src = URL.createObjectURL(b); }).catch(fail); };
+      const i = new Image(); i.crossOrigin = 'anonymous'; i.referrerPolicy = 'no-referrer'; i.onload = () => done(i); i.onerror = viaBox; i.src = url; }
+    if (cb) { if (a.ok) cb(a.img); else if (!a.failed) a.cbs.push(cb); }
+    return a.ok ? a.img : null;
+  }
+  function avatar(url) { return url ? loadAvatar(url) : null; }
+  // test-mode placeholder avatars (gradient + initials), as data URLs
+  function placeholderAvatar(name, col, k) { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 256, 256); gr.addColorStop(0, col); gr.addColorStop(1, ['#1b0b3a', '#002a3a', '#3a0b1b'][k % 3]); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(128, 104, 54, 0, 7); g.fill(); g.beginPath(); g.ellipse(128, 262, 100, 92, 0, 0, 7); g.fill();
+    const ini = name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase(); g.font = `900 104px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(ini, 128, 136); g.fillStyle = '#fff'; g.fillText(ini, 128, 136); return c.toDataURL('image/png'); }
 
   function drawMarble(g, m, x, y, r, idx, label) {
     const img = avatar(m.avatar);
@@ -76,7 +112,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     else { const gr = g.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r); gr.addColorStop(0, '#fff'); gr.addColorStop(.3, m.color); gr.addColorStop(1, '#000'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
     g.restore();
     g.save(); g.strokeStyle = m.color; g.lineWidth = Math.max(2, r * .16); g.shadowColor = m.color; g.shadowBlur = 8; g.beginPath(); g.arc(x, y, r + 1, 0, 7); g.stroke(); g.restore();
-    if (label) { g.save(); g.font = `bold ${label}px system-ui,sans-serif`; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.9)'; const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name; g.strokeText(s, x, y - r - 6); g.fillStyle = '#fff'; g.fillText(s, x, y - r - 6); g.restore(); }
+    if (label) { g.save(); g.font = `800 ${label}px ${UI}`; g.textAlign = 'center'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.9)'; const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name; g.strokeText(s, x, y - r - 6); g.fillStyle = '#fff'; g.fillText(s, x, y - r - 6); g.restore(); }
   }
 
 
@@ -86,18 +122,28 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('g3'), antialias: !LOWQ, powerPreference: 'high-performance', preserveDrawingBuffer: q.get('rec') === '1' }); }
   catch (e) { location.replace('marble-race-2d.html' + location.search); return; }
-  renderer.setPixelRatio(LOWQ ? 0.75 : 1); renderer.setSize(VW, VH, false);
-  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = !LOWQ; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(RS); renderer.setSize(VW, VH, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const MAXANI = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 8;
   document.getElementById('g3').addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(() => location.reload(), 1500); });
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(52, VW / VH, 10, 9000);
+  // post: HDR (half-float) + 4x MSAA render -> bloom on neon/emissive parts -> ACES/sRGB output -> SMAA edge smoothing
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(VW, VH, { type: THREE.HalfFloatType, samples: LOWQ ? 0 : 4 }));
+  composer.setPixelRatio(RS); composer.setSize(VW, VH);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(VW, VH), HW ? .32 : .4, .35, 1.0); composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  const smaa = new SMAAPass(VW * RS, VH * RS); if (!LOWQ) composer.addPass(smaa);
+  function applyScale(s) { RS = s; renderer.setPixelRatio(RS); renderer.setSize(VW, VH, false); composer.setPixelRatio(RS); composer.setSize(VW, VH); sizeOverlay(); }
+  addEventListener('resize', () => { const s = wantScale(); if (Math.abs(s - RS) > .01 && !fpsS.degraded) applyScale(s); });
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   const C = s => new THREE.Color(s);
   const X = x => x - 360, Y = y => -y;       // 2D course px -> 3D units (1:1, y up)
   const DEPTH = 56;                           // track depth (z) – marbles roll at z=0
-  function canvasTex(w, h, fn, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+  function canvasTex(w, h, fn, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, MAXANI); return t; }
 
   // ---------- sky ----------
   scene.background = canvasTex(256, 1024, (g, w, h) => {
@@ -112,19 +158,20 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   // ---------- lights ----------
   scene.add(new THREE.HemisphereLight(HW ? 0x9a7cff : 0xff9cf0, HW ? 0x2a0a10 : 0x200040, HW ? 0.9 : 1.0));
   const sun = new THREE.DirectionalLight(HW ? 0xffe0b0 : 0xffffff, HW ? 2.2 : 2.0);
-  sun.castShadow = !LOWQ; sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.6;
+  sun.castShadow = true; sun.shadow.mapSize.set(LOWQ ? 1024 : 2048, LOWQ ? 1024 : 2048); sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.5; sun.shadow.radius = 4;
   Object.assign(sun.shadow.camera, { left: -560, right: 560, top: 820, bottom: -820, near: 50, far: 2600 });
   scene.add(sun, sun.target);
   const rim = new THREE.DirectionalLight(HW ? 0xff7a00 : 0x00f0ff, HW ? 1.1 : 1.3); rim.position.set(-600, -300, 400); scene.add(rim, rim.target);
 
   // ---------- materials ----------
-  const mStd = (col, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(col), roughness: .35, metalness: .25 }, o));
-  const mGlow = (col, k = 1) => new THREE.MeshStandardMaterial({ color: C(col), emissive: C(col), emissiveIntensity: k, roughness: .4, metalness: 0 });
+  const mStd = (col, o = {}) => new THREE.MeshPhysicalMaterial(Object.assign({ color: C(col), roughness: .3, metalness: .25, clearcoat: .6, clearcoatRoughness: .12 }, o));
+  const mGlow = (col, k = 1) => new THREE.MeshStandardMaterial({ color: C(col), emissive: C(col), emissiveIntensity: k, roughness: .4, metalness: 0, toneMapped: true });
   const MAT = {
     ramp: mStd(HW ? '#3a1a52' : '#1b0b3a', { emissive: C(T.ramp), emissiveIntensity: .06, roughness: .3, metalness: .5 }),
-    rampTop: mStd(T.ramp, { emissive: C(T.ramp), emissiveIntensity: .35, roughness: .25, metalness: .3 }),
+    rampTop: mStd(T.ramp, { emissive: C(T.ramp), emissiveIntensity: .18, roughness: .25, metalness: .3, clearcoat: .4, envMapIntensity: .7 }),
     kick: mStd(T.accent3, { emissive: C(T.accent3), emissiveIntensity: .5 }),
-    rail: mGlow(T.ramp2, 1.4), railK: mGlow(T.accent3, 1.6),
+    rail: mStd('#e8e8f0', { metalness: 1, roughness: .12, clearcoat: 1 }), railK: mStd('#e8e8f0', { metalness: 1, roughness: .12 }),
+    neon: mGlow(T.ramp, 1.9), neonK: mGlow(T.accent3, 1.9),
     wall: mStd(HW ? '#2a0f40' : '#2a0040', { emissive: C(T.wall), emissiveIntensity: .12, transparent: true, opacity: .9 }),
     wallEdge: mGlow(T.wall, 1.6),
     peg: mStd(T.peg, { emissive: C(T.peg), emissiveIntensity: .7, metalness: .6, roughness: .2 }),
@@ -135,7 +182,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   };
 
   // back panel texture (bricks for Halloween, neon grid for 80s) – tiles down the whole course
-  const backTex = canvasTex(256, 256, (g, w, h) => {
+  const backTex = canvasTex(512, 512, (g, w, h) => {
+    g.scale(2, 2); w = 256; h = 256;
     if (HW) { g.fillStyle = '#140820'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(167,75,255,.22)'; g.lineWidth = 3;
       for (let r = 0; r < 8; r++) { const y = r * 32; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (r % 2) * 32; x < w; x += 64) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); } }
       g.fillStyle = 'rgba(0,0,0,.25)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * w, Math.random() * h, 20, 6);
@@ -145,20 +193,20 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   backTex.wrapS = backTex.wrapT = THREE.RepeatWrapping;
 
   // ---------- marbles ----------
-  const marbleGeo = new THREE.SphereGeometry(1, 40, 28);
-  const pumpkinGeo = (() => { const g = new THREE.SphereGeometry(1, 48, 32), p = g.attributes.position, v = new THREE.Vector3();
+  const marbleGeo = new THREE.SphereGeometry(1, 64, 48);
+  const pumpkinGeo = (() => { const g = new THREE.SphereGeometry(1, 80, 56), p = g.attributes.position, v = new THREE.Vector3();
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const a = Math.atan2(v.z, v.x), k = 1 - .085 * Math.pow(Math.abs(Math.sin(a * 5)), .6) * (1 - Math.abs(v.y)); v.x *= k * 1.06; v.z *= k * 1.06; v.y *= .86; p.setXYZ(i, v.x, v.y, v.z); }
     g.computeVertexNormals(); return g; })();
-  function faceTex(glow) { return canvasTex(512, 256, (g) => { g.fillStyle = '#000'; g.fillRect(0, 0, 512, 256); g.fillStyle = glow;
+  function faceTex(glow) { return canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#000'; g.fillRect(0, 0, 512, 256); g.fillStyle = glow;
     g.beginPath(); g.moveTo(88, 120); g.lineTo(108, 82); g.lineTo(128, 120); g.fill(); g.beginPath(); g.moveTo(168, 120); g.lineTo(148, 82); g.lineTo(128 + 0, 120); g.closePath(); g.fill();
     g.beginPath(); g.moveTo(140, 120); g.lineTo(160, 82); g.lineTo(178, 120); g.fill();
     g.beginPath(); g.moveTo(80, 140); for (let i = 0; i <= 8; i++) g.lineTo(80 + i * 12, i % 2 ? 150 : 164); g.lineTo(176, 140); g.quadraticCurveTo(128, 196, 80, 140); g.fill(); }); }
   const pumpkinFace = faceTex('#ffd23a');
-  const pumpkinRidge = canvasTex(512, 256, (g) => { g.fillStyle = '#ff7a00'; g.fillRect(0, 0, 512, 256); const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(120,40,0,.5)'); gr.addColorStop(.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(120,40,0,.6)'); g.fillStyle = gr; g.fillRect(0, 0, 512, 256); });
+  const pumpkinRidge = canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#ff7a00'; g.fillRect(0, 0, 512, 256); const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, 'rgba(120,40,0,.5)'); gr.addColorStop(.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(120,40,0,.6)'); g.fillStyle = gr; g.fillRect(0, 0, 512, 256); });
   const stemGeo = new THREE.CylinderGeometry(.12, .18, .45, 8);
   const stemMat = mStd('#2e7d1a', { roughness: .8, metalness: 0 });
   function pumpkinMesh(r, lit) {
-    const m = new THREE.Mesh(pumpkinGeo, new THREE.MeshStandardMaterial({ map: pumpkinRidge, color: 0xffffff, roughness: .45, metalness: .05, emissive: 0xffb000, emissiveMap: lit ? pumpkinFace : null, emissiveIntensity: lit ? 1.6 : 0 }));
+    const m = new THREE.Mesh(pumpkinGeo, new THREE.MeshPhysicalMaterial({ map: pumpkinRidge, color: 0xffffff, roughness: .38, metalness: .02, clearcoat: .5, clearcoatRoughness: .25, emissive: 0xffb000, emissiveMap: lit ? pumpkinFace : null, emissiveIntensity: lit ? 1.6 : 0 }));
     m.scale.setScalar(r); const s = new THREE.Mesh(stemGeo, stemMat); s.position.y = 1.0; m.add(s); m.castShadow = true; return m;
   }
   const texCache = new Map();
@@ -167,32 +215,59 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     const key = kind + m.color; if (texCache.has(key)) return texCache.get(key);
     let mat;
     if (kind === 'eye') {
-      const tex = canvasTex(512, 256, (g) => { g.fillStyle = '#f6f2ee'; g.fillRect(0, 0, 512, 256); g.strokeStyle = 'rgba(200,0,0,.55)'; g.lineWidth = 2;
+      const tex = canvasTex(1024, 512, (g) => { g.scale(2, 2); g.fillStyle = '#f6f2ee'; g.fillRect(0, 0, 512, 256); g.strokeStyle = 'rgba(200,0,0,.55)'; g.lineWidth = 2;
         for (let i = 0; i < 14; i++) { let x = 128 + (Math.random() - .5) * 300, y = 97 + (Math.random() - .5) * 150; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 4; k++) { x += (128 - x) * .25 + (Math.random() - .5) * 20; y += (97 - y) * .25 + (Math.random() - .5) * 14; g.lineTo(x, y); } g.stroke(); }
         g.fillStyle = m.color; g.beginPath(); g.ellipse(128, 97, 40, 44, 0, 0, 7); g.fill(); g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 4; g.stroke();
         g.fillStyle = '#000'; g.beginPath(); g.ellipse(128, 97, 17, 19, 0, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(118, 86, 6, 0, 7); g.fill(); });
-      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .12, metalness: 0, clearcoat: 1, clearcoatRoughness: .05 });
+      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .1, metalness: 0, clearcoat: 1, clearcoatRoughness: .03, envMapIntensity: 1.3, sheen: .3, sheenColor: C('#ffd0d0') });
     } else if (kind === 'glass') {
       const col = C(m.color); const hsl = {}; col.getHSL(hsl);
-      const tex = canvasTex(512, 256, (g) => { const base = new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.1), Math.max(.14, hsl.l * .42));
+      const tex = canvasTex(1024, 512, (g) => { g.scale(2, 2); const base = new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.1), Math.max(.14, hsl.l * .42));
         g.fillStyle = '#' + base.getHexString(); g.fillRect(0, 0, 512, 256);
         for (let b = 0; b < 3; b++) { g.strokeStyle = b === 1 ? 'rgba(255,255,255,.9)' : m.color; g.lineWidth = b === 1 ? 16 : 30; g.beginPath(); for (let x = 0; x <= 512; x += 8) { const y = 128 + Math.sin(x / 512 * Math.PI * 4 + b * 2.1) * 70; x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); } });
-      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .05, metalness: .05, clearcoat: 1, clearcoatRoughness: .02, emissive: col, emissiveIntensity: .18, envMapIntensity: 1.3 });
+      mat = new THREE.MeshPhysicalMaterial({ map: tex, roughness: .2, metalness: 0, emissive: col, emissiveMap: tex, emissiveIntensity: .45 });
     } else mat = null;
     texCache.set(key, mat); return mat;
   }
+  const shellCache = new Map();
+  function glassShell(col) { let s = shellCache.get(col); if (!s) { s = LOWQ ? new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: .28, roughness: 0, clearcoat: 1, envMapIntensity: 2.2 })
+      : new THREE.MeshPhysicalMaterial({ color: 0xffffff, transmission: 1, thickness: 9, ior: 1.5, roughness: .03, metalness: 0, clearcoat: 1, clearcoatRoughness: .02, attenuationColor: C(col), attenuationDistance: 70, envMapIntensity: 2.0, specularIntensity: 1 });
+      shellCache.set(col, s); } return s; }
+  // avatar marble: the viewer's round profile picture always faces the camera inside a glossy clear glass bubble with a ring in their colour
+  // avatar marbles: the viewer's round profile picture is drawn as a glossy disc locked to their marble (crisp, true colours, always readable)
+  function avatarDisc(img, col) { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+    g.save(); g.beginPath(); g.arc(128, 128, 118, 0, 7); g.clip(); g.fillStyle = col; g.fillRect(0, 0, 256, 256);
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height, sc = 236 / Math.min(iw, ih); g.drawImage(img, 128 - iw * sc / 2, 128 - ih * sc / 2, iw * sc, ih * sc);
+    const v = g.createRadialGradient(128, 128, 78, 128, 128, 120); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.5)'); g.fillStyle = v; g.fillRect(0, 0, 256, 256);
+    const hl = g.createRadialGradient(92, 70, 4, 100, 84, 92); hl.addColorStop(0, 'rgba(255,255,255,.75)'); hl.addColorStop(.35, 'rgba(255,255,255,.18)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl; g.beginPath(); g.ellipse(100, 82, 74, 52, -.5, 0, 7); g.fill(); g.restore();
+    g.lineWidth = 18; g.strokeStyle = col; g.beginPath(); g.arc(128, 128, 118, 0, 7); g.stroke();
+    g.lineWidth = 4; g.strokeStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(128, 128, 108, 0, 7); g.stroke();
+    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.6)'; g.beginPath(); g.arc(128, 128, 126, 0, 7); g.stroke(); return c; }
+  function addAvatar(g, m, R) { if (!m.avatar) return; loadAvatar(m.avatar, img => { if (g.userData.av) return; try { g.userData.av = avatarDisc(img, m.color || '#ffffff'); g.userData.avR = R; if (HW) g.userData.spin.visible = false; } catch (e) {} }); }
+  const _av = new THREE.Vector3(), _rt = new THREE.Vector3();
+  function drawAvatarDiscs() { if (mode === 'idle') return; const list = []; _rt.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    for (const g of meshes.values()) if (g.userData.av && g.visible && g.parent) list.push(g); for (const g of podMeshes) if (g.userData.av && g.visible && g.parent) list.push(g);
+    for (const g of list) { g.getWorldPosition(_av); const c = toScreen(_av.x, _av.y, _av.z); if (!c.ok) continue; _av.addScaledVector(_rt, g.userData.avR); const e = toScreen(_av.x, _av.y, _av.z);
+      const r = Math.hypot(e.x - c.x, e.y - c.y) * 1.08; if (r < 3 || c.y < -r || c.y > VH + r) continue;
+      ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = r * .5 * RS; ctx.shadowOffsetY = r * .15 * RS; ctx.drawImage(g.userData.av, c.x - r, c.y - r, r * 2, r * 2); ctx.restore(); } }
   function makeMarbleMesh(m, idx, R) {
     let mesh;
     if (HW && idx % 2 === 0) mesh = pumpkinMesh(R, true);
+    else if (!HW) {   // real glass: refractive clear shell (transmission) around a glowing swirl core
+      mesh = new THREE.Group(); mesh.scale.setScalar(R);
+      const core = new THREE.Mesh(marbleGeo, marbleMat(m, idx)); core.scale.setScalar(.66); mesh.add(core);
+      const shell = new THREE.Mesh(marbleGeo, glassShell(m.color)); shell.castShadow = true; mesh.add(shell);
+    }
     else { mesh = new THREE.Mesh(marbleGeo, marbleMat(m, idx)); mesh.scale.setScalar(R); mesh.castShadow = true; }
-    const g = new THREE.Group(); g.add(mesh); g.userData.spin = mesh; return g;
+    const g = new THREE.Group(); g.add(mesh); g.userData.spin = mesh; addAvatar(g, m, R); return g;
   }
 
   // ---------- course (built once; every race uses the same layout) ----------
   const course = new THREE.Group(); scene.add(course);
   let C3 = null;   // dynamic bits: spinners, doors, gate, bumpers
   function sign3d(text, col) {
-    const tex = canvasTex(1024, 128, (g, w, h) => { g.font = `64px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = col; g.shadowBlur = 24; g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,.9)'; g.strokeText(text, w / 2, h / 2); g.fillStyle = col; g.fillText(text, w / 2, h / 2); g.shadowBlur = 0; g.fillText(text, w / 2, h / 2); });
+    const tex = canvasTex(2048, 256, (g, w, h) => { g.scale(2, 2); w = 1024; h = 128; g.font = `900 66px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.shadowColor = col; g.shadowBlur = 24; g.lineWidth = 10; g.strokeStyle = 'rgba(0,0,0,.9)'; g.strokeText(text, w / 2, h / 2); g.fillStyle = col; g.fillText(text, w / 2, h / 2); g.shadowBlur = 0; g.fillText(text, w / 2, h / 2); });
     const m = new THREE.Mesh(new THREE.PlaneGeometry(560, 70), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false })); return m;
   }
   function buildCourse(race) {
@@ -222,26 +297,26 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
         for (const z of [DEPTH / 2 + 15, -DEPTH / 2 - 15]) { const e = new THREE.Mesh(new THREE.BoxGeometry(len + o.t * .5, 5, 5), MAT.wallEdge); e.position.set(0, o.x1 < 360 ? -o.t / 2 : o.t / 2, z); g.add(e); }
       } else {
         const L = len + o.t * .5;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(L, o.t, DEPTH + 8), o.kind === 'kicker' ? MAT.kick : MAT.ramp); body.castShadow = true; body.receiveShadow = true; g.add(body);
+        const body = new THREE.Mesh(new RoundedBoxGeometry(L, o.t, DEPTH + 8, 3, Math.max(.5, Math.min(o.t / 2 - .5, 4))), o.kind === 'kicker' ? MAT.kick : MAT.ramp); body.castShadow = true; body.receiveShadow = true; g.add(body);
         if (o.t >= 10 && L > 40) {
           // glowing top strip + raised side rails on posts (the "track")
           const top = new THREE.Mesh(new THREE.BoxGeometry(L, 2.5, DEPTH + 8), o.kind === 'kicker' ? MAT.kick : MAT.rampTop); top.position.y = -o.t / 2 - 1; top.position.y = o.t / 2 + 1; top.receiveShadow = true; g.add(top);
           // in 3D the track's "up" is local -y after the flip only if ramp is upside down; ramps are thin so both faces get a strip
-          const bot = top.clone(); bot.position.y = -o.t / 2 - 1; g.add(bot);
+          for (const z of [DEPTH / 2 + 4.5, -DEPTH / 2 - 4.5]) { const n = new THREE.Mesh(new THREE.BoxGeometry(L - 2, 2.2, 2.2), o.kind === 'kicker' ? MAT.neonK : MAT.neon); n.position.set(0, o.t / 2 + 1.5, z); g.add(n); }
           for (const z of [DEPTH / 2 + 2, -DEPTH / 2 - 2]) {
-            const r = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, L, 8), o.kind === 'kicker' ? MAT.railK : MAT.rail); r.rotation.z = Math.PI / 2; r.position.set(0, o.t / 2 + 12, z); g.add(r);
-            for (let px = -L / 2 + 8; px <= L / 2 - 4; px += Math.max(40, L / Math.ceil(L / 70))) { const p = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 12, 6), MAT.hub); p.position.set(px, o.t / 2 + 6, z); g.add(p); }
+            const r = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, L, 20), o.kind === 'kicker' ? MAT.railK : MAT.rail); r.rotation.z = Math.PI / 2; r.position.set(0, o.t / 2 + 12, z); g.add(r);
+            for (let px = -L / 2 + 8; px <= L / 2 - 4; px += Math.max(40, L / Math.ceil(L / 70))) { const p = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 12, 12), MAT.hub); p.position.set(px, o.t / 2 + 6, z); g.add(p); }
           }
         }
       }
       course.add(g);
     }
     // pegs: instanced cylinders spanning the track depth
-    const pegGeo = new THREE.CylinderGeometry(1, 1, DEPTH + 6, 14); pegGeo.rotateX(Math.PI / 2);
+    const pegGeo = new THREE.CylinderGeometry(1, 1, DEPTH + 6, 28); pegGeo.rotateX(Math.PI / 2);
     const inst = new THREE.InstancedMesh(pegGeo, MAT.peg, pegs.length); const mtx = new THREE.Matrix4();
     pegs.forEach((o, i) => { mtx.compose(new THREE.Vector3(X(o.x), Y(o.y), 0), new THREE.Quaternion(), new THREE.Vector3(o.r, o.r, 1)); inst.setMatrixAt(i, mtx); });
     inst.castShadow = true; course.add(inst);
-    const capGeo = new THREE.SphereGeometry(1, 12, 8); const caps = new THREE.InstancedMesh(capGeo, mGlow(T.ramp2, 1.2), pegs.length * 2); let ci = 0;
+    const capGeo = new THREE.SphereGeometry(1, 24, 16); const caps = new THREE.InstancedMesh(capGeo, mGlow(T.ramp2, .75), pegs.length * 2); let ci = 0;
     pegs.forEach(o => { for (const z of [DEPTH / 2 + 3, -DEPTH / 2 - 3]) { mtx.compose(new THREE.Vector3(X(o.x), Y(o.y), z), new THREE.Quaternion(), new THREE.Vector3(o.r * 1.15, o.r * 1.15, o.r * 1.15)); caps.setMatrixAt(ci++, mtx); } }); course.add(caps);
     // spinners
     const spinners = race.spinners.map(s => { const g = new THREE.Group(); g.position.set(X(s.x), Y(s.y), 0);
@@ -393,7 +468,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   function setupPodium() {
     podMeshes.forEach(g => finale.remove(g)); podMeshes.length = 0;
     const list = (official || results || []); const byId = new Map(race.marbles.map(m => [m.id, m]));
-    list.slice(0, 3).forEach((r, i) => { const m = byId.get(r.id) || { id: r.id, name: r.name, color: '#ffffff', idx: i }; const g = makeMarbleMesh(m, m.idx || 0, 44); const p = podium[i]; g.position.set(p.x, PODIUM_Y + p.h + 44 + 400, 0); g.userData = Object.assign(g.userData, { m, i, targetY: PODIUM_Y + p.h + 44, vy: 0, delay: i === 0 ? 900 : i === 1 ? 500 : 200 }); finale.add(g); podMeshes.push(g); });
+    list.slice(0, 3).forEach((r, i) => { const m = byId.get(r.id) || { id: r.id, name: r.name, avatar: r.avatar || null, color: '#ffffff', idx: i }; const g = makeMarbleMesh(m, m.idx || 0, 44); const p = podium[i]; g.position.set(p.x, PODIUM_Y + p.h + 44 + 400, 0); g.userData = Object.assign(g.userData, { m, i, targetY: PODIUM_Y + p.h + 44, vy: 0, delay: i === 0 ? 900 : i === 1 ? 500 : 200 }); finale.add(g); podMeshes.push(g); });
   }
 
   // =====================================================================
@@ -449,8 +524,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
   //                              MAIN LOOP
   // =====================================================================
   const STEP = 1000 / 60; let acc = 0, last = performance.now(), lastDraw = 0;
-  const fpsS = { n: 0, t0: performance.now(), fps: 60, lowSince: 0, degraded: LOWQ };
-  window.__m3d = { get fps() { return fpsS.fps; }, get degraded() { return fpsS.degraded; }, get mode() { return mode; }, get raceT() { return race ? race.t : 0; }, grab() { const c = document.createElement('canvas'); c.width = VW; c.height = VH; const g = c.getContext('2d'); g.drawImage(renderer.domElement, 0, 0, VW, VH); g.drawImage(cv, 0, 0); return c.toDataURL('image/jpeg', .92); }, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; } };
+  const fpsS = { n: 0, t0: performance.now(), fps: 60, lowSince: 0, degraded: false, stage: 0 };
+  window.__m3d = { get fps() { return fpsS.fps; }, get degraded() { return fpsS.degraded; }, get mode() { return mode; }, get raceT() { return race ? race.t : 0; }, get scale() { return RS; }, grab(type) { const c = document.createElement('canvas'); c.width = renderer.domElement.width; c.height = renderer.domElement.height; const g = c.getContext('2d'); g.drawImage(renderer.domElement, 0, 0); g.drawImage(cv, 0, 0, c.width, c.height); return type === 'png' ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .92); }, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; } };
   function frame(now) {
     const dt = Math.min(100, now - last); last = now;
     if (race && (mode === 'entries' || mode === 'countdown' || mode === 'racing' || mode === 'finished')) {
@@ -465,7 +540,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     if (!window.__m3dOK) window.__m3dOK = true;
     // frame-rate watchdog: if the PC can't keep up, drop shadows + resolution (never below playable)
     fpsS.n++; if (now - fpsS.t0 >= 1000) { fpsS.fps = fpsS.n * 1000 / (now - fpsS.t0); fpsS.n = 0; fpsS.t0 = now;
-      if (fpsS.fps < 34 && !fpsS.degraded && !HQ) { if (!fpsS.lowSince) fpsS.lowSince = now; else if (now - fpsS.lowSince > 6000) { fpsS.degraded = true; renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); renderer.setPixelRatio(.75); renderer.setSize(VW, VH, false); } } else fpsS.lowSince = 0; }
+      // gentle auto-quality: only if it stays under 28 fps for 8s. Steps: less supersampling -> native res -> no shadows. Never below native res. &quality=high locks it.
+      if (fpsS.fps < 28 && !HQ && fpsS.stage < 3) { if (!fpsS.lowSince) fpsS.lowSince = now; else if (now - fpsS.lowSince > 8000) { fpsS.lowSince = 0; fpsS.stage++; fpsS.degraded = true; const n = nativeScale();
+          if (fpsS.stage === 1 && RS > Math.max(n, 1.25) + .01) applyScale(Math.max(n, 1.25)); else if (fpsS.stage <= 2 && RS > n + .01) { fpsS.stage = 2; applyScale(n); } else { fpsS.stage = 3; renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); } } } else fpsS.lowSince = 0; }
     requestAnimationFrame(frame);
   }
 
@@ -492,17 +569,17 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     bats.forEach((b, i) => { const u = b.userData, tt = t * .35 + i * 1.7; b.position.set(((i * 397 + t * (60 + i * 7)) % 2400) - 1200, 520 - i * 90 + Math.sin(tt * 2) * 60, u.z); const f = Math.sin(t * 16 + i) * .9; u.wl.rotation.y = f; u.wr.rotation.y = -f; });
     if (!HW) { const gr = bgGroup.userData.grid; gr.position.z = -800 + ((t * 120) % 100); bgGroup.children.forEach(c => { if (c.userData.mat) c.userData.mat.uniforms.t.value = t; }); (bgGroup.userData.tris || []).forEach(tr => { tr.rotation.z += tr.userData.r * dt; tr.rotation.y += tr.userData.r * dt * .5; }); }
     placeCamera(dt, now);
-    renderer.render(scene, camera);
+    composer.render();
   }
 
   function toScreen(x, y, z) { v3.set(x, y, z).project(camera); return { x: (v3.x + 1) / 2 * VW, y: (1 - v3.y) / 2 * VH, ok: v3.z < 1 && v3.z > -1 }; }
   function nameTag(m, sx, sy, size, crown) {
     const s = m.name.length > 14 ? m.name.slice(0, 13) + '…' : m.name;
-    ctx.save(); ctx.font = `bold ${size}px system-ui,sans-serif`; const img = avatar(m.avatar); const tw = ctx.measureText(s).width, aw = img ? size + 6 : 0, w = tw + aw + 18, h = size + 10;
+    ctx.save(); ctx.font = `800 ${size}px ${UI}`; const img = avatar(m.avatar); const tw = ctx.measureText(s).width, aw = img ? size + 6 : 0, w = tw + aw + 18, h = size + 10;
     const x = sx - w / 2, y = sy - h;
-    ctx.fillStyle = 'rgba(0,0,0,.72)'; rr(ctx, x, y, w, h, h / 2); ctx.fill(); ctx.strokeStyle = m.color; ctx.lineWidth = 2.5; ctx.stroke();
+    const tg = ctx.createLinearGradient(0, y, 0, y + h); tg.addColorStop(0, 'rgba(40,30,60,.88)'); tg.addColorStop(1, 'rgba(5,0,15,.88)'); ctx.fillStyle = tg; rr(ctx, x, y, w, h, h / 2); ctx.fill(); ctx.strokeStyle = m.color; ctx.lineWidth = 2.5; ctx.shadowColor = m.color; ctx.shadowBlur = 8 * RS; ctx.stroke(); ctx.shadowBlur = 0;
     if (img) { ctx.save(); ctx.beginPath(); ctx.arc(x + 9 + size / 2, y + h / 2, size / 2, 0, 7); ctx.clip(); ctx.drawImage(img, x + 9, y + h / 2 - size / 2, size, size); ctx.restore(); }
-    ctx.fillStyle = crown ? T.accent3 : '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillText(s, x + 9 + aw, y + h / 2 + 1);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.lineJoin = 'round'; ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.95)'; ctx.strokeText(s, x + 9 + aw, y + h / 2 + 1); ctx.fillStyle = crown ? T.accent3 : '#fff'; ctx.fillText(s, x + 9 + aw, y + h / 2 + 1);
     if (crown) { ctx.font = '24px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('👑', sx, y - 14); }
     ctx.restore(); return { x, y: y - (crown ? 28 : 0), w, h: h + (crown ? 28 : 0) };
   }
@@ -516,19 +593,20 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
       if (mode === 'racing' && many && pri < 2) continue;
       items.push({ m, s, pri }); }
     items.sort((a, b) => b.pri - a.pri);
-    const boxes = []; const size = many ? 15 : 17;
-    for (const it of items) { ctx.font = `bold ${size}px system-ui,sans-serif`; const w = Math.min(14, it.m.name.length) * size * .62 + 26, h = size + 10 + (it.m === lead ? 28 : 0);
+    const boxes = []; const size = many ? 17 : 20;
+    for (const it of items) { ctx.font = `800 ${size}px ${UI}`; const w = Math.min(14, it.m.name.length) * size * .68 + 26, h = size + 10 + (it.m === lead ? 28 : 0);
       const bx = { x: it.s.x - w / 2, y: it.s.y - h, w, h };
       if (boxes.some(o => bx.x < o.x + o.w && bx.x + bx.w > o.x && bx.y < o.y + o.h && bx.y + bx.h > o.y)) continue;
       boxes.push(bx); nameTag(it.m, it.s.x, it.s.y, size, it.m === lead); }
   }
 
   function drawOverlay(now) {
-    ctx.clearRect(0, 0, VW, VH);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.setTransform(RS, 0, 0, RS, 0, 0);
+    drawAvatarDiscs();
     drawLabels();
     drawSectionBanner(now);
     drawHud(now);
-    if (SHOWFPS) { ctx.save(); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#0f0'; ctx.fillText(`${fpsS.fps.toFixed(0)} fps${fpsS.degraded ? ' (lite)' : ''}`, 10, 1270); ctx.restore(); }
+    if (SHOWFPS) { ctx.save(); ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#0f0'; ctx.fillText(`${fpsS.fps.toFixed(0)} fps  ${Math.round(VW * RS)}x${Math.round(VH * RS)}${fpsS.stage ? ' step ' + fpsS.stage : ''}`, 10, 1270); ctx.restore(); }
   }
   function drawSectionBanner(now) {
     if (mode !== 'racing' || !race) { banner = null; return; }
@@ -538,12 +616,15 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     ctx.translate(360, 215); ctx.scale(sc, sc); glowText(ctx, banner.s, 0, 0, fit(ctx, banner.s, 420, 40), T.accent3, T.accent); ctx.restore();
   }
 
-  function panel(x, y, w, h, col) { ctx.save(); ctx.fillStyle = T.panel; ctx.strokeStyle = col || T.accent; ctx.lineWidth = 4; ctx.shadowColor = col || T.accent; ctx.shadowBlur = 18; rr(ctx, x, y, w, h, 18); ctx.fill(); ctx.stroke(); ctx.restore(); }
+  function panel(x, y, w, h, col) { col = col || T.accent; ctx.save(); const gr = ctx.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(48,22,80,.86)'); gr.addColorStop(1, 'rgba(10,2,24,.9)');
+    ctx.fillStyle = gr; ctx.shadowColor = col; ctx.shadowBlur = 26 * RS; rr(ctx, x, y, w, h, 22); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke(); ctx.globalAlpha = .35; ctx.lineWidth = 1.5; ctx.strokeStyle = '#ffffff'; rr(ctx, x + 5, y + 5, w - 10, h - 10, 18); ctx.stroke();
+    ctx.globalAlpha = .12; const sh = ctx.createLinearGradient(0, y, 0, y + h * .5); sh.addColorStop(0, '#fff'); sh.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = sh; rr(ctx, x + 3, y + 3, w - 6, h * .5, 20); ctx.fill(); ctx.restore(); }
   function champsPanel(y) {
     if (!champs.length) return;
     const rows = champs.slice(0, 5); const h = 66 + rows.length * 38; panel(110, y, 500, h, T.accent2);
     glowText(ctx, HW ? '🏆 MARBLE CHAMPS 🦇' : '🏆 MARBLE CHAMPS', 360, y + 32, 30, T.accent2);
-    rows.forEach((c, i) => { ctx.font = `bold 24px system-ui,sans-serif`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${i + 1}. ${c.name.length > 18 ? c.name.slice(0, 17) + '…' : c.name}`, 140, y + 74 + i * 38); ctx.textAlign = 'right'; ctx.fillStyle = T.accent3; ctx.fillText(`${c.wins} win${c.wins === 1 ? '' : 's'}`, 580, y + 74 + i * 38); });
+    rows.forEach((c, i) => { ctx.font = `800 24px ${UI}`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${i + 1}. ${c.name.length > 18 ? c.name.slice(0, 17) + '…' : c.name}`, 140, y + 74 + i * 38); ctx.textAlign = 'right'; ctx.fillStyle = T.accent3; ctx.fillText(`${c.wins} win${c.wins === 1 ? '' : 's'}`, 580, y + 74 + i * 38); });
   }
   function drawHud(now) {
     const pulse = 1 + Math.sin(now / 400) * .03;
@@ -572,13 +653,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     } else if (mode === 'racing') {
       const tt = race.t / 1000; glowText(ctx, `⏱ ${tt.toFixed(1)}s`, 24, 128, 26, '#fff', T.accent2, 'left');
       const st = race.standings().slice(0, 5); panel(440, 108, 268, 34 + st.length * 34, T.accent2);
-      st.forEach((m, i) => { drawMarble(ctx, m, 470, 140 + i * 34, 12, m.idx, 0); ctx.font = 'bold 20px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = i === 0 ? T.accent3 : '#fff'; ctx.fillText(`${i + 1}. ${m.name.length > 13 ? m.name.slice(0, 12) + '…' : m.name}`, 492, 141 + i * 34); });
+      st.forEach((m, i) => { drawMarble(ctx, m, 470, 140 + i * 34, 12, m.idx, 0); ctx.font = `800 21px ${UI}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; const tx = `${i + 1}. ${m.name.length > 12 ? m.name.slice(0, 11) + '…' : m.name}`; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(tx, 492, 141 + i * 34); ctx.fillStyle = i === 0 ? T.accent3 : '#fff'; ctx.fillText(tx, 492, 141 + i * 34); });
       if (tt < 2) glowText(ctx, 'GO!', 360, 640, 200, T.accent3, T.accent);
     } else if (mode === 'inprogress' || mode === 'over') {
       panel(90, 480, 540, 150, T.accent); glowText(ctx, mode === 'over' ? 'Race over!' : 'Race in progress…', 360, 535, 40, '#fff', T.accent); glowText(ctx, 'Results coming up!', 360, 590, 28, T.accent3);
     } else if (mode === 'finished') drawPodium(now);
     toasts = toasts.filter(t => now - t.t < 3500);
-    toasts.forEach((t, i) => { const a = Math.min(1, (3500 - (now - t.t)) / 500); ctx.save(); ctx.globalAlpha = a; const y = 1200 - (toasts.length - 1 - i) * 54; ctx.font = `bold 24px system-ui,sans-serif`; const w = Math.min(680, ctx.measureText(t.s).width + 40); ctx.fillStyle = 'rgba(0,0,0,.7)'; rr(ctx, 360 - w / 2, y - 22, w, 44, 22); ctx.fill(); ctx.strokeStyle = t.col; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.s, 360, y, 640); ctx.restore(); });
+    toasts.forEach((t, i) => { const a = Math.min(1, (3500 - (now - t.t)) / 500); ctx.save(); ctx.globalAlpha = a; const y = 1200 - (toasts.length - 1 - i) * 54; ctx.font = `800 24px ${UI}`; const w = Math.min(680, ctx.measureText(t.s).width + 40); ctx.fillStyle = 'rgba(0,0,0,.7)'; rr(ctx, 360 - w / 2, y - 22, w, 44, 22); ctx.fill(); ctx.strokeStyle = t.col; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t.s, 360, y, 640); ctx.restore(); });
   }
   function drawPodium(now) {
     const list = (official || results || []); const byId = new Map(race.marbles.map(m => [m.id, m]));
@@ -604,7 +685,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
     const n = +(q.get('n') || 12);
     testSt = null; applyState(testState('entries', { marbles: [], openedAt: Date.now() }), 'open');
     let i = 0; const iv = setInterval(() => { if (i >= Math.min(n, FAKE.length * 3)) { clearInterval(iv); setTimeout(() => applyState(testState('countdown', { raceId: 'test' + Date.now(), seed: (Math.random() * 1e9) | 0, startAt: Date.now() + 4000 }), 'start'), 1200); return; }
-      const nm = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + (1 + Math.floor(i / FAKE.length)) : ''), m = { id: 't' + i, name: nm, color: COLORS[i % COLORS.length], avatar: null }; i++;
+      const nm = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + (1 + Math.floor(i / FAKE.length)) : ''), m = { id: 't' + i, name: nm, color: COLORS[i % COLORS.length], avatar: i % 4 === 3 ? null : placeholderAvatar(nm, COLORS[i % COLORS.length], i) }; i++;
       const st = testState('entries', { marbles: (testSt.marbles || []).concat(m) }); applyState(st, 'join', { marble: m });
       if (i === 5) applyState(st, 'cheer', { name: FAKE[1] });
     }, +(q.get('joinms') || 350));
