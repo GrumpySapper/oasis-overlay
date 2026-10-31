@@ -5,7 +5,7 @@
      Same entries as the marble race: viewers who send a 100+ coin gift while entries are open ride a camel.
      Grumpy runs it from camel-control.html (shares the marble race state – only put ONE race overlay in the scene).
      ?test=1 pretend names + placeholder avatars (no server)   ?n=8 test camels
-     ?theme=halloween | ?theme=80s  (default: Halloween until 2 Nov 2026 04:00 Dubai, then 80s)
+     ?theme=halloween | ?theme=80s  (default: 80s neon desert)
      ?quality=low  1x render, fewer particles   ?bg=clear  transparent sky (ground only)   ?fps=1 frame-rate readout -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -18,7 +18,7 @@ canvas{display:block;width:100vw;height:100vh;object-fit:contain}
 (async () => {
   const q = new URLSearchParams(location.search);
   const TEST = q.get('test') === '1', LOWQ = q.get('quality') === 'low', CLEAR = q.get('bg') === 'clear', SHOWFPS = q.get('fps') === '1';
-  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : '80s';
   const HW = THEME === 'halloween';
   try { await Promise.race([Promise.all(['900 40px Montserrat', '800 20px Montserrat'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]); } catch (e) {}
   const FONT = '"Montserrat","Arial Black","Impact",system-ui,sans-serif';
