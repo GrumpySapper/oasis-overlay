@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio · Song Vote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Monoton&family=Outfit:wght@600;800;900&display=swap" rel="stylesheet">
+<!-- Chat song vote overlay. Portrait 720x1280 (default) or ?layout=wide (1280x720). Scales to any browser-source size.
+     ?test=1 simulated votes (&songs=5 &secs=40 &tie=1)   ?bg=clear transparent background -->
+<style>
+  :root { --pink:#ff2bd6; --cyan:#00f0ff; --yel:#ffe600; --pur:#a74bff; --grn:#39ff14; --org:#ff7a00; --ink:#12002b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:100%; height:100%; overflow:hidden; background:transparent; }
+  body { font-family:'Outfit',system-ui,sans-serif; color:#fff; -webkit-font-smoothing:antialiased; }
+  #stage { position:absolute; left:0; top:0; width:720px; height:1280px; transform-origin:0 0; overflow:hidden; }
+  body.wide #stage { width:1280px; height:720px; }
+  /* ---------- 80s background: sky, sun, grid ---------- */
+  #bg { position:absolute; inset:0; background:linear-gradient(180deg,#0b0026 0%,#2a0059 42%,#6a0a7a 60%,#14002e 61%,#07001a 100%); }
+  body.clear #bg { display:none; }
+  #sun { position:absolute; left:50%; top:47%; width:420px; height:420px; margin-left:-210px; border-radius:50%;
+    background:linear-gradient(180deg,#ffe600 0%,#ff9a00 38%,#ff2bd6 75%,#a100ff 100%);
+    -webkit-mask:repeating-linear-gradient(180deg,#000 0 22px,transparent 22px 30px); mask:repeating-linear-gradient(180deg,#000 0 22px,transparent 22px 30px);
+    filter:drop-shadow(0 0 40px rgba(255,43,214,.7)); opacity:.55; }
+  body.wide #sun { top:30%; width:380px; height:380px; margin-left:-190px; }
+  #grid { position:absolute; left:-50%; right:-50%; bottom:0; height:39%; transform:perspective(320px) rotateX(62deg); transform-origin:50% 0;
+    background-image:linear-gradient(rgba(0,240,255,.75) 2px,transparent 2px),linear-gradient(90deg,rgba(255,43,214,.75) 2px,transparent 2px);
+    background-size:60px 60px; animation:gridmove 1.2s linear infinite; }
+  @keyframes gridmove { to { background-position:0 60px; } }
+  #stars { position:absolute; inset:0 0 45% 0; }
+  /* ---------- panel ---------- */
+  #panel { position:absolute; left:28px; right:28px; top:26px; bottom:26px; border-radius:30px; padding:26px 28px 22px;
+    background:linear-gradient(160deg,rgba(28,0,64,.86),rgba(12,0,36,.9)); border:3px solid rgba(255,43,214,.9);
+    box-shadow:0 0 0 2px rgba(0,240,255,.45) inset,0 0 34px rgba(255,43,214,.55),0 0 90px rgba(0,240,255,.25); display:flex; flex-direction:column; }
+  body.wide #panel { left:24px; right:24px; top:20px; bottom:20px; padding:20px 26px 18px; }
+  #head { text-align:center; }
+  #brand { font:400 20px 'Bungee'; letter-spacing:4px; color:var(--cyan); text-shadow:0 0 10px var(--cyan); }
+  #title { font:400 58px/1.02 'Monoton'; letter-spacing:2px; margin-top:6px; color:#fff; text-transform:uppercase;
+    text-shadow:0 0 6px #fff,0 0 16px var(--pink),0 0 34px var(--pink),0 0 60px var(--pur); }
+  body.wide #title { font-size:50px; margin-top:2px; }
+  #how { margin-top:12px; font:800 34px 'Outfit'; color:var(--yel); text-shadow:0 0 14px rgba(255,230,0,.6),0 3px 0 #7a2b00; }
+  #how b { color:#fff; background:linear-gradient(180deg,var(--pink),#b0009a); padding:0 12px; border-radius:10px; margin:0 3px; box-shadow:0 0 14px var(--pink); text-shadow:none; }
+  body.wide #how { font-size:30px; margin-top:6px; }
+  #rule { display:inline-block; margin-top:12px; padding:7px 18px; border-radius:99px; font:800 21px 'Outfit'; letter-spacing:.5px;
+    color:#fff; border:2px solid var(--cyan); background:rgba(0,240,255,.12); box-shadow:0 0 14px rgba(0,240,255,.45); }
+  body.wide #rule { margin-top:8px; font-size:19px; }
+  /* status row */
+  #statusRow { display:flex; align-items:center; justify-content:space-between; gap:14px; margin:18px 4px 12px; }
+  body.wide #statusRow { margin:10px 4px 8px; }
+  #badge { font:400 24px 'Bungee'; padding:8px 18px 6px; border-radius:14px; letter-spacing:2px; white-space:nowrap; }
+  #badge.open { background:var(--grn); color:#062200; box-shadow:0 0 22px var(--grn); animation:pulse 1s ease-in-out infinite; }
+  #badge.idle { background:#3a1670; color:#e7d7ff; box-shadow:0 0 12px rgba(167,75,255,.6); }
+  #badge.revealed { background:var(--yel); color:#3a1600; box-shadow:0 0 22px var(--yel); }
+  @keyframes pulse { 50% { transform:scale(1.06); filter:brightness(1.2); } }
+  #timer { font:400 46px 'Bungee'; color:#fff; text-shadow:0 0 12px var(--cyan),0 0 26px var(--cyan); min-width:150px; text-align:center; }
+  #timer.hot { color:#fff; text-shadow:0 0 12px #ff2b4a,0 0 30px #ff2b4a; animation:pulse .5s ease-in-out infinite; }
+  #total { text-align:right; font:800 22px 'Outfit'; color:#e9dcff; white-space:nowrap; }
+  #total span { display:block; font:400 40px/1 'Bungee'; color:var(--yel); text-shadow:0 0 14px rgba(255,230,0,.7); }
+  /* bars */
+  #bars { flex:1; display:flex; flex-direction:column; justify-content:center; gap:var(--gap,14px); min-height:0; }
+  .row { display:flex; align-items:center; gap:14px; height:var(--rowh,76px); position:relative; }
+  .num { flex:0 0 var(--rowh,76px); height:100%; border-radius:18px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:linear-gradient(180deg,var(--c),color-mix(in srgb,var(--c) 45%,#000)); box-shadow:0 0 16px var(--c); color:#fff; }
+  .num i { font:800 calc(var(--rowh,76px)*.17) 'Outfit'; font-style:normal; letter-spacing:2px; opacity:.95; line-height:1; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+  .num b { font:400 calc(var(--rowh,76px)*.52)/1 'Bungee'; text-shadow:0 2px 0 rgba(0,0,0,.45); }
+  .track { flex:1; height:100%; border-radius:18px; background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.14); position:relative; overflow:hidden; }
+  .fill { position:absolute; left:0; top:0; bottom:0; width:0; border-radius:16px; transition:width .7s cubic-bezier(.2,1.3,.4,1);
+    background:linear-gradient(90deg,color-mix(in srgb,var(--c) 55%,#000),var(--c) 70%,#fff); box-shadow:0 0 22px var(--c); }
+  .fill::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(115deg,rgba(255,255,255,.18) 0 14px,transparent 14px 30px); animation:shine 1.4s linear infinite; }
+  @keyframes shine { to { background-position:60px 0; } }
+  .lbl { position:absolute; left:18px; top:0; bottom:0; display:flex; align-items:center; font:900 calc(var(--rowh,76px)*.36) 'Outfit'; letter-spacing:1px; text-shadow:0 2px 4px rgba(0,0,0,.8); }
+  .cnt { position:absolute; right:16px; top:0; bottom:0; display:flex; align-items:center; gap:10px; font:400 calc(var(--rowh,76px)*.4) 'Bungee'; text-shadow:0 0 10px rgba(0,0,0,.9),0 2px 0 #000; }
+  .cnt small { font:800 calc(var(--rowh,76px)*.25) 'Outfit'; opacity:.9; }
+  .row.lead .track { border-color:var(--yel); box-shadow:0 0 16px rgba(255,230,0,.6); }
+  .row.lead .lbl::after { content:'👑'; margin-left:10px; font-size:.9em; }
+  .row.bump .num { animation:bump .45s ease; }
+  @keyframes bump { 40% { transform:scale(1.15); } }
+  .row.win .track { border-color:var(--yel); box-shadow:0 0 30px var(--yel); }
+  .row.lose { opacity:.45; filter:saturate(.6); }
+  /* wide: vertical columns */
+  body.wide #main { flex:1; display:flex; gap:22px; min-height:0; }
+  body.wide #bars { flex-direction:row; align-items:stretch; gap:var(--gap,14px); }
+  body.wide .row { flex-direction:column-reverse; height:auto; flex:1; gap:10px; }
+  body.wide .num { flex:0 0 auto; width:100%; height:70px; border-radius:14px; }
+  body.wide .num i { font-size:13px; } body.wide .num b { font-size:36px; }
+  body.wide .track { width:100%; flex:1; }
+  body.wide .fill { top:auto; right:0; width:auto!important; height:var(--h,0%); transition:height .7s cubic-bezier(.2,1.3,.4,1); background:linear-gradient(0deg,color-mix(in srgb,var(--c) 55%,#000),var(--c) 70%,#fff); }
+  body.wide .lbl { display:none; }
+  body.wide .cnt { left:0; right:0; top:8px; bottom:auto; flex-direction:column; gap:0; font-size:30px; }
+  body.wide .cnt small { font-size:16px; }
+  body.wide .row.lead .num::after { content:'👑'; position:absolute; margin-top:-80px; font-size:30px; }
+  /* ticker */
+  #feedWrap { margin-top:16px; }
+  body.wide #feedWrap { margin-top:0; width:300px; display:flex; flex-direction:column; }
+  #feedHead { font:400 18px 'Bungee'; letter-spacing:3px; color:var(--pink); text-shadow:0 0 10px var(--pink); margin:0 0 8px 6px; }
+  #feed { height:134px; overflow:hidden; position:relative; display:flex; flex-wrap:wrap; align-content:flex-start; gap:8px; }
+  body.wide #feed { flex:1; height:auto; flex-direction:column; flex-wrap:nowrap; }
+  body.wide .chip { flex-shrink:0; }
+  #rvBig .n { font-family:'Bungee'; font-size:.92em; margin-left:.12em; color:#fff; }
+  .chip { display:inline-flex; align-items:center; gap:8px; padding:6px 12px 6px 14px; border-radius:99px; background:rgba(255,255,255,.1); border:2px solid var(--c);
+    box-shadow:0 0 10px color-mix(in srgb,var(--c) 60%,transparent); font:800 20px 'Outfit'; white-space:nowrap; max-width:100%; animation:chipIn .5s cubic-bezier(.2,1.4,.4,1); }
+  .chip span { overflow:hidden; text-overflow:ellipsis; max-width:250px; }
+  .chip b { font:400 18px 'Bungee'; background:var(--c); color:#12002b; border-radius:8px; padding:1px 8px 0; }
+  @keyframes chipIn { from { transform:translateX(-40px) scale(.6); opacity:0; } }
+  #feedEmpty { font:600 20px 'Outfit'; color:#bda8e6; padding:6px; }
+  /* reveal */
+  #reveal { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; z-index:5;
+    background:radial-gradient(circle at 50% 45%,rgba(50,0,100,.9),rgba(8,0,24,.96) 70%); }
+  #reveal.on { display:flex; animation:fadeIn .5s ease; }
+  @keyframes fadeIn { from { opacity:0; } }
+  #rvTop { font:400 40px 'Bungee'; letter-spacing:6px; color:var(--cyan); text-shadow:0 0 14px var(--cyan); }
+  #rvBig { font:400 150px/1 'Monoton'; margin:18px 0 6px; color:#fff; text-shadow:0 0 8px #fff,0 0 24px var(--yel),0 0 60px var(--org),0 0 110px var(--pink); animation:zoom .9s cubic-bezier(.2,1.6,.4,1); }
+  #rvBig.tie { font-size:96px; }
+  body.wide #rvBig { font-size:120px; } body.wide #rvBig.tie { font-size:80px; }
+  @keyframes zoom { from { transform:scale(.2) rotate(-8deg); opacity:0; } }
+  #rvSub { font:800 40px 'Outfit'; color:var(--yel); text-shadow:0 0 16px rgba(255,230,0,.7); padding:0 30px; }
+  #rvMini { margin-top:48px; font:600 24px 'Outfit'; color:#e6d6ff; padding:0 30px; }
+  #rvBars { margin-top:26px; display:flex; gap:10px; align-items:flex-end; height:120px; }
+  #rvBars div { width:44px; border-radius:8px 8px 0 0; background:var(--c); box-shadow:0 0 12px var(--c); position:relative; min-height:6px; }
+  #rvBars div.w { outline:3px solid #fff; }
+  #rvBars div span { position:absolute; bottom:-30px; left:0; right:0; font:400 18px 'Bungee'; }
+  #rvBars div em { position:absolute; top:-28px; left:0; right:0; font:800 18px 'Outfit'; font-style:normal; }
+  #fx { position:absolute; inset:0; z-index:6; pointer-events:none; }
+  #conn { position:absolute; right:10px; bottom:6px; width:10px; height:10px; border-radius:50%; background:#555; z-index:9; opacity:.7; }
+  #conn.ok { background:var(--grn); box-shadow:0 0 8px var(--grn); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"><canvas id="stars"></canvas><div id="sun"></div><div id="grid"></div></div>
+  <div id="panel">
+    <div id="head">
+      <div id="brand">OASIS RADIO LIVE</div>
+      <div id="title">Vote for the<br class="pbr"> best song!</div>
+      <div id="how">Type <b>1</b><b>2</b><b>3</b>… in chat</div>
+      <div id="rule">☝️ One vote each · your FIRST vote counts</div>
+    </div>
+    <div id="statusRow">
+      <div id="badge" class="idle">GET READY</div>
+      <div id="timer"></div>
+      <div id="total"><span id="totalN">0</span>voters</div>
+    </div>
+    <div id="main">
+      <div id="bars"></div>
+      <div id="feedWrap"><div id="feedHead">LATEST VOTES</div><div id="feed"><div id="feedEmpty">Waiting for your votes…</div></div></div>
+    </div>
+  </div>
+  <div id="reveal"><div id="rvTop">AND THE WINNER IS…</div><div id="rvBig">SONG 3</div><div id="rvSub"></div><div id="rvBars"></div><div id="rvMini"></div></div>
+  <canvas id="fx"></canvas>
+  <div id="conn"></div>
+</div>
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const WIDE = q.get('layout') === 'wide', TEST = q.get('test') === '1';
+  if (WIDE) document.body.classList.add('wide');
+  if (q.get('bg') === 'clear') document.body.classList.add('clear');
+  if (WIDE) document.querySelector('.pbr').remove();
+  const VW = WIDE ? 1280 : 720, VH = WIDE ? 720 : 1280;
+  const stage = document.getElementById('stage');
+  function fit() { const s = Math.min(innerWidth / VW, innerHeight / VH); stage.style.transform = `translate(${(innerWidth - VW * s) / 2}px,${(innerHeight - VH * s) / 2}px) scale(${s})`; }
+  addEventListener('resize', fit); fit();
+  const COLORS = ['#ff2bd6', '#00f0ff', '#ffe600', '#39ff14', '#ff7a00', '#a74bff', '#ff3860', '#3d7bff', '#00ffa8', '#c6ff00'];
+  const $ = id => document.getElementById(id);
+
+  // ---------- stars ----------
+  (() => { const c = $('stars'), x = c.getContext('2d'); c.width = VW; c.height = VH * .55; for (let i = 0; i < 140; i++) { x.fillStyle = `rgba(255,255,255,${Math.random() * .8 + .2})`; const r = Math.random() * 1.8 + .3; x.beginPath(); x.arc(Math.random() * VW, Math.random() * c.height, r, 0, 7); x.fill(); } })();
+
+  // ---------- rendering ----------
+  let st = null, offset = 0, rows = [], shownN = 0, lastRound = null, revealedRound = null, seenFeed = new Set();
+  function buildRows(n) {
+    const bars = $('bars'); bars.innerHTML = ''; rows = []; shownN = n;
+    if (!WIDE) { const avail = 650; const gap = n > 7 ? 8 : n > 5 ? 11 : 14; const h = Math.max(46, Math.min(104, Math.floor((avail - gap * (n - 1)) / n))); bars.style.setProperty('--rowh', h + 'px'); bars.style.setProperty('--gap', gap + 'px'); }
+    else bars.style.setProperty('--gap', (n > 7 ? 8 : 14) + 'px');
+    for (let i = 0; i < n; i++) {
+      const r = document.createElement('div'); r.className = 'row'; r.style.setProperty('--c', COLORS[i % COLORS.length]);
+      r.innerHTML = `<div class="num"><i>SONG</i><b>${i + 1}</b></div><div class="track"><div class="fill"></div><div class="lbl">Song ${i + 1}</div><div class="cnt"><span class="v">0</span><small class="p"></small></div></div>`;
+      bars.appendChild(r); rows.push({ el: r, fill: r.querySelector('.fill'), v: r.querySelector('.v'), p: r.querySelector('.p'), shown: 0, target: 0 });
+    }
+    const nums = $('how'); nums.innerHTML = n <= 3 ? (n === 2 ? `Type <b>1</b> or <b>2</b> in chat` : `Type <b>1</b> <b>2</b> or <b>3</b> in chat`) : `Type <b>1</b><b>2</b><b>3</b>… in chat`;
+    $('how').title = ''; 
+  }
+  function render(ev, extra) {
+    if (!st) return;
+    if (st.songs !== shownN) buildRows(st.songs);
+    if (st.roundId !== lastRound) { lastRound = st.roundId; $('feed').innerHTML = ''; seenFeed = new Set(); }
+    const c = st.counts || [], total = st.total || 0, max = Math.max(1, ...c), top = Math.max(0, ...c);
+    const leaders = top > 0 ? c.map((v, i) => v === top ? i : -1).filter(i => i >= 0) : [];
+    rows.forEach((r, i) => {
+      const v = c[i] || 0; if (v > r.target && ev !== 'init') { r.el.classList.remove('bump'); void r.el.offsetWidth; r.el.classList.add('bump'); }
+      r.target = v; const pct = (v / max) * 100;
+      if (WIDE) r.fill.style.setProperty('--h', Math.max(v ? 4 : 0, pct * .72) + '%'); else r.fill.style.width = Math.max(v ? 6 : 0, pct) + '%';
+      r.p.textContent = total ? Math.round(v / total * 100) + '%' : '';
+      r.el.classList.toggle('lead', st.phase === 'open' && leaders.length === 1 && leaders[0] === i);
+      const res = st.phase === 'revealed' && st.result; r.el.classList.toggle('win', !!(res && res.winners.includes(i + 1))); r.el.classList.toggle('lose', !!(res && res.winners.length && !res.winners.includes(i + 1)));
+    });
+    $('totalN').textContent = total;
+    const b = $('badge'); b.className = st.phase; b.textContent = st.phase === 'open' ? 'VOTING OPEN' : st.phase === 'revealed' ? 'VOTING CLOSED' : 'GET READY';
+    // ticker: newest first (state.recent is newest-first)
+    const recent = (st.recent || []).slice(0, WIDE ? 12 : 9).reverse();
+    for (const v of recent) { const k = v.t + '|' + v.name; if (seenFeed.has(k)) continue; seenFeed.add(k); addChip(v); }
+    if (!$('feed').children.length) $('feed').innerHTML = `<div id="feedEmpty">${st.phase === 'open' ? 'Waiting for your votes…' : st.phase === 'idle' ? 'Voting opens soon!' : 'No votes this round'}</div>`;
+    if (st.phase === 'revealed' && st.result && revealedRound !== st.roundId) { revealedRound = st.roundId; showReveal(st.result, ev === 'reveal'); }
+    if (st.phase !== 'revealed') { revealedRound = null; $('reveal').classList.remove('on'); }
+  }
+  function addChip(v) {
+    const f = $('feed'); const e = $('feedEmpty'); if (e) e.remove();
+    const d = document.createElement('div'); d.className = 'chip'; d.style.setProperty('--c', COLORS[(v.song - 1) % COLORS.length]);
+    d.innerHTML = `<span></span><b>${v.song}</b>`; d.querySelector('span').textContent = v.name; f.prepend(d);
+    const lim = WIDE ? 12 : 9; while (f.children.length > lim || (f.children.length > 1 && f.scrollHeight > f.clientHeight + 2)) f.lastChild.remove();
+  }
+  function tick() {
+    // count-up numbers
+    for (const r of rows) { if (r.shown !== r.target) { r.shown += Math.sign(r.target - r.shown) * Math.max(1, Math.round(Math.abs(r.target - r.shown) / 6)); r.v.textContent = r.shown; } }
+    const t = $('timer');
+    if (st && st.phase === 'open' && st.endsAt) { const left = Math.max(0, Math.ceil((st.endsAt - (Date.now() + offset)) / 1000)); t.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; t.className = left <= 10 ? 'hot' : ''; }
+    else { t.textContent = ''; t.className = ''; }
+  }
+  setInterval(tick, 50);
+
+  function showReveal(res, celebrate) {
+    const R = $('reveal'), big = $('rvBig');
+    const names = res.winners.map(n => 'Song ' + n);
+    if (!res.total) { $('rvTop').textContent = 'VOTING CLOSED'; big.className = 'tie'; big.textContent = 'NO VOTES'; $('rvSub').textContent = 'Nobody voted this round'; }
+    else if (res.tie) { $('rvTop').textContent = 'WE HAVE A…'; big.className = 'tie'; big.textContent = "IT'S A TIE!"; $('rvSub').textContent = names.slice(0, -1).join(', ') + ' & ' + names.slice(-1) + ` · ${res.top} vote${res.top === 1 ? '' : 's'} each`; }
+    else { $('rvTop').textContent = 'AND THE WINNER IS…'; big.className = ''; big.innerHTML = `SONG<span class="n">${res.winners[0]}</span>`; $('rvSub').textContent = `${res.top} vote${res.top === 1 ? '' : 's'} · ${Math.round(res.top / res.total * 100)}% of the vote`; }
+    $('rvMini').textContent = `${res.total} viewer${res.total === 1 ? '' : 's'} voted · thank you! 💜`;
+    const mx = Math.max(1, ...res.counts); const w = Math.min(44, Math.floor(560 / res.counts.length) - 10);
+    $('rvBars').innerHTML = res.counts.map((v, i) => `<div class="${res.winners.includes(i + 1) ? 'w' : ''}" style="--c:${COLORS[i % COLORS.length]};width:${w}px;height:${Math.max(6, v / mx * 110)}px"><em>${v}</em><span>${i + 1}</span></div>`).join('');
+    R.classList.remove('on'); void R.offsetWidth; R.classList.add('on');
+    if (res.total) confettiBurst(celebrate ? 1 : .5);
+  }
+  // ---------- confetti ----------
+  const fx = $('fx'), fc = fx.getContext('2d'); fx.width = VW * 1.5; fx.height = VH * 1.5; fc.scale(1.5, 1.5);
+  let parts = [];
+  function confettiBurst(k) {
+    for (let j = 0; j < 3; j++) setTimeout(() => { for (let i = 0; i < 160 * k; i++) parts.push({ x: VW / 2 + (Math.random() - .5) * VW * .3, y: VH * .42, vx: (Math.random() - .5) * 22, vy: -Math.random() * 22 - 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: COLORS[i % COLORS.length], w: 8 + Math.random() * 8, h: 5 + Math.random() * 6, life: 0 }); }, j * 650);
+  }
+  (function loop() { fc.clearRect(0, 0, VW, VH); for (const p of parts) { p.vy += .45; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++; fc.save(); fc.translate(p.x, p.y); fc.rotate(p.r); fc.fillStyle = p.c; fc.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.life * .15))); fc.restore(); } parts = parts.filter(p => p.y < VH + 30 && p.life < 400); requestAnimationFrame(loop); })();
+
+  function apply(s, ev, extra) { if (!s) return; if (s.now) offset = s.now - Date.now(); st = s; render(ev, extra); }
+
+  // ---------- test mode: pretend chat votes, nothing sent anywhere ----------
+  if (TEST) {
+    const FAKE = ['Neon Nina', 'Cassette Kev', 'Rubik Rita', 'Walkman Wayne', 'Synth Sue', 'Arcade Andy', 'Mixtape Mia', 'Boombox Barry', 'Leg-Warmer Liz', 'Pac-Man Pete', 'Big Hair Brenda', 'Atari Annie', 'Disco Dave', 'Cyndi Lou', 'Max Headroom'];
+    const N = Math.max(2, Math.min(10, +(q.get('songs') || 5))), SECS = +(q.get('secs') || 40), TIE = q.get('tie') === '1';
+    let round = 0;
+    function cycle() {
+      round++; const votes = {}, recent = [], w = [...Array(N)].map(() => Math.random() + .3); const t0 = Date.now();
+      const S = () => { const c = new Array(N).fill(0); Object.values(votes).forEach(v => c[v - 1]++); return c; };
+      const mk = (phase, extra) => Object.assign({ phase, songs: N, roundId: 'test' + round, counts: S(), total: Object.keys(votes).length, recent: recent.slice(0, 12), endsAt: t0 + SECS * 1000, now: Date.now(), result: null }, extra);
+      apply(mk('open'), 'open');
+      let i = 0; const iv = setInterval(() => {
+        if (Date.now() > t0 + SECS * 1000 - 300 && !(TIE && i % 2)) { clearInterval(iv); finish(); return; }
+        let song; if (TIE) song = 1 + (i % 2) * 2; else { let x = Math.random() * w.reduce((a, b) => a + b), k = 0; while ((x -= w[k]) > 0) k++; song = k + 1; }
+        const name = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + 'BCDEFGHJKLMNPRSTUVWXYZ'[Math.floor(i / FAKE.length - 1) % 22] + '.' : ''); i++;
+        votes[name] = song; recent.unshift({ name, song, t: Date.now() }); apply(mk('open'), 'votes');
+      }, Math.max(120, SECS * 1000 / 48));
+      function finish() { const c = S(), total = c.reduce((a, b) => a + b, 0), top = Math.max(...c), winners = c.map((v, i) => v === top ? i + 1 : 0).filter(Boolean); apply(mk('revealed', { endsAt: null, result: { winners, top, total, tie: winners.length > 1, counts: c } }), 'reveal'); setTimeout(cycle, +(q.get('pause') || 12000)); }
+    }
+    cycle(); $('conn').classList.add('ok'); return;
+  }
+
+  // ---------- live data (same stable box link as the other overlays) ----------
+  let BOX = 'https://approach-grandkid-sermon.ngrok-free.dev'; const H_ = { 'ngrok-skip-browser-warning': '1' };
+  const bq = q.get('box'); if (bq && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq)) BOX = bq; // local testing only
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+  const load = () => fetch(BOX + '/api/vote/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(s => apply(s, 'init')).catch(() => {});
+  load();
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, H_), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      $('conn').classList.add('ok'); load();
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+          if (data) { try { const d = JSON.parse(data); if (d && d.type === 'vote') apply(d.state, d.ev, d); } catch (e) {} }
+        }
+      }
+    } catch (e) {}
+    $('conn').classList.remove('ok');
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  setInterval(() => { if (st && st.phase === 'open') load(); }, 30000); // safety resync
+  run();
+})();
+</script>
+</body></html>
