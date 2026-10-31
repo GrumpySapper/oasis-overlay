@@ -4,7 +4,7 @@
 <!-- Oasis Radio MARBLE RACE (3D) – 720x1280 Link source for TikTok LIVE Studio (full-screen scene, has its own background).
      Viewers who send a 100+ diamond gift join as a marble. Grumpy runs it from marble-control.html.
      Physics: the same 2D Matter.js course as before (marble-course.js); rendering: three.js (WebGL) with a 2D HUD on top.
-     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: Halloween until end of Sun 1 Nov 2026 UK, then 80s)
+     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: 80s neon; Halloween only with ?theme=halloween)
      ?channel=test listens to the test channel.   ?quality=low  no shadows / lower res.   ?fps=1 shows the frame rate.
      If WebGL is missing or the 3D view fails to start it switches to marble-race-2d.html automatically. -->
 <style>
@@ -40,7 +40,7 @@ try { await Promise.race([Promise.all(['900 40px Montserrat', '800 20px Montserr
 (() => {
   const q = new URLSearchParams(location.search);
   const TEST = q.get('test') === '1';
-  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : '80s';
   const HW = THEME === 'halloween';
   const LOWQ = q.get('quality') === 'low', SHOWFPS = q.get('fps') === '1', HQ = q.get('quality') === 'high';
   const T = HW ? {

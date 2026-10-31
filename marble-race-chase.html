@@ -5,7 +5,7 @@
      Viewers who send a 100+ diamond gift join as a marble. Grumpy runs it from marble-control.html.
      Physics: real 3D (Rapier, deterministic fixed 60 Hz) on a winding downhill track (marble-track3d.js); a chase camera follows the leading pack.
      Old versions: marble-race-classic.html (3D view of the vertical course), marble-race-2d.html (flat 2D).
-     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: Halloween until end of Sun 1 Nov 2026 UK, then 80s)
+     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: 80s neon; Halloween only with ?theme=halloween)
      ?channel=test listens to the test channel.   ?quality=low  no shadows / lower res.   ?fps=1 shows the frame rate.
      If WebGL is missing it switches to marble-race-2d.html; if the chase version fails to start it switches to marble-race-classic.html. -->
 <style>
@@ -47,7 +47,7 @@ await fontWait;
 (() => {
   const q = new URLSearchParams(location.search);
   const TEST = q.get('test') === '1';
-  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : '80s';
   const HW = THEME === 'halloween';
   const LOWQ = q.get('quality') === 'low', SHOWFPS = q.get('fps') === '1', HQ = q.get('quality') === 'high';
   const T = HW ? {

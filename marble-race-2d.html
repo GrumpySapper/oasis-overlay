@@ -3,7 +3,7 @@
 <title>Oasis Radio Marble Race</title>
 <!-- Oasis Radio MARBLE RACE – 720x1280 Link source for TikTok LIVE Studio (full-screen scene, has its own background).
      Viewers who send a 100+ diamond gift join as a marble. Grumpy runs it from marble-control.html.
-     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: Halloween until end of Sun 1 Nov 2026 UK, then 80s)
+     ?test=1  runs races with 12 pretend names (no server).   ?theme=halloween | ?theme=80s  (default: 80s neon; Halloween only with ?theme=halloween)
      ?channel=test listens to the test channel. -->
 <style>
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
@@ -17,7 +17,7 @@ canvas{display:block;width:100vw;height:100vh;object-fit:contain}
 (() => {
   const q = new URLSearchParams(location.search);
   const TEST = q.get('test') === '1';
-  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : (Date.now() < Date.parse('2026-11-02T00:00:00Z') ? 'halloween' : '80s');
+  const THEME = (q.get('theme') === '80s' || q.get('theme') === 'halloween') ? q.get('theme') : '80s';
   const HW = THEME === 'halloween';
   const T = HW ? {
     title: '🎃 SPOOKY MARBLE RACE 🎃', sub: 'OASIS RADIO', ramp: '#ff7a00', ramp2: '#ffd2a0', wall: '#a74bff', peg: '#39ff14', bumper: '#ff7a00', spin: '#c86bff', door: '#39ff14', gate: '#ff7a00',
