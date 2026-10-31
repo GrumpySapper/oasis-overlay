@@ -1,0 +1,66 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Oasis Advent</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Monoton&family=Montserrat:wght@700;900&display=swap');
+html,body{margin:0;height:100%;overflow:hidden;background:transparent;font-family:Montserrat,system-ui,sans-serif;color:#fff}
+#stage{position:absolute;left:50%;top:50%;width:1080px;height:1920px;transform-origin:center;transform:translate(-50%,-50%) scale(var(--s,1))}
+.bg{position:absolute;inset:0;border-radius:40px;background:radial-gradient(120% 70% at 50% 0%,#3a0a6e 0%,#14002e 55%,#06001a 100%);box-shadow:0 0 60px #ff2bd6aa inset}
+body.solid{background:#06001a}
+.grid80{position:absolute;left:0;right:0;bottom:0;height:520px;background:repeating-linear-gradient(90deg,#ff2bd655 0 3px,transparent 3px 90px),repeating-linear-gradient(0deg,#00f0ff44 0 3px,transparent 3px 60px);transform:perspective(500px) rotateX(55deg);transform-origin:bottom;mask:linear-gradient(transparent,#000)}
+h1{position:absolute;top:70px;width:100%;text-align:center;margin:0;font:400 104px Monoton,sans-serif;color:#ff4fe0;text-shadow:0 0 12px #ff2bd6,0 0 40px #ff2bd6}
+.sub{position:absolute;top:210px;width:100%;text-align:center;font-weight:900;font-size:40px;letter-spacing:8px;color:#00f0ff;text-shadow:0 0 14px #00f0ff}
+#doors{position:absolute;left:60px;right:60px;top:320px;display:grid;grid-template-columns:repeat(5,1fr);gap:22px}
+.d{position:relative;aspect-ratio:3/4;border-radius:18px;perspective:600px}
+.d .f,.d .in{position:absolute;inset:0;border-radius:18px;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.d .in{background:#12002a;border:4px solid #39ff14;box-shadow:0 0 18px #39ff14 inset;font-size:62px}
+.d .in b{font-size:28px;color:#ffe600;text-shadow:0 0 8px #ff2bd6}
+.d .f{transform-origin:left;transition:transform 1.2s cubic-bezier(.5,0,.3,1);font:900 72px Montserrat;backface-visibility:hidden;border:4px solid var(--c);color:#fff;text-shadow:0 0 14px var(--c),0 0 4px #fff;background:linear-gradient(160deg,#2a0858,#14002e);box-shadow:0 0 22px var(--c),0 0 10px var(--c) inset}
+.d .f::after{content:"";position:absolute;right:12px;top:50%;width:12px;height:12px;border-radius:50%;background:#ffe600;box-shadow:0 0 10px #ffe600}
+.d.open .f{transform:rotateY(-108deg)}
+.d.today .f{animation:pulse 1.1s infinite alternate}
+@keyframes pulse{to{box-shadow:0 0 50px var(--c),0 0 20px var(--c) inset;transform:scale(1.04)}}
+#card{position:absolute;z-index:10;left:70px;right:70px;top:520px;padding:50px 40px 60px;border-radius:36px;background:linear-gradient(160deg,#2b0060ee,#0a0024f2);border:5px solid #ff2bd6;box-shadow:0 0 50px #ff2bd6,0 0 30px #00f0ff inset;text-align:center;transform:scale(.2) rotate(-8deg);opacity:0;transition:all .8s cubic-bezier(.3,1.6,.5,1)}
+#card.on{transform:none;opacity:1}
+#card .day{font-weight:900;font-size:44px;letter-spacing:10px;color:#00f0ff;text-shadow:0 0 12px #00f0ff}
+#card .badge{width:300px;height:300px;margin:30px auto;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;border:6px solid #ffe600;box-shadow:0 0 40px #ffe600,0 0 30px #ff2bd6 inset;background:radial-gradient(#4b0a8a,#14002e)}
+#card .ini{font:400 110px Monoton;color:#ff4fe0;text-shadow:0 0 18px #ff2bd6;line-height:1}
+#card .ico{font-size:80px}
+#card .nm{font-weight:900;font-size:76px;color:#ffe600;text-shadow:0 0 16px #ff8a00;line-height:1.05}
+#card .fact{margin-top:28px;font-weight:700;font-size:46px;line-height:1.3}
+#card .lab{margin-top:30px;font-size:30px;color:#c9b6ff;letter-spacing:4px}
+canvas{position:absolute;inset:0;pointer-events:none}
+</style></head><body>
+<div id="stage"><div class="bg"></div><div class="grid80"></div><canvas id="snow" width="1080" height="1920"></canvas>
+<h1>ADVENT</h1><div class="sub">OASIS RADIO · MUSIC LEGENDS</div>
+<div id="doors"></div>
+<div id="card"><div class="day" id="cDay"></div><div class="badge"><div class="ini" id="cIni"></div><div class="ico" id="cIco"></div></div><div class="nm" id="cNm"></div><div class="fact" id="cFact"></div><div class="lab">🎄 A NEW DOOR EVERY SHOW 🎄</div></div>
+</div>
+<script src="advent-legends.js"></script>
+<script>
+const Q=new URLSearchParams(location.search);
+let BOX='https://approach-grandkid-sermon.ngrok-free.dev';{const bq=Q.get('box');if(bq&&/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq))BOX=bq;}
+if(Q.get('bg')==='1')document.body.classList.add('solid');
+const fit=()=>document.getElementById('stage').style.setProperty('--s',Math.min(innerWidth/1080,innerHeight/1920));addEventListener('resize',fit);fit();
+const COLS=['#ff2bd6','#00f0ff','#ffe600','#39ff14','#ff8a00'];
+// shuffled-looking but fixed door order, like a real calendar
+const ORDER=[7,18,3,24,12,1,15,21,9,5,19,11,25,2,16,8,22,4,14,10,20,6,13,23,17];
+const D=document.getElementById('doors'),el={};
+ORDER.forEach((n,i)=>{const d=document.createElement('div');d.className='d';d.style.setProperty('--c',COLS[(i*3)%5]);d.innerHTML=`<div class="in"></div><div class="f">${n}</div>`;D.appendChild(d);el[n]=d;});
+let LEG=window.ADVENT_LEGENDS,lastSeq=-1,shown=null;
+const ini=n=>n.replace(/[^A-Za-z\- ]/g,'').split(/[\s-]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function render(st){
+  LEG=(st.legends&&st.legends.length===25)?st.legends:window.ADVENT_LEGENDS;
+  for(let n=1;n<=25;n++){const d=el[n],o=st.opened.includes(n),L=LEG[n-1]||{};d.classList.toggle('open',o);d.classList.toggle('today',st.last===n);
+    d.querySelector('.in').innerHTML=o?`${esc(L.icon||'🎵')}<b>${esc(ini(L.name||''))}</b>`:'';}
+  const c=document.getElementById('card');
+  if(st.last&&st.last!==shown){shown=st.last;const L=LEG[st.last-1]||{name:'?',fact:''};
+    c.classList.remove('on');const TEST=Q.get('test')==='1';if(TEST){c.style.transition="none";c.style.opacity=1;c.style.transform="none";}setTimeout(()=>{cDay.textContent='DAY '+st.last;cIni.textContent=ini(L.name);cIco.textContent=L.icon||'🎵';cNm.textContent=L.name;cFact.textContent=L.fact;c.classList.add('on');},TEST?0:1300);}
+  else if(!st.last){shown=null;c.classList.remove('on');}
+}
+async function poll(){try{const r=await fetch(BOX+'/api/advent/state',{headers:{'ngrok-skip-browser-warning':'1'},cache:'no-store'});const j=await r.json();if(j.seq!==lastSeq){lastSeq=j.seq;render(j);}}catch(e){}setTimeout(poll,2500);}
+if(Q.get('test')==='1'){const op=(Q.get('open')||'1,2,3').split(',').map(Number).filter(Boolean);const sh=+Q.get('show')||null;render({opened:op,last:sh,legends:null});}else poll();
+// snow
+const cv=document.getElementById('snow'),x=cv.getContext('2d'),F=[...Array(140)].map(()=>({x:Math.random()*1080,y:Math.random()*1920,r:1+Math.random()*3.5,v:.6+Math.random()*1.8,w:Math.random()*6}));
+(function t(){x.clearRect(0,0,1080,1920);for(const f of F){f.y+=f.v;f.w+=.02;const px=f.x+Math.sin(f.w)*14;if(f.y>1930){f.y=-10;f.x=Math.random()*1080;}x.fillStyle='rgba(255,255,255,.85)';x.shadowColor='#bfe9ff';x.shadowBlur=8;x.beginPath();x.arc(px,f.y,f.r,0,7);x.fill();}requestAnimationFrame(t);})();
+</script></body></html>
