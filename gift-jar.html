@@ -102,12 +102,21 @@
   let saveT = 0;
   function save() {
     if (TEST) return; clearTimeout(saveT);
-    saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ t: Date.now(), items: items.map(i => ({ img: i.url, giftName: i.giftName, diamonds: i.diamonds })) })); } catch (e) {} }, 1500);
+    saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ t: Date.now(), room: ROOM, jseq: JSEQ, items: items.map(i => ({ img: i.url, giftName: i.giftName, diamonds: i.diamonds })) })); } catch (e) {} }, 1500);
   }
+  let ROOM = null, JSEQ = null;
+  function emptyJar(why) {
+    items.forEach(i => Composite.remove(engine.world, i.body)); items.length = 0; tags.length = 0;
+    try { localStorage.removeItem(STORE); } catch (e) {}
+    console.log('jar emptied:', why);
+  }
+  window.__emptyJar = emptyJar;
   function restore() {
     try {
       const s = JSON.parse(localStorage.getItem(STORE) || 'null');
       if (!s || Date.now() - s.t > KEEP_MS) return;
+      // Saved by an older copy (no room id), from a different Live, or before a remote empty: start empty.
+      if (!s.room || (ROOM && s.room !== ROOM) || (JSEQ != null && s.jseq != null && s.jseq !== JSEQ)) { try { localStorage.removeItem(STORE); } catch (e) {} return; }
       s.items.slice(-MAX).forEach((o, i) => addIcon(o, i * 25));
     } catch (e) {}
   }
@@ -210,7 +219,26 @@
     setInterval(() => { const g = FAKE[k % FAKE.length]; drop({ ...g, display: WHO[k % WHO.length], count: k % 5 === 0 ? 3 : 1 }); k++; }, 1000);
     return;
   }
-  restore();
+  // ---- each new Live starts empty (room id from the welcomer) + remote empty via /api/jar/reset ----
+  const BOX0 = 'https://approach-grandkid-sermon.ngrok-free.dev', HH = { 'ngrok-skip-browser-warning': '1' };
+  const CID = Math.random().toString(36).slice(2, 10);
+  async function getJSON(u) { const r = await fetch(BOX0 + u, { headers: HH, cache: 'no-store' }); return r.json(); }
+  async function boot() {
+    try { const st = await getJSON('/api/status'); if (st && st.roomId) ROOM = String(st.roomId); } catch (e) {}
+    try { const j = await getJSON('/api/jar/state'); if (j && j.seq != null) JSEQ = j.seq; } catch (e) {}
+    restore();
+  }
+  async function watch() {
+    try {
+      const j = await getJSON('/api/jar/state?cid=' + CID + '&n=' + items.length + '&seen=' + JSEQ);
+      if (j && j.seq != null) { if (JSEQ != null && j.seq !== JSEQ) emptyJar('remote reset ' + j.seq); JSEQ = j.seq; }
+    } catch (e) {}
+    try {
+      const st = await getJSON('/api/status');
+      if (st && st.roomId && st.connected) { const r = String(st.roomId); if (ROOM && r !== ROOM) emptyJar('new live ' + r); if (r !== ROOM) { ROOM = r; save(); } }
+    } catch (e) {}
+  }
+  boot().then(() => { save(); setInterval(watch, 5000); watch(); });
 
   // ---- live data: same stable box link as overlay.html (ngrok -> cors proxy -> tiktok-welcomer SSE) ----
   const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H_ = { 'ngrok-skip-browser-warning': '1' };
