@@ -24,6 +24,7 @@
   let W = 0, H = 0, DPR = 1, jar = null;
   const { Engine, Bodies, Composite, Body } = Matter;
   const engine = Engine.create({ gravity: { y: 1.1 } });
+  const OVER = Math.max(0, Math.min(120, +(q.get('over') || 45)));   // max icons in the overflow pile outside the jar
   engine.positionIterations = 8; engine.velocityIterations = 6;
   let walls = [];
   const items = [];    // { body, img, emoji, r, born }
@@ -35,15 +36,22 @@
     W = innerWidth; H = innerHeight;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    const jw = Math.min(W * 0.78, H * 0.48), jh = Math.min(H * 0.50, jw * 1.25);
+    const jw = Math.min(W * (OVER ? 0.6 : 0.78), H * 0.48)  /* narrower when overflow is on, so there is room to pile up beside it */, jh = Math.min(H * 0.50, jw * 1.25);
     const cx = W / 2, bottom = H - Math.max(18, H * 0.03);
     jar = { cx, w: jw, h: jh, bottom, top: bottom - jh, left: cx - jw / 2, right: cx + jw / 2, neck: jw * 0.80, rimH: Math.max(14, jh * 0.05), r: jw * 0.16 };
     walls.forEach(w => Composite.remove(engine.world, w));
     const t = 60, inset = 6;
     walls = [
       Bodies.rectangle(cx, bottom + t / 2 - inset, jw + t * 2, t, { isStatic: true, friction: 0.6 }),
-      Bodies.rectangle(jar.left - t / 2 + inset, bottom - jh / 2 - jh, t, jh * 3, { isStatic: true, friction: 0.2 }),
-      Bodies.rectangle(jar.right + t / 2 - inset, bottom - jh / 2 - jh, t, jh * 3, { isStatic: true, friction: 0.2 }),
+      // jar sides stop at the rim, so a full jar spills over the edge
+      Bodies.rectangle(jar.left - 7 + inset, bottom - jh / 2, 14, jh, { isStatic: true, friction: 0.2 }),
+      Bodies.rectangle(jar.right + 7 - inset, bottom - jh / 2, 14, jh, { isStatic: true, friction: 0.2 }),
+      Bodies.circle(jar.left - 7 + inset, jar.top, 9, { isStatic: true, friction: 0.05 }),    // rounded rim lips
+      Bodies.circle(jar.right + 7 - inset, jar.top, 9, { isStatic: true, friction: 0.05 }),
+      // floor + screen edges outside the jar: overflow lands and piles around the base
+      Bodies.rectangle(W / 2, bottom + t / 2, W * 3, t, { isStatic: true, friction: 0.8 }),
+      Bodies.rectangle(-t / 2, H / 2, t, H * 3, { isStatic: true }),
+      Bodies.rectangle(W + t / 2, H / 2, t, H * 3, { isStatic: true }),
       // rounded bottom corners
       Bodies.polygon(jar.left + inset, bottom - inset, 3, jar.r * 0.9, { isStatic: true, angle: Math.PI / 4 }),
       Bodies.polygon(jar.right - inset, bottom - inset, 3, jar.r * 0.9, { isStatic: true, angle: Math.PI / 4 }),
@@ -81,10 +89,22 @@
       Body.setVelocity(b, { x: (Math.random() - 0.5) * 3, y: 2 + Math.random() * 3 });
       Composite.add(engine.world, b);
       items.push({ body: b, img: loadImg(o.img), emoji: emojiFor(o.giftName), r, born: Date.now(), giftName: o.giftName, url: o.img || null, diamonds: o.diamonds });
-      while (items.length > MAX) { const old = items.shift(); Composite.remove(engine.world, old.body); }
+      trim();
       save();
     }, delay);
   }
+  // Caps: jar holds up to MAX, overflow pile up to OVER (oldest spilled icons fade out first).
+  const outside = it => { const p = it.body.position; return p.x < jar.left - 4 || p.x > jar.right + 4; };
+  function kill(it) { Composite.remove(engine.world, it.body); const i = items.indexOf(it); if (i >= 0) items.splice(i, 1); }
+  function trim() {
+    let out = items.filter(it => outside(it) && Date.now() - it.born > 1500);
+    while (out.length > OVER) kill(out.shift());
+    while (items.length > MAX + OVER) kill(items.find(it => !outside(it) && it.body.position.y < jar.top) || items.find(it => outside(it)) || items[0]);
+    // icons heaped above the rim slide off towards the nearer side, so a full jar spills over the edge
+    items.forEach(it => { const b = it.body, p = b.position; if (p.y < jar.top - it.r && p.x > jar.left && p.x < jar.right && Math.abs(b.velocity.y) < 1)
+      Body.applyForce(b, p, { x: (p.x < jar.cx ? -1 : 1) * b.mass * 0.0025, y: 0 }); });
+  }
+  setInterval(() => { if (jar) trim(); }, 700);
   function drop(evt, opts) {
     if (!jar) return;
     const n = Math.max(1, Math.min(PER, Number(evt.count) || 1));
@@ -216,7 +236,7 @@
     const FAKE = [{ giftName: 'Rose', diamonds: 1 }, { giftName: 'TikTok', diamonds: 1 }, { giftName: 'Heart Me', diamonds: 1 }, { giftName: 'Galaxy', diamonds: 1000 }, { giftName: 'Finger Heart', diamonds: 5 }, { giftName: 'Doughnut', diamonds: 30 }];
     const WHO = ['Rosie Test', 'Doughnut Donna', 'Big Spender', 'Hearty Hattie', 'Burst Barry', 'Disco Dave'];
     let k = 0;
-    setInterval(() => { const g = FAKE[k % FAKE.length]; drop({ ...g, display: WHO[k % WHO.length], count: k % 5 === 0 ? 3 : 1 }); k++; }, 1000);
+    const tI = setInterval(() => { if (q.get('n') && k >= +q.get('n')) return clearInterval(tI); const g = FAKE[k % FAKE.length]; drop({ ...g, display: WHO[k % WHO.length], count: k % 5 === 0 ? 3 : 1 }); k++; }, Math.max(50, +(q.get('rate') || 1000)));   // ?rate=ms: faster test burst
     return;
   }
   // ---- each new Live starts empty (room id from the welcomer) + remote empty via /api/jar/reset ----
