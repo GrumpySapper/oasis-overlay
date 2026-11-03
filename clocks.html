@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:transparent;overflow:hidden;font-family:'Arial Black',Impact,sans-serif}
+#bar{position:absolute;left:50%;top:20px;transform:translateX(-50%);display:flex;gap:28px;padding:12px 28px;border-radius:18px;background:rgba(20,0,40,.75);border:3px solid #ff2bd6;box-shadow:0 0 18px #ff2bd6,inset 0 0 12px #00e5ff}
+.c{text-align:center}.l{font-size:22px;color:#00e5ff;text-shadow:0 0 8px #00e5ff}
+.t{font-size:44px;color:#fff;text-shadow:0 0 10px #ff2bd6,0 0 20px #ff2bd6}
+</style></head><body><div id="bar"></div><script>
+const z=[["America/New_York","USA EAST"],["Europe/London","UK"],["Asia/Dubai","UAE"]];
+const bar=document.getElementById('bar');
+z.forEach(([tz,n],i)=>bar.innerHTML+=`<div class=c><div class=l id=l${i}></div><div class=t id=t${i}></div></div>`);
+function tick(){const d=new Date();z.forEach(([tz,n],i)=>{
+const ab=new Intl.DateTimeFormat('en-GB',{timeZone:tz,timeZoneName:'short'}).formatToParts(d).find(p=>p.type=='timeZoneName').value;
+const lab=tz=='America/New_York'?(ab.includes('-4')||ab=='EDT'?'EDT':'EST'):tz=='Europe/London'?(ab=='BST'||ab.includes('+1')?'BST':'GMT'):'UAE';
+document.getElementById('l'+i).textContent=(tz=='Asia/Dubai'?'🇦🇪 ':tz=='Europe/London'?'🇬🇧 ':'🇺🇸 ')+lab;
+document.getElementById('t'+i).textContent=d.toLocaleTimeString('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit'});});}
+tick();setInterval(tick,1000);
+</script></body></html>
