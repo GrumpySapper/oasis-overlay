@@ -1,0 +1,463 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio Camel Race – Photo-Real</title>
+<!-- Oasis Radio CAMEL RACE (photo-real 2.5D) – 720x1280 Link source for TikTok LIVE Studio. Same backend/state/control page as camel-race.html.
+     Camels are AI-generated photo-real video sprites (galloping loop) on an AI-generated desert racetrack plate; jockey silks tinted per rider.
+     ?test=1 pretend riders  ?n=8  ?seed=123  ?quality=low  ?fps=1 -->
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#wrap{position:absolute;left:50%;top:50%;width:720px;height:1280px}
+#wrap canvas{position:absolute;left:0;top:0;width:720px;height:1280px;display:block}
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+</head><body>
+<div id="wrap"><canvas id="g3" width="720" height="1280"></canvas><canvas id="c" width="720" height="1280"></canvas></div>
+<script type="module">
+const fontWait = Promise.race([Promise.all(['900 40px Montserrat', '800 20px Montserrat', '700 20px Montserrat'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 2500))]).catch(() => {});
+await fontWait;
+await (async () => {
+  const q = new URLSearchParams(location.search);
+  const TEST = q.get('test') === '1', LOWQ = q.get('quality') === 'low', HQ = q.get('quality') === 'high', SHOWFPS = q.get('fps') === '1';
+  const T = { accent: '#ff3d8b', accent2: '#00d9ff', accent3: '#ffd43b', gold: '#ffc83d', panel: 'rgba(14,10,30,.62)', panelLine: 'rgba(255,255,255,.18)' };
+  const wrap = document.getElementById('wrap');
+  function fitWrap() { const s = Math.min(innerWidth / 720, innerHeight / 1280); wrap.style.transformOrigin = '50% 50%'; wrap.style.transform = `translate(-50%,-50%) scale(${s})`; }
+  addEventListener('resize', fitWrap); fitWrap();
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  const VW = 720, VH = 1280;
+  const FONT = '"Montserrat","Arial Black",system-ui,sans-serif';
+  const DPR = window.devicePixelRatio || 1;
+  // ---------- helpers ----------
+  function rr(g, x, y, w, h, r) { r = Math.min(r, h / 2, w / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function clip(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t, ease = t => t * t * (3 - 2 * t);
+  const fx = mulberry(777); // visual-only randomness (never affects results)
+  const dir = mulberry(4242); // camera director randomness (visual only)
+
+  // ---------- avatars ----------
+  const BOX = 'https://approach-grandkid-sermon.ngrok-free.dev', H_ = { 'ngrok-skip-browser-warning': '1' };
+  const avatars = new Map();
+  // profile pictures: TikTok's CDN with CORS first, then the box server's /api/marble/avatar proxy (fetch + blob). If both fail: initials.
+  function loadAvatar(url, cb) {
+    let a = avatars.get(url);
+    if (!a) { a = { img: null, ok: false, failed: false, cbs: [] }; avatars.set(url, a);
+      const done = img => { a.img = img; a.ok = true; a.cbs.splice(0).forEach(f => { try { f(img); } catch (e) {} }); };
+      const fail = () => { a.failed = true; a.cbs.length = 0; };
+      const viaBox = () => { if (!/^https:\/\//.test(url)) return fail();
+        fetch(BOX + '/api/marble/avatar?u=' + encodeURIComponent(url), { headers: H_ }).then(r => { if (!r.ok) throw 0; return r.blob(); })
+          .then(b => { if (!/^image\//.test(b.type)) throw 0; const i = new Image(); i.onload = () => done(i); i.onerror = fail; i.src = URL.createObjectURL(b); }).catch(fail); };
+      const i = new Image(); i.crossOrigin = 'anonymous'; i.referrerPolicy = 'no-referrer'; i.onload = () => done(i); i.onerror = viaBox; i.src = url; }
+    if (cb) { if (a.ok) cb(a.img); else if (!a.failed) a.cbs.push(cb); }
+    return a.ok ? a.img : null;
+  }
+  const fakeCache = new Map();
+  function fakeAvatar(m) { // cartoon placeholder face for ?test=1 (not a real person)
+    if (fakeCache.has(m.id)) return fakeCache.get(m.id);
+    const c = document.createElement('canvas'); c.width = c.height = 192; const g = c.getContext('2d'); g.scale(2, 2);
+    let h = 7; for (const ch of m.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const r = mulberry(h);
+    const bg = g.createLinearGradient(0, 0, 96, 96); const bc = ['#ff3d8b', '#00d9ff', '#ffd43b', '#9b5cff', '#3ddc84', '#ff8a3d'][Math.floor(r() * 6)]; bg.addColorStop(0, bc); bg.addColorStop(1, '#ffffff'); g.fillStyle = bg; g.fillRect(0, 0, 96, 96);
+    const skin = ['#f2c9a0', '#d9a074', '#a8704a', '#7a4a2c', '#ffd9b8'][Math.floor(r() * 5)];
+    g.fillStyle = ['#2a1a0a', '#e0b040', '#8a3a10', '#111', '#ff4fa0', '#6a3aff'][Math.floor(r() * 6)]; g.beginPath(); g.ellipse(48, 44, 38, 36, 0, Math.PI, 0); g.fill(); if (r() < .5) g.fillRect(12, 42, 72, 30);
+    g.fillStyle = skin; g.beginPath(); g.ellipse(48, 56, 26, 30, 0, 0, 7); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.ellipse(38, 52, 7, 8, 0, 0, 7); g.ellipse(58, 52, 7, 8, 0, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(39, 53, 3.6, 0, 7); g.arc(59, 53, 3.6, 0, 7); g.fill();
+    if (r() < .35) { g.strokeStyle = '#111'; g.lineWidth = 3; g.strokeRect(29, 44, 18, 15); g.strokeRect(49, 44, 18, 15); }
+    g.strokeStyle = '#6a2a1a'; g.lineWidth = 3.5; g.lineCap = 'round'; g.beginPath(); g.arc(48, 66, 10, .2, Math.PI - .2); g.stroke();
+    fakeCache.set(m.id, c); return c;
+  }
+  function initials(n) { const w = String(n).replace(/^@/, '').split(/[\s_.]+/).filter(Boolean); return (((w[0] || '?')[0] || '?') + (w[1] ? w[1][0] : '')).toUpperCase(); }
+  function faceImg(m, cb) { if (m.fake) { const c = fakeAvatar(m); if (cb) cb(c); return c; } if (!m.avatar) return null; return loadAvatar(m.avatar, cb); }
+  // round profile picture (or initials) with a ring in the rider's colour, for 2D HUD use
+  function avatarDisc(g, m, x, y, r, ring) {
+    const img = faceImg(m);
+    g.save(); g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = m.color || '#fff'; g.fill();
+    if (img) { g.save(); g.clip(); g.drawImage(img, x - r, y - r, r * 2, r * 2); g.restore(); }
+    else if (m.name) { g.fillStyle = '#111'; g.font = `900 ${Math.round(r * .9)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(initials(m.name), x, y + r * .05); }
+    g.lineWidth = Math.max(2, r * .16); g.strokeStyle = ring || '#fff'; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.restore();
+  }
+
+  // ---------- race simulation: deterministic from the server's random seed, same rules for every camel (identical to the 2D version) ----------
+  const D = 9000;
+  const DT = 1 / 60, EVT = { burst: { d: 1.6, v: 1.75 }, stumble: { d: 1.0, v: .25 }, spit: { d: .9, v: .5 }, sulk: { d: 2.3, v: 0 }, tumble: { d: 1.4, v: .8 } };
+  const EVW = [['burst', .3], ['stumble', .2], ['spit', .18], ['sulk', .16], ['tumble', .16]];
+  function simulate(list, seed) {
+    const rng = mulberry((seed >>> 0) || 1);
+    const cs = list.map((m, i) => ({ ...m, idx: i, base: 158 * (1 + (rng() - .5) * .05), w1: .6 + rng() * .6, w2: 1.3 + rng() * 1.2, p1: rng() * 6.28, p2: rng() * 6.28, next: 2.5 + rng() * 5, events: [], x: 0, v: 0, cross: null, xs: [0] }));
+    let t = 0, leaderX = 0;
+    for (let step = 0; step < 60 * 150; step++) {
+      for (const c of cs) {
+        if (t >= c.next) { let r = rng(), type = 'burst'; for (const [k, w] of EVW) { if (r < w) { type = k; break; } r -= w; } c.events.push({ type, t0: t, d: EVT[type].d, side: rng() }); c.next = t + EVT[type].d + 4 + rng() * 6.5; }
+        const e = c.events[c.events.length - 1], inE = e && t < e.t0 + e.d;
+        let target = c.base * (1 + .1 * Math.sin(t * c.w1 + c.p1) + .07 * Math.sin(t * c.w2 + c.p2));
+        target *= 1 + .32 * Math.min(1, Math.max(0, leaderX - c.x) / 1600);
+        if (inE) target *= EVT[e.type].v;
+        if (c.cross !== null) target *= .5;
+        target *= Math.min(1, ease(Math.min(1, t / 1.3)) + .05);
+        c.v += (target - c.v) * Math.min(1, DT * (inE && e.type === 'burst' ? 9 : 5));
+        const px = c.x; c.x += c.v * DT;
+        if (c.cross === null && c.x >= D) c.cross = t + DT * (D - px) / Math.max(1e-6, c.x - px);
+        c.xs.push(c.x);
+      }
+      t += DT; leaderX = 0; for (const c of cs) if (c.x > leaderX) leaderX = c.x;
+      if (cs.every(c => c.cross !== null) && t > cs.reduce((a, c) => Math.max(a, c.cross), 0) + 8) break;
+    }
+    const order = cs.slice().sort((a, b) => (a.cross ?? 1e9) - (b.cross ?? 1e9) || b.x - a.x);
+    order.forEach((c, i) => c.place = i + 1);
+    return { cs, order };
+  }
+  function xAt(c, t) { const f = t / DT, i = Math.floor(f); if (i < 0) return 0; const n = c.xs.length; if (i >= n - 1) return c.xs[n - 1] + (t - (n - 1) * DT) * 60; return lerp(c.xs[i], c.xs[i + 1], f - i); }
+  function eventAt(c, t) { for (let i = c.events.length - 1; i >= 0; i--) { const e = c.events[i]; if (t >= e.t0 && t < e.t0 + e.d) return [e, (t - e.t0) / e.d]; if (e.t0 + e.d < t - 1) break; } return [null, 0]; }
+  // =====================================================================
+  //        PHOTO-REAL 2.5D: video-sprite camels on a photographic plate
+  // =====================================================================
+  const K = 1 / 25, FINX = D * K;                // sim units -> metres
+  const gv = document.getElementById('g3'), wctx = gv.getContext('2d');
+  let RS = Math.min(1.5, Math.max(1, +(q.get('scale') || (Math.min(innerWidth / 720, innerHeight / 1280) * DPR)))); if (LOWQ) RS = 1;
+  function sizeAll() { for (const c of [gv, cv]) { c.width = Math.round(VW * RS); c.height = Math.round(VH * RS); } } sizeAll();
+  const IMG = {}; const load = (k, s) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[k] = i; r(); }; i.onerror = () => r(); i.src = s; });
+  await Promise.all([load('plate', 'images/camel-real/plate.webp'), load('sheet', 'images/camel-real/camel-sheet.webp'), load('silks', 'images/camel-real/camel-silks.webp')]);
+  const FW = 300, FH = 205, COLS = 9, NF = 72, FPS_SPR = 24; // sprite sheet layout (galloping loop, 3s @24fps)
+  // plate split: sky/dunes (slow parallax) and rail + sand (moves with the track)
+  const PL = IMG.plate, PSC = VH / 576, SPLIT = 243;
+  function mkLayer(y0, y1) { const w = Math.round(1024 * PSC), h = Math.round((y1 - y0) * PSC); const c = document.createElement('canvas'); c.width = w * 2; c.height = h; const g = c.getContext('2d');
+    if (PL) { g.drawImage(PL, 0, y0, 1024, y1 - y0, 0, 0, w, h); g.save(); g.translate(w * 2, 0); g.scale(-1, 1); g.drawImage(PL, 0, y0, 1024, y1 - y0, 0, 0, w, h); g.restore(); } else { g.fillStyle = '#d4a46c'; g.fillRect(0, 0, w * 2, h); } return c; }
+  const FAR = mkLayer(0, SPLIT), NEAR = mkLayer(SPLIT, 576), FAR_Y = 0, NEAR_Y = Math.round(SPLIT * PSC);
+  // silks tint: pre-coloured mask sheet per colour (half res), multiplied over the white silks
+  const tintCache = new Map();
+  function tinted(col) { let c = tintCache.get(col); if (c || !IMG.silks) return c; c = document.createElement('canvas'); c.width = IMG.silks.width / 2; c.height = IMG.silks.height / 2; const g = c.getContext('2d');
+    g.drawImage(IMG.silks, 0, 0, c.width, c.height); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height);
+    // the mask is white where the silks are: keep it as alpha
+    tintCache.set(col, c); return c; }
+  function maskAlphaFix() { // silks webp is greyscale -> convert luminance to alpha once
+    if (!IMG.silks) return; const c = document.createElement('canvas'); c.width = IMG.silks.width; c.height = IMG.silks.height; const g = c.getContext('2d'); g.drawImage(IMG.silks, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height), a = d.data; for (let i = 0; i < a.length; i += 4) { const l = a[i]; a[i + 3] = l > 40 ? Math.min(255, (l - 40) * 1.4) : 0; a[i] = a[i + 1] = a[i + 2] = 255; } g.putImageData(d, 0, 0); IMG.silks = c; }
+  maskAlphaFix();
+  // lanes: far lane near the rail, near lane at the bottom; perspective scale by depth
+  const LANE_TOP = 760, LANE_BOT = 1190, S_FAR = .5, S_NEAR = 1.05, PPM = 108; // px per metre at scale 1
+  function laneY(i, N) { return N <= 1 ? (LANE_TOP + LANE_BOT) / 2 : LANE_TOP + (LANE_BOT - LANE_TOP) * (i / (N - 1)); }
+  function depthS(y) { return lerp(S_FAR, S_NEAR, (y - 700) / (LANE_BOT - 700)); }
+  const cam = { x: 0, z: 1, shot: 'lineup', t0: 0, next: 0, seq: 0, force: true, fx: 360, fy: 900 };
+  const SHOT_NAME = { lineup: 'STARTING GATE', countdown: 'START CAM', wide: 'TRACKSIDE', leader: 'LEADER CAM', pack: 'PACK CAM', finish: 'FINISH LINE', photo: 'PHOTO FINISH', podium: 'WINNERS' };
+  // screen position of a world x at depth y (before the camera zoom)
+  const sx = (X, y) => 360 + (X - cam.x) * PPM * depthS(y);
+  function camelVar(c) { let h = 7; for (const ch of String(c.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const r = mulberry(h); return { s: .93 + r() * .12, ph: r() * NF, br: .9 + r() * .18 }; }
+  const VAR = new Map(); const vr = c => { let v = VAR.get(c.id); if (!v) { v = camelVar(c); VAR.set(c.id, v); } return v; };
+  function drawCamel(g, c, x, y, s, frame) {
+    const f = ((Math.floor(frame) % NF) + NF) % NF, fx0 = (f % COLS) * FW, fy0 = Math.floor(f / COLS) * FH, w = FW * s, h = FH * s, x0 = x - w * .62, y0 = y - h * .97;
+    // ground shadow
+    g.save(); g.globalAlpha = .35; g.fillStyle = '#3a2410'; g.beginPath(); g.ellipse(x - w * .1, y, w * .36, h * .05, 0, 0, 7); g.fill(); g.restore();
+    if (IMG.sheet) g.drawImage(IMG.sheet, fx0, fy0, FW, FH, x0, y0, w, h);
+    const tc = tinted(c.color || '#ff3d8b'); if (tc) { g.save(); g.globalCompositeOperation = 'multiply'; g.drawImage(tc, fx0 / 2, fy0 / 2, FW / 2, FH / 2, x0, y0, w, h); g.restore(); }
+    return { x: x0 + w * .52, y: y0 + h * .02, w, h };
+  }
+  // dust + confetti (2D)
+  const puffTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(222,190,145,.75)'); gr.addColorStop(1, 'rgba(222,190,145,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return c; })();
+  let dust = [], confetti = [];
+  function puff(X, y, s) { if (dust.length > (LOWQ ? 150 : 400)) return; dust.push({ X, y: y - fx() * 6, vx: -(1 + fx() * 2), vy: -(8 + fx() * 18), s: s * (30 + fx() * 30), life: 0, L: .6 + fx() * .7 }); }
+  function burstConfetti(n) { const cols = ['#ff2bd6', '#00f0ff', '#ffe600', '#39ff14', '#ff7a00', '#ffffff']; for (let i = 0; i < n; i++) confetti.push({ x: fx() * VW, y: -20 - fx() * 300, vx: (fx() - .5) * 60, vy: 120 + fx() * 160, r: fx() * 6, vr: (fx() - .5) * 10, c: cols[i % cols.length], life: 0 }); }
+  let camelsShown = [];
+  function direct(now, cs, pos) {
+    let L = 0, sum = 0, n = 0; for (const c of cs) { const x = pos.get(c.id) * K; L = Math.max(L, x); sum += x; n++; } const P = n ? sum / n : 0;
+    const set = s => { if (cam.shot !== s || cam.force) { cam.shot = s; cam.t0 = now; cam.force = false; } };
+    if (mode === 'entries' || mode === 'idle' || mode === 'countdown') set(mode === 'countdown' ? 'countdown' : 'lineup');
+    else if (mode === 'racing') { const lx = L / K; if (lx > D - 330) set('photo'); else if (lx > D - 1100) set('finish'); else if (now >= cam.next) { set(['wide', 'leader', 'pack', 'leader'][cam.seq++ % 4]); cam.next = now + (4.5 + dir() * 2.5) * 1000; } }
+    else if (mode === 'photo') set('photo'); else set('podium');
+    const u = (now - cam.t0) / 1000; let tx = P, tz = 1;
+    switch (cam.shot) { case 'lineup': tx = 1.5; tz = 1; break; case 'countdown': tx = 1.5; tz = 1 + Math.min(u, 4) * .04; break;
+      case 'wide': tx = P + 1; tz = 1; break; case 'leader': tx = L - 1.2; tz = 1.35 + Math.min(u, 6) * .03; break; case 'pack': tx = P; tz = 1.15; break;
+      case 'finish': tx = Math.min(L - .5, FINX - 1); tz = 1.1; break; case 'photo': tx = Math.min(L - .5, FINX - .6); tz = 1.25; break; case 'podium': tx = cam.x; tz = 1; break; }
+    const snap = u < .05 && (cam.shot === 'lineup' || cam.shot === 'photo' || cam.shot === 'finish');
+    const k = snap ? 1 : Math.min(1, .06 * 60 / 60 * 3); cam.x += (tx - cam.x) * k; cam.z += (tz - cam.z) * .05;
+    const ly = cam.shot === 'leader' && camelsShown.length ? camelsShown[0].y : 960; cam.fy += ((cam.shot === 'leader' ? ly - 60 : 960) - cam.fy) * .05;
+  }
+  function drawWorld(t, dt, cs, pos, curLeader) {
+    const g = wctx; g.setTransform(RS, 0, 0, RS, 0, 0);
+    // zoom about a focus point (never below 1 so the plate always covers the frame)
+    const z = Math.max(1, cam.z); g.translate(360, cam.fy); g.scale(z, z); g.translate(-360, -cam.fy);
+    const fw = FAR.width, nw = NEAR.width;
+    const offF = ((cam.x * PPM * .18) % fw + fw) % fw, offN = ((cam.x * PPM * .82) % nw + nw) % nw;
+    for (let k = -1; k <= 1; k++) g.drawImage(FAR, -offF + k * fw, FAR_Y);
+    for (let k = -1; k <= 1; k++) g.drawImage(NEAR, -offN + k * nw, NEAR_Y, nw, NEAR.height + 2);
+    // heat haze band over the horizon
+    const hz = g.createLinearGradient(0, NEAR_Y - 90, 0, NEAR_Y + 40); hz.addColorStop(0, 'rgba(255,214,160,0)'); hz.addColorStop(.6, 'rgba(255,214,160,.22)'); hz.addColorStop(1, 'rgba(255,214,160,0)'); g.fillStyle = hz; g.fillRect(-400, NEAR_Y - 90, VW + 800, 130);
+    // start + finish lines across the lanes (perspective)
+    const line = (X, w, chk) => { const yA = LANE_TOP - 70, yB = LANE_BOT + 60, xA = sx(X, yA), xB = sx(X, yB); if (Math.max(xA, xB) < -200 || Math.min(xA, xB) > VW + 200) return;
+      if (!chk) { g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.moveTo(xA, yA); g.lineTo(xA + w * depthS(yA), yA); g.lineTo(xB + w * depthS(yB), yB); g.lineTo(xB, yB); g.fill(); return; }
+      const rows = 26; for (let r = 0; r < rows; r++) for (let c2 = 0; c2 < 2; c2++) { const y1 = lerp(yA, yB, r / rows), y2 = lerp(yA, yB, (r + 1) / rows); const s1 = depthS(y1), s2 = depthS(y2); const x1 = sx(X, y1) + c2 * w / 2 * s1, x2 = sx(X, y2) + c2 * w / 2 * s2;
+        g.fillStyle = (r + c2) % 2 ? '#111' : '#f4f4f4'; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x1 + w / 2 * s1, y1); g.lineTo(x2 + w / 2 * s2, y2); g.lineTo(x2, y2); g.fill(); }
+      // finish post at the rail
+      const px = sx(X, yA); g.fillStyle = '#f4f4f4'; g.fillRect(px - 4, yA - 230, 8, 230); g.fillStyle = '#111'; g.fillRect(px - 26, yA - 250, 52, 26); g.fillStyle = T.accent; g.fillRect(px - 26, yA - 226, 52, 4);
+      g.font = `900 13px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('FINISH', px, yA - 237); };
+    line(0, 10, false); line(FINX, 90, true);
+    // distance markers on the rail
+    for (const f of [.25, .5, .75]) { const X = FINX * f, y = NEAR_Y + 30, x = sx(X, LANE_TOP - 70); if (x < -50 || x > VW + 50) continue; g.fillStyle = 'rgba(10,12,24,.85)'; g.fillRect(x - 34, y - 44, 68, 30); g.fillStyle = T.accent2; g.fillRect(x - 34, y - 16, 68, 3); g.fillStyle = '#fff'; g.font = `900 16px ${FONT}`; g.textAlign = 'center'; g.fillText(Math.round((1 - f) * 1000) + 'm', x, y - 29); g.fillStyle = '#eee'; g.fillRect(x - 2, y - 14, 4, 40); }
+    // camels far -> near
+    const N = cs.length, live = sim && mode !== 'countdown'; camelsShown = [];
+    const order = cs.map((c, i) => [c, i]).sort((a, b) => a[1] - b[1]);
+    for (const [c, i] of order) { const v = vr(c), y = laneY(i, N), s = depthS(y) * v.s * 1.05; const X = pos.get(c.id) * K, x = sx(X, y);
+      let fr = v.ph, vel = 0; if (live) { vel = (xAt(c, raceT + .05) - xAt(c, Math.max(0, raceT - .05))) * 10; c._ph = (c._ph || v.ph) + dt * FPS_SPR * clamp(vel / 158, 0, 1.4) * slow; fr = c._ph; } else fr = v.ph; // standing: still frame
+      const [e] = live ? eventAt(c, raceT) : [null];
+      let yy = y; if (e && (e.type === 'stumble' || e.type === 'tumble')) yy += Math.sin(Math.PI * clamp((raceT - e.t0) / e.d, 0, 1)) * 8 * s;
+      if (x < -250 || x > VW + 250) continue;
+      let sc = s; if (mode === 'entries' && c.joinT) sc *= .6 + .4 * ease(clamp((performance.now() - c.joinT) / 500, 0, 1));
+      const hd = drawCamel(g, c, x, yy, sc, fr); camelsShown.push({ c, x: hd.x, y: hd.y, s: sc, lead: c === curLeader });
+      if (live && vel > 40 && fx() < (LOWQ ? .4 : .9) * dt * 60) puff(X - .9 * v.s, y, sc);
+    }
+    camelsShown.sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0));
+    // dust
+    for (const p of dust) { p.life += dt; p.X += p.vx * dt * .3; p.y += p.vy * dt; p.vy *= .96; } dust = dust.filter(p => p.life < p.L);
+    for (const p of dust) { const k2 = p.life / p.L, s = p.s * (.5 + k2 * 1.6); g.globalAlpha = .55 * (1 - k2); g.drawImage(puffTex, sx(p.X, p.y) - s / 2, p.y - s / 2, s, s); } g.globalAlpha = 1;
+    // camera wobble-free vignette + warm grade
+    g.setTransform(RS, 0, 0, RS, 0, 0); const vg = g.createRadialGradient(360, 760, 300, 360, 760, 900); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(20,8,0,.35)'); g.fillStyle = vg; g.fillRect(0, 0, VW, VH);
+  }
+  function drawPodiumWorld(t, dt) {
+    const g = wctx; g.setTransform(RS, 0, 0, RS, 0, 0); g.drawImage(FAR, 0, FAR_Y); g.drawImage(NEAR, 0, NEAR_Y);
+    g.fillStyle = 'rgba(8,6,18,.35)'; g.fillRect(0, 0, VW, VH);
+    const list = official || (sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : []); const byId = new Map((sim ? sim.cs : roster).map(c => [c.id, c]));
+    const P = [[0, 360, 800, 160, '#ffc83d'], [1, 165, 850, 110, '#d9e1ea'], [2, 555, 880, 80, '#e39552']]; podTags = [];
+    for (const [i, x, top, hgt, col] of P) { const r = list[i]; if (!r) continue; const m = byId.get(r.id) || { id: r.id, name: r.name, color: col };
+      const gr = g.createLinearGradient(0, top, 0, top + hgt); gr.addColorStop(0, col); gr.addColorStop(1, '#3a2a10'); g.fillStyle = gr; g.fillRect(x - 95, top, 190, hgt + 200); g.fillStyle = T.accent; g.fillRect(x - 95, top, 190, 4);
+      g.font = `900 64px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillText(String(i + 1), x, top + 60);
+      const s = i === 0 ? .85 : .7, v = vr(m); const hd = drawCamel(g, m, x + 40 * s, top, s, v.ph); podTags.push({ m, x: hd.x, y: hd.y, lead: i === 0 }); }
+    for (const p of confetti) { p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; } confetti = confetti.filter(p => p.y < VH + 20);
+    for (const p of confetti) { g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-5, -3, 10, 6); g.restore(); }
+  }
+  let podTags = [];
+  function drawLabels(cs, pos, curLeader, now) {
+    const live = sim && mode !== 'countdown', placed = []; let shown = 0; const z = Math.max(1, cam.z);
+    for (const o of camelsShown) { const X = 360 + (o.x - 360) * z, Y = cam.fy + (o.y - cam.fy) * z - 14; if (X < -40 || X > VW + 40 || Y < (mode === 'racing' ? 236 : 130) || Y > VH - 120) continue;
+      if (mode === 'racing' && X > 420 && Y < 410) continue; if (shown > 10 && !o.lead) continue;
+      const sz = Math.round(clamp(15 * o.s * z, 13, 22)); ctx.font = `800 ${sz}px ${FONT}`; const w = ctx.measureText(clip(o.c.name, 16)).width + sz * 2.7, h = sz * 1.7, r = { x: X - w / 2, y: Y - h, w, h };
+      if (placed.some(p => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y)) continue;
+      placed.push(nameTag(o.c, X, Y - h / 2, sz, o.lead && live)); shown++; }
+  }
+
+  let mode = 'idle', roster = [], sim = null, raceId = null, startAtLocal = 0, raceT = 0, official = null, champs = [], auto = { on: false, minutes: 3 }, openedAtLocal = 0;
+  let leaderId = null, reported = false, slow = 1, photo = null, photoAt = 0, podiumAt = 0, flashAt = -1e9;
+  let toasts = [], toastQ = [], seenEv = new Set();
+  let lastLow = 0; function toast(s, col, low) { if (low) { const n = Date.now(); if (toastQ.length || n - lastLow < 3500) return; lastLow = n; } toastQ.push({ s, col: col || T.accent3 }); if (toastQ.length > 3) toastQ.shift(); }
+  function rosterKey(l) { return l.map(m => m.id).join('|'); }
+  function setRoster(list) { const old = new Map(roster.map(r => [r.id, r])); roster = list.map((m, i) => Object.assign({}, m, { idx: i, joinT: (old.get(m.id) || {}).joinT || performance.now() })); }
+  let skew = 0;
+  function applyState(st, ev, extra) {
+    if (!st) return;
+    skew = (st.now || Date.now()) - Date.now(); champs = st.champs || []; auto = st.auto || auto;
+    const list = st.marbles || [];
+    if (st.phase === 'idle') { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
+    if (st.phase === 'entries') {
+      if (mode !== 'entries') { mode = 'entries'; official = null; sim = null; raceId = null; photo = null; confetti = []; cam.force = true; }
+      openedAtLocal = (st.openedAt || Date.now()) - skew;
+      if (ev === 'join' && extra && extra.marble) toast(`${clip(extra.marble.name, 20)} saddles up!`, T.accent3);
+      if (rosterKey(list) !== rosterKey(roster)) setRoster(list);
+      return;
+    }
+    if (st.phase === 'countdown' || (st.phase === 'racing' && ev === 'start')) {
+      if (raceId !== st.raceId) { raceId = st.raceId; setRoster(list); sim = simulate(roster, st.seed); startAtLocal = (st.startAt || Date.now()) - skew; mode = 'countdown'; reported = false; official = null; raceT = 0; slow = 1; photo = null; leaderId = null; seenEv = new Set(); confetti = []; cam.force = true; }
+      return;
+    }
+    if (st.phase === 'racing') { if (raceId !== st.raceId) { mode = 'inprogress'; raceId = st.raceId; } return; }
+    if (st.phase === 'finished') {
+      if (st.results && st.results.length) { official = st.results; if (mode === 'inprogress' || mode === 'over' || !sim) { mode = 'podiumOnly'; cam.force = true; } }
+      else if (mode === 'inprogress' || mode === 'countdown' || mode === 'racing') mode = 'over';
+    }
+  }
+  function report() {
+    if (reported || !sim || !raceId) return; reported = true;
+    const order = sim.order.map(c => c.id);
+    if (TEST) { testFinish(order); return; }
+    fetch(BOX + '/api/marble/result', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, H_), body: JSON.stringify({ raceId, order }) }).then(r => r.json()).then(j => { if (j && j.state) applyState(j.state, 'result'); }).catch(() => {});
+  }
+
+  function txt(s, x, y, size, col, o = {}) { const g = ctx; g.save(); g.font = `${o.w || 900} ${size}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    if (o.shadow !== false) { g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = size * .25; g.shadowOffsetY = size * .06; }
+    if (o.stroke) { g.lineWidth = o.stroke; g.strokeStyle = o.strokeCol || 'rgba(15,10,35,.9)'; g.strokeText(s, x, y); g.shadowColor = 'transparent'; }
+    if (o.grad) { const m = g.measureText(s), gr = g.createLinearGradient(0, y - size / 2, 0, y + size / 2); gr.addColorStop(0, o.grad[0]); gr.addColorStop(1, o.grad[1]); g.fillStyle = gr; } else g.fillStyle = col;
+    g.fillText(s, x, y); g.restore(); }
+  function fit(s, max, size, w) { ctx.font = `${w || 900} ${size}px ${FONT}`; while (size > 10 && ctx.measureText(s).width > max) { size -= 1; ctx.font = `${w || 900} ${size}px ${FONT}`; } return size; }
+  function glass(x, y, w, h, r, border) { ctx.save(); ctx.fillStyle = T.panel; rr(ctx, x, y, w, h, r); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = border || T.panelLine; ctx.stroke();
+    const gr = ctx.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(255,255,255,.10)'); gr.addColorStop(.5, 'rgba(255,255,255,0)'); ctx.fillStyle = gr; rr(ctx, x, y, w, h, r); ctx.fill(); ctx.restore(); }
+  function titleBar() {
+    const gr = ctx.createLinearGradient(0, 0, 0, 120); gr.addColorStop(0, 'rgba(6,8,18,.7)'); gr.addColorStop(1, 'rgba(6,8,18,0)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, VW, 120);
+    ctx.save(); ctx.fillStyle = 'rgba(8,10,22,.88)'; ctx.beginPath(); ctx.moveTo(150, 24); ctx.lineTo(590, 24); ctx.lineTo(570, 80); ctx.lineTo(130, 80); ctx.closePath(); ctx.fill();
+    const ng = ctx.createLinearGradient(130, 0, 590, 0); ng.addColorStop(0, T.accent2); ng.addColorStop(.5, T.accent); ng.addColorStop(1, T.accent3); ctx.fillStyle = ng; ctx.fillRect(130, 80, 440, 4);
+    ctx.fillStyle = T.accent; ctx.beginPath(); ctx.moveTo(150, 24); ctx.lineTo(236, 24); ctx.lineTo(216, 80); ctx.lineTo(130, 80); ctx.closePath(); ctx.fill(); ctx.restore();
+    txt('OASIS', 183, 44, 16, '#fff', { w: 900, shadow: false }); txt('RADIO', 179, 63, 16, '#fff', { w: 900, shadow: false });
+    txt('CAMEL  RACE', 395, 53, 34, '#fff', { w: 900, shadow: false });
+  }
+  function nameTag(c, x, y, sz, lead) { // floating broadcast tag: profile pic + name, rider colour bar
+    const n = clip(c.name, 16); ctx.save(); ctx.font = `800 ${sz}px ${FONT}`; const h = sz * 1.7, w = ctx.measureText(n).width + sz * 1.0 + h, x0 = x - w / 2, y0 = y - h / 2;
+    ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(8,10,22,.82)'; rr(ctx, x0, y0, w, h, 4); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = lead ? T.gold : (c.color || '#fff'); ctx.fillRect(x0, y0 + h - 3, w, 3);
+    ctx.beginPath(); ctx.moveTo(x - 6, y0 + h); ctx.lineTo(x + 6, y0 + h); ctx.lineTo(x, y0 + h + 7); ctx.fill();
+    avatarDisc(ctx, c, x0 + h / 2, y, h * .38, lead ? T.gold : (c.color || '#fff'));
+    ctx.fillStyle = lead ? T.gold : '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(n, x0 + h + sz * .1, y + 1); ctx.restore(); return { x: x0, y: y0, w, h };
+  }
+  function bubble(x, y, text, col, s) {
+    ctx.save(); ctx.font = `900 ${Math.round(22 * s)}px ${FONT}`; const w = ctx.measureText(text).width + 24 * s, h = 38 * s;
+    ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 8; ctx.fillStyle = '#fff'; rr(ctx, x - w / 2, y - h, w, h, h / 2); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.moveTo(x - 10 * s, y - 2); ctx.lineTo(x - 16 * s, y + 11 * s); ctx.lineTo(x + 4 * s, y - 2); ctx.fill();
+    ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y - h / 2 + 1); ctx.restore();
+  }
+  function champsPanel(y) {
+    if (!champs.length) return; const rows = champs.slice(0, 5), h = 62 + rows.length * 36; glass(110, y, 500, h, 22);
+    txt('CAMEL CHAMPS', 360, y + 30, 26, T.accent3, { shadow: false });
+    rows.forEach((c, i) => { ctx.font = `800 22px ${FONT}`; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(`${i + 1}. ${clip(c.name, 18)}`, 140, y + 72 + i * 36); ctx.textAlign = 'right'; ctx.fillStyle = T.accent3; ctx.fillText(`${c.wins} win${c.wins === 1 ? '' : 's'}`, 580, y + 72 + i * 36); });
+  }
+  function drawToasts(now) {
+    toasts.forEach((x, i) => { const a = Math.min(1, (3000 - (now - x.t)) / 400, (now - x.t) / 150); ctx.save(); ctx.globalAlpha = a; const y = 1218 - (toasts.length - 1 - i) * 56; const sz = fit(x.s, 620, 24, 800); ctx.font = `800 ${sz}px ${FONT}`; const w = Math.min(690, ctx.measureText(x.s).width + 48);
+      glass(360 - w / 2, y - 24, w, 48, 24, x.col); ctx.fillStyle = x.col; rr(ctx, 360 - w / 2 + 2, y - 22, 6, 44, 3); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = `800 ${sz}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(x.s, 362, y + 1); ctx.restore(); });
+  }
+  function stepToasts(now) { if (toastQ.length && (!toasts.length || now - toasts[toasts.length - 1].t > 1100)) { const n = toastQ.shift(); n.t = now; toasts.push(n); if (toasts.length > 2) toasts.shift(); } toasts = toasts.filter(x => now - x.t < 3000); }
+  function drawHud(t, now, cs, pos, curLeader) {
+    titleBar();
+    if (mode === 'idle') { glass(70, 160, 580, 220, 28); txt('The camel race', 360, 210, 38, '#fff'); txt('is coming!', 360, 254, 38, '#fff'); txt('Send a 100+ coin gift', 360, 308, 36, T.accent3); txt('when entries open to ride!', 360, 350, 26, '#fff', { w: 800 }); champsPanel(410); return; }
+    if (mode === 'entries') {
+      drawLabels(cs, pos, null, now); const n = roster.length; glass(40, 128, 640, 228, 28, 'rgba(255,61,139,.6)');
+      txt('ENTRIES OPEN', 360, 178, 50, '#fff', { grad: ['#ffe9a8', '#ffb13d'] });
+      txt('Send a 100+ coin gift to ride!', 360, 236, fit('Send a 100+ coin gift to ride!', 590, 34), '#fff');
+      txt(`${n} camel${n === 1 ? '' : 's'} saddled up`, 360, 284, 28, T.accent2, { w: 800 });
+      if (auto.on) { const left = Math.max(0, auto.minutes * 60000 - (Date.now() - openedAtLocal)), s = Math.ceil(left / 1000); txt(n >= 2 ? (left > 0 ? `Race starts in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Starting any second…') : 'Needs 2+ camels to start', 360, 326, 24, T.accent3, { w: 800 }); }
+      else txt('One camel each  •  extra gifts = cheers', 360, 326, 21, 'rgba(255,255,255,.9)', { w: 700, shadow: false });
+      if (!n) champsPanel(400); return;
+    }
+    if (mode === 'countdown') { drawLabels(cs, pos, null, now); const ms = startAtLocal - Date.now(), s = Math.ceil(ms / 1000), frac = (ms % 1000) / 1000;
+      if (s >= 1 && s <= 3) txt(String(s), 360, 420, Math.round(190 + 90 * frac), '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 10 }); else if (s > 3) txt('GET READY!', 360, 420, 72, '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 8 }); return; }
+    if (mode === 'inprogress' || mode === 'over') { glass(90, 300, 540, 150, 28); txt(mode === 'over' ? 'Race over!' : 'Race in progress…', 360, 352, 40, '#fff'); txt('Results coming up!', 360, 404, 28, T.accent3, { w: 800 }); return; }
+    if (mode === 'finished' || mode === 'podiumOnly') { drawPodiumHud(t, now); return; }
+    if (!sim) return;
+    drawLabels(cs, pos, curLeader, now);
+    // progress bar with every rider's face
+    const bx = 56, bw = 608, by = 132;
+    ctx.save(); glass(bx - 22, by - 18, bw + 44, 36, 18); ctx.fillStyle = 'rgba(255,255,255,.18)'; rr(ctx, bx, by - 3, bw, 6, 3); ctx.fill();
+    const lf = clamp(Math.max(...cs.map(c => pos.get(c.id))) / D, 0, 1); const pg = ctx.createLinearGradient(bx, 0, bx + bw, 0); pg.addColorStop(0, T.accent2); pg.addColorStop(1, T.accent); ctx.fillStyle = pg; rr(ctx, bx, by - 3, bw * lf, 6, 3); ctx.fill();
+    for (let k = 0; k < 4; k++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (k + j) % 2 ? '#111' : '#fff'; ctx.fillRect(bx + bw - 2 + j * 5, by - 10 + k * 5, 5, 5); } ctx.restore();
+    const ord = cs.slice().sort((a, b) => pos.get(a.id) - pos.get(b.id));
+    for (const c of ord) avatarDisc(ctx, c, bx + bw * clamp(pos.get(c.id) / D, 0, 1), by, c === curLeader ? 15 : 12, c === curLeader ? T.gold : c.color);
+    // top-5 board
+    const crossed = sim.order.filter(c => c.cross !== null && c.cross <= raceT);
+    const st = crossed.concat(cs.filter(c => !crossed.includes(c)).sort((a, b) => pos.get(b.id) - pos.get(a.id))).slice(0, 5);
+    glass(452, 168, 252, 16 + st.length * 40, 20);
+    st.forEach((c, i) => { const y = 188 + i * 40; ctx.save(); ctx.fillStyle = i === 0 ? T.gold : 'rgba(255,255,255,.16)'; ctx.beginPath(); ctx.arc(474, y, 11, 0, 7); ctx.fill(); ctx.restore(); txt(String(i + 1), 474, y + 1, 14, i === 0 ? '#1b1630' : '#fff', { w: 900, shadow: false });
+      avatarDisc(ctx, c, 504, y, 14, i === 0 ? T.gold : c.color); ctx.font = `800 19px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = i === 0 ? T.gold : '#fff'; ctx.fillText(clip(c.name, 12), 526, y + 1); });
+    // timer + camera bug
+    glass(16, 168, 230, 40, 20); ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(38, 188, 6 + Math.sin(t * 6) * 1, 0, 7); ctx.fill();
+    txt(`${Math.min(raceT, 99).toFixed(1)}s`, 80, 189, 20, '#fff', { w: 800, shadow: false }); txt(SHOT_NAME[cam.shot] || '', 178, 189, 14, 'rgba(255,255,255,.85)', { w: 800, shadow: false });
+    if (slow < .7 && mode === 'racing') txt('PHOTO FINISH?!', 360, 470, Math.round(56 + Math.sin(t * 10) * 3), '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 7 });
+    if (mode === 'racing' && raceT < 1.6) txt('GO!', 360, 440, Math.round(210 - raceT * 30), '#fff', { grad: ['#ffffff', '#3ddc84'], stroke: 10 });
+    if (mode === 'photo') drawPhoto(now);
+  }
+  let photoC = null;
+  function drawPhoto(now) {
+    const k = clamp((now - photoAt - 450) / 450, 0, 1); if (k <= 0 || !sim) return;
+    const w = sim.order[0], second = sim.order[1], gap = second && second.cross !== null ? second.cross - w.cross : 9;
+    ctx.save(); ctx.fillStyle = `rgba(8,5,20,${.45 * k})`; ctx.fillRect(0, 0, VW, VH);
+    ctx.translate(360, 650); ctx.rotate(-.04 * ease(k)); const sc = lerp(1.4, 1, ease(k)); ctx.scale(sc, sc); ctx.globalAlpha = k;
+    ctx.fillStyle = '#ffffff'; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 36; ctx.shadowOffsetY = 12; rr(ctx, -300, -350, 600, 740, 18); ctx.fill(); ctx.shadowColor = 'transparent';
+    if (photoC) { ctx.save(); rr(ctx, -278, -278, 556, 556, 10); ctx.clip(); ctx.drawImage(photoC, -278, -278, 556, 556); ctx.restore(); }
+    txt('PHOTO FINISH', 0, -314, 40, '#1b1630', { shadow: false });
+    const line = gap < .25 ? 'wins by a whisker!' : gap < .8 ? 'wins by a nose!' : gap < 2 ? 'wins by a hump!' : 'wins by a mile!';
+    txt(w.name, 0, 318, fit(w.name, 540, 40), '#1b1630', { shadow: false }); txt(line, 0, 358, 26, '#e0306f', { w: 800, shadow: false });
+    ctx.restore();
+  }
+  function drawPodiumHud(t, now) {
+    const list = official || (sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : []); if (!list[0]) return;
+    const k = mode === 'podiumOnly' ? 1 : clamp((now - podiumAt) / 700, 0, 1), sc = .7 + .3 * ease(k);
+    ctx.save(); ctx.globalAlpha = k; txt('WINNER!', 360, 186, Math.round(86 * sc), '#fff', { grad: ['#fff6cf', '#ffb13d'], stroke: 8 });
+    txt(list[0].name, 360, 266, Math.round(fit(list[0].name, 640, 56) * sc), '#fff', { stroke: 7 });
+    txt('Bragging rights for the night!', 360, 320, 25, '#fff', { w: 800, stroke: 5 }); ctx.restore();
+    // names over the podium camels
+    podTags.forEach(o => nameTag(o.m, o.x, o.y - 26, o.lead ? 24 : 19, o.lead));
+    champsPanel(960);
+  }
+  function credit() { ctx.save(); ctx.font = `600 10px ${FONT}`; ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.textAlign = 'right'; ctx.fillText('Broadcast Edition', 712, 1272); ctx.restore(); }
+  function grab(type) { const c = document.createElement('canvas'); c.width = gv.width; c.height = gv.height; const g = c.getContext('2d'); g.drawImage(gv, 0, 0); g.drawImage(cv, 0, 0); return type === 'png' ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', .92); }
+  const fpsS = { n: 0, t0: performance.now(), fps: 60 };
+  let lastPerf = 0, lastKey = '', podAt = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(.05, lastPerf ? (now - lastPerf) / 1000 : 1 / 60); lastPerf = now; const t = now / 1000;
+    fpsS.n++; if (now - fpsS.t0 >= 1000) { fpsS.fps = fpsS.n * 1000 / (now - fpsS.t0); fpsS.n = 0; fpsS.t0 = now; }
+    const wall = Date.now();
+    if (sim && mode === 'countdown' && wall >= startAtLocal) { mode = 'racing'; raceT = Math.min(3, (wall - startAtLocal) / 1000); toast("AND THEY'RE OFF!", T.accent2); }
+    if (sim && (mode === 'racing' || mode === 'photo' || mode === 'finished')) {
+      const lead = sim.order[0]; let lx = 0; for (const c of sim.cs) lx = Math.max(lx, xAt(c, raceT));
+      const target = (mode === 'racing' && lx > D - 260 && raceT < lead.cross + .3) ? .3 : 1;
+      slow += (target - slow) * Math.min(1, dt * 6); raceT += dt * slow;
+      if (mode === 'racing' && raceT >= lead.cross + .04) { mode = 'photo'; photoAt = now; flashAt = now; photo = 'pending'; }
+      if (mode === 'photo' && now - photoAt > 3600) { mode = 'finished'; podiumAt = now; burstConfetti(LOWQ ? 80 : 180); report(); }
+    }
+    const live = sim && mode !== 'countdown';
+    const cs = (mode === 'idle' || mode === 'inprogress' || mode === 'over' || mode === 'podiumOnly') ? [] : sim ? sim.cs : roster;
+    const pos = new Map(); for (const c of cs) pos.set(c.id, live ? xAt(c, raceT) : 0);
+    let leadX = -1, curLeader = null; for (const c of cs) { const x = pos.get(c.id); if (!curLeader || x > leadX) { leadX = x; curLeader = c; } }
+    if (live) { const crossed = sim.order.filter(c => c.cross !== null && c.cross <= raceT); if (crossed.length) curLeader = crossed[0];
+      if (raceT > 1.5 && curLeader && curLeader.id !== leaderId) { if (leaderId && mode === 'racing') toast(`${clip(curLeader.name, 18)} takes the lead!`, T.gold); leaderId = curLeader.id; } }
+    if (live) for (const c of cs) { const [e] = eventAt(c, raceT); if (e) { const key2 = c.id + '|' + e.t0; if (!seenEv.has(key2)) { seenEv.add(key2); if (mode === 'racing' && e.type === 'burst') toast(`${clip(c.name, 16)} finds another gear!`, T.accent2, true); } } }
+    stepToasts(now); direct(now, cs, pos);
+    window.__camel = { mode, raceT, slow, grab, shot: cam.shot, cpos: [cam.x, cam.z], winner: sim && sim.order[0] ? sim.order[0].name : null, fps: fpsS.fps, scale: RS };
+    if (window.__camelSkip) return;
+    if (mode === 'finished' || mode === 'podiumOnly') { if ((mode === 'podiumOnly') && !podAt) { podAt = now; burstConfetti(120); } if (fx() < .05) burstConfetti(8); drawPodiumWorld(t, dt); } else { podAt = 0; drawWorld(t, dt, cs, pos, curLeader); }
+    if (photo === 'pending') { const sz = Math.round(gv.width * .8); photoC = document.createElement('canvas'); photoC.width = photoC.height = sz; const g = photoC.getContext('2d');
+      const w = camelsShown.find(o => o.c.id === sim.order[0].id), z = Math.max(1, cam.z); let cx = gv.width / 2, cy = gv.height * .7; if (w) { cx = clamp((360 + (w.x - 360) * z) * RS, sz / 2, gv.width - sz / 2); cy = clamp((cam.fy + (w.y - cam.fy) * z + 120) * RS, sz / 2, gv.height - sz / 2); }
+      try { g.drawImage(gv, cx - sz / 2, cy - sz / 2, sz, sz, 0, 0, sz, sz); } catch (e) {} photo = 'ready'; }
+    ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.clearRect(0, 0, VW, VH);
+    drawHud(t, now, cs, pos, curLeader);
+    if (now - flashAt < 450) { ctx.save(); ctx.fillStyle = `rgba(255,255,255,${.9 * (1 - (now - flashAt) / 450)})`; ctx.fillRect(0, 0, VW, VH); ctx.restore(); }
+    drawToasts(now);
+    if (SHOWFPS) { ctx.fillStyle = '#0f0'; ctx.font = '700 18px monospace'; ctx.textAlign = 'left'; ctx.fillText(`${fpsS.fps.toFixed(0)} fps x${RS}`, 10, VH - 10); }
+    window.__c3dOK = true;
+  }
+
+  // ---------- test mode: pretend names, cartoon placeholder faces, endless races ----------
+  const FAKE = ['Neon Nina', 'Cassette Kev', 'Rubik Rita', 'Walkman Wayne', 'Synth Sue', 'Arcade Andy', 'Mixtape Mia', 'Boombox Barry', 'Leg-Warmer Liz', 'Pac-Man Pete', 'Big Hair Brenda', 'Atari Annie'];
+  const COLORS = ['#ff2bd6', '#00f0ff', '#ffe600', '#a74bff', '#39ff14', '#ff7a00', '#ff3860', '#3d7bff', '#ffffff', '#00ffa8', '#ff9cf0', '#c6ff00'];
+  let testSt = null, testChamps = {};
+  function testState(phase, extra) { testSt = Object.assign({ now: Date.now(), phase, champs: Object.entries(testChamps).map(([id, c]) => ({ id, name: c.name, wins: c.wins })).sort((a, b) => b.wins - a.wins), auto: { on: false, minutes: 3 } }, testSt && { marbles: testSt.marbles, raceId: testSt.raceId, seed: testSt.seed, startAt: testSt.startAt, openedAt: testSt.openedAt }, extra || {}); return testSt; }
+  function testLoop() {
+    const n = +(q.get('n') || 8);
+    testSt = null; applyState(testState('entries', { marbles: [], openedAt: Date.now() }), 'open');
+    let i = 0; const iv = setInterval(() => { if (i >= Math.min(n, 40)) { clearInterval(iv); setTimeout(() => applyState(testState('countdown', { raceId: 'test' + Date.now(), seed: q.get('seed') ? +q.get('seed') : (Math.random() * 4e9) >>> 0, startAt: Date.now() + 4000 }), 'start'), +(q.get('hold') || 1500)); return; }
+      const nm = FAKE[i % FAKE.length] + (i >= FAKE.length ? ' ' + (1 + Math.floor(i / FAKE.length)) : ''), m = { id: 't' + i, name: nm, color: COLORS[i % COLORS.length], avatar: null, fake: true }; i++;
+      applyState(testState('entries', { marbles: (testSt.marbles || []).concat(m) }), 'join', { marble: m });
+    }, +(q.get('joinms') || 400));
+  }
+  function testFinish(order) {
+    const w = sim.cs.find(m => m.id === order[0]); const c = testChamps[w.id] || { name: w.name, wins: 0 }; c.wins++; testChamps[w.id] = c;
+    applyState(testState('finished', { results: order.map((id, i) => ({ place: i + 1, id, name: sim.cs.find(m => m.id === id).name })) }), 'result');
+    if (q.get('loop') !== '0') setTimeout(testLoop, +(q.get('pause') || 14000));
+  }
+  window.__camelSim = simulate;
+  if (TEST) { testLoop(); requestAnimationFrame(frame); return; }
+
+  // ---------- live data (same box link + state as the marble race) ----------
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+  const getState = () => fetch(BOX + '/api/marble/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(st => applyState(st, 'init')).catch(() => {});
+  getState();
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, H_), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      getState();
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+          if (data) { try { const d = JSON.parse(data); if (d && d.type === 'marble') { if (d.ev === 'cheer') toast(`${clip(d.name || 'Someone', 18)} cheers their camel on!`, T.accent2); else applyState(d.state, d.ev, d); } } catch (e) {} }
+        }
+      }
+    } catch (e) {}
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  setInterval(() => { if (mode === 'idle' || mode === 'entries' || mode === 'over' || mode === 'podiumOnly' || mode === 'finished') getState(); }, 15000);
+  run();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body></html>
