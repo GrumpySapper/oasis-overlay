@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Oasis Radio Gifter Hall of Fame</title>
+<!-- TikTok LIVE Studio Link source 1920x1080, transparent. REAL gift totals from the welcomer (/api/halloffame).
+     ?mode=panel (default, slim panel always on) | ?mode=popup&every=15 (minutes between pop-ins) &show=40 (seconds on screen)
+     ?pos=right|left  ?n=10  ?refresh=30 (seconds)  ?unit=coins|diamonds (label only) -->
+<link href="https://fonts.googleapis.com/css2?family=Monoton&family=Orbitron:wght@500;800&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:transparent!important;overflow:hidden;width:1920px;height:1080px;font-family:Orbitron,sans-serif;color:#fff}
+#p{position:absolute;top:110px;right:40px;width:430px;padding:18px 18px 14px;border-radius:18px;background:rgba(14,0,30,.78);
+ border:3px solid #ff2bd6;box-shadow:0 0 18px #ff2bd6,0 0 40px rgba(0,240,255,.45),inset 0 0 22px rgba(255,43,214,.35);transition:transform .8s cubic-bezier(.2,1.4,.4,1),opacity .6s}
+#p.left{left:40px;right:auto}
+#p.hide{transform:translateX(560px);opacity:0}#p.left.hide{transform:translateX(-560px)}
+h1{margin:0 0 4px;font:400 38px Monoton,sans-serif;text-align:center;color:#ffe14d;text-shadow:0 0 8px #ff9a00,0 0 20px #ff2bd6;letter-spacing:2px}
+.sub{text-align:center;font-size:14px;color:#00f0ff;text-shadow:0 0 8px #00f0ff;margin-bottom:10px;letter-spacing:3px}
+.tonight{display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:12px;border-radius:12px;border:2px solid #00f0ff;box-shadow:0 0 12px #00f0ff;background:rgba(0,240,255,.08)}
+.tonight .lbl{font-size:13px;color:#00f0ff;letter-spacing:2px}
+.row{display:flex;align-items:center;gap:12px;height:52px;padding:0 6px;border-bottom:1px solid rgba(255,43,214,.25);animation:in .6s both}
+@keyframes in{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+.rk{width:38px;font:800 24px Orbitron;color:#ff2bd6;text-shadow:0 0 8px #ff2bd6;text-align:center}
+.r1 .rk{color:#ffe14d;text-shadow:0 0 10px #ff9a00}.r2 .rk{color:#e6e6ff}.r3 .rk{color:#ff9a5a}
+.av{width:42px;height:42px;border-radius:50%;flex:none;border:2px solid #00f0ff;box-shadow:0 0 8px #00f0ff;background:#2a0050 center/cover;display:flex;align-items:center;justify-content:center;font:800 18px Orbitron;color:#ffe14d}
+.nm{flex:1;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 6px #ff2bd6}
+.tt{font:800 19px Orbitron;color:#ffe14d;text-shadow:0 0 8px #ff9a00}
+.tt small{font-size:13px;color:#00f0ff}
+#list{height:530px;overflow:hidden}
+.ft{text-align:center;font-size:12px;color:#b98cff;margin-top:8px;letter-spacing:2px}
+.empty{text-align:center;padding:30px 0;color:#00f0ff;font-size:18px}
+</style></head><body>
+<div id="p" class="hide"><h1>Hall of Fame</h1><div class="sub" id="sub">OASIS RADIO · TOP GIFTERS</div>
+<div class="tonight" id="tn"></div><div id="list"></div><div class="ft" id="ft"></div></div>
+<script>
+const q=new URLSearchParams(location.search),MODE=q.get('mode')==='popup'?'popup':'panel',EVERY=Math.max(1,+q.get('every')||15),SHOW=Math.max(10,+q.get('show')||40),
+N=Math.min(20,Math.max(3,+q.get('n')||10)),REF=Math.max(10,+q.get('refresh')||30),UNIT=q.get('unit')==='diamonds'?'💎':'🪙';
+const BOX='https://approach-grandkid-sermon.ngrok-free.dev',H_={'ngrok-skip-browser-warning':'1'};
+const P=document.getElementById('p');if(q.get('pos')==='left')P.classList.add('left');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n>=1e4?(n/1e3).toFixed(n>=1e5?0:1)+'k':n.toLocaleString('en-GB');
+const av=u=>{const i=esc((u.name||'?').replace(/^@/,'')[0]||'?').toUpperCase();return u.avatar?`<div class="av" style="background-image:url('${BOX}/api/marble/avatar?u=${encodeURIComponent(u.avatar)}')"></div>`:`<div class="av">${i}</div>`};
+let data=null,view=0;const VIEWS=[['allTime','ALL-TIME'],['week','THIS WEEK']];
+function render(){if(!data)return;const [k,l]=VIEWS[view],a=data[k]||[];
+ document.getElementById('sub').textContent='OASIS RADIO · TOP GIFTERS · '+l;
+ const t=(data.show||[])[0];
+ document.getElementById('tn').innerHTML=t?`${av(t)}<div style="flex:1;min-width:0"><div class="lbl">⭐ TOP GIFTER TONIGHT</div><div class="nm">${esc(t.name)}</div></div><div class="tt">${fmt(t.total)} <small>${UNIT}</small></div>`:`<div style="flex:1"><div class="lbl">⭐ TOP GIFTER TONIGHT</div><div class="nm">Could it be you? 🎁</div></div>`;
+ document.getElementById('list').innerHTML=a.length?a.slice(0,N).map((u,i)=>`<div class="row r${i+1}" style="animation-delay:${i*.08}s"><div class="rk">${i+1}</div>${av(u)}<div class="nm">${esc(u.name)}</div><div class="tt">${fmt(u.total)} <small>${UNIT}</small></div></div>`).join(''):'<div class="empty">No gifts logged yet</div>';
+ document.getElementById('ft').textContent='REAL TOTALS · THANK YOU ALL ❤';}
+async function load(){try{const r=await fetch(BOX+'/api/halloffame?n='+N,{headers:H_,cache:'no-store'});const j=await r.json();if(j&&j.ok){data=j;render();}}catch(e){}}
+load();setInterval(load,REF*1000);
+setInterval(()=>{view=(view+1)%VIEWS.length;render();},20000);
+if(MODE==='panel')P.classList.remove('hide');
+else{const pop=()=>{P.classList.remove('hide');setTimeout(()=>P.classList.add('hide'),SHOW*1000)};setTimeout(pop,3000);setInterval(pop,EVERY*60000);}
+</script></body></html>
