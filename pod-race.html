@@ -136,34 +136,60 @@ await (async () => {
   // original hover pod: single sleek anti-grav hull, glass canopy, one rear plasma thruster, rider-colour livery
   const shade = (hex, k) => { let h = String(hex || '#ff3d8b').replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h, 16); let r = n >> 16 & 255, g2 = n >> 8 & 255, b = n & 255; const f = v => Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k); return `rgb(${f(r)},${f(g2)},${f(b)})`; };
   function drawCamel(g, c, x, y, s, frame, vel = 0) {
-    const L = 250 * s, H = 64 * s, t = performance.now() / 1000, v = vr(c), bob = Math.sin(t * 3.1 + v.ph) * 4 * s, hy = y - 46 * s + bob; // hover height
-    const col = c.color || '#ff3d8b', nose = x + L * .45, tail = x - L * .55;
-    // ground shadow + hover glow on the sand
-    g.save(); g.globalAlpha = .32; g.fillStyle = '#2a1608'; g.beginPath(); g.ellipse(x - L * .05, y, L * .42, H * .16, 0, 0, 7); g.fill();
-    g.globalAlpha = .25; const hg = g.createRadialGradient(x, y, 0, x, y, L * .4); hg.addColorStop(0, '#9fe8ff'); hg.addColorStop(1, 'rgba(159,232,255,0)'); g.fillStyle = hg; g.beginPath(); g.ellipse(x, y, L * .4, H * .2, 0, 0, 7); g.fill(); g.restore();
-    // thruster plume (length follows speed)
+    // original twin-engine racer: two long turbine nacelles out front, energy-binder beams, small trailing cockpit
+    s *= 1.35; const t = performance.now() / 1000, v = vr(c), col = c.color || '#ff3d8b', bob = Math.sin(t * 3.1 + v.ph) * 4 * s, hy = y - 50 * s + bob;
+    const EL = 112 * s, ER = 13 * s, gap = 15 * s, ex = x + 50 * s, ckx = x - 85 * s, cky = hy + 8 * s;
     const pw = clamp(vel / 158, .15, 1.6), fl = (.75 + .25 * Math.sin(t * 40 + v.ph)) * pw;
+    g.save(); g.globalAlpha = .3; g.fillStyle = '#2a1608'; g.beginPath(); g.ellipse(x, y, 140 * s, 9 * s, 0, 0, 7); g.fill(); g.restore();
+    const engY = [hy - gap - Math.sin(t * 7 + v.ph) * 2 * s, hy + gap + Math.sin(t * 6.3 + v.ph) * 2 * s];
+    // exhaust plumes
     g.save(); g.globalCompositeOperation = 'lighter';
-    for (const [len, w, a, cc] of [[L * .9, H * .42, .35, '#ff7a1a'], [L * .55, H * .26, .7, '#ffd07a'], [L * .3, H * .13, .95, '#ffffff']]) { const gr = g.createLinearGradient(tail, 0, tail - len * fl, 0); gr.addColorStop(0, cc); gr.addColorStop(1, 'rgba(255,120,30,0)'); g.globalAlpha = a; g.fillStyle = gr; g.beginPath(); g.moveTo(tail + 4 * s, hy - w / 2); g.quadraticCurveTo(tail - len * fl * .5, hy - w * .2, tail - len * fl, hy); g.quadraticCurveTo(tail - len * fl * .5, hy + w * .2, tail + 4 * s, hy + w / 2); g.fill(); }
+    for (const ey of engY) { const tx = ex - EL / 2; for (const [len, w, a, cc] of [[150 * s, ER * 2.2, .35, '#ff5a1a'], [90 * s, ER * 1.3, .7, '#ffcf6a'], [45 * s, ER * .6, .95, '#ffffff']]) { const L2 = len * fl; const gr = g.createLinearGradient(tx, 0, tx - L2, 0); gr.addColorStop(0, cc); gr.addColorStop(1, 'rgba(255,100,30,0)'); g.globalAlpha = a; g.fillStyle = gr; g.beginPath(); g.moveTo(tx, ey - w / 2); g.quadraticCurveTo(tx - L2 * .5, ey - w * .15, tx - L2, ey); g.quadraticCurveTo(tx - L2 * .5, ey + w * .15, tx, ey + w / 2); g.fill(); } }
     g.restore();
-    // hull
-    const hull = () => { g.beginPath(); g.moveTo(nose, hy + H * .05); g.bezierCurveTo(x + L * .25, hy - H * .55, x - L * .35, hy - H * .6, tail, hy - H * .32); g.lineTo(tail - 6 * s, hy + H * .3); g.bezierCurveTo(x - L * .3, hy + H * .55, x + L * .25, hy + H * .45, nose, hy + H * .05); g.closePath(); };
-    const mg = g.createLinearGradient(0, hy - H * .6, 0, hy + H * .5); mg.addColorStop(0, '#f4f6fa'); mg.addColorStop(.35, '#9aa3b0'); mg.addColorStop(.6, '#4a5260'); mg.addColorStop(1, '#15181e');
-    g.fillStyle = mg; hull(); g.fill();
-    // livery stripe in rider colour
-    g.save(); hull(); g.clip(); const lg = g.createLinearGradient(0, hy - H * .1, 0, hy + H * .25); lg.addColorStop(0, shade(col, .25)); lg.addColorStop(1, shade(col, -.45)); g.fillStyle = lg; g.beginPath(); g.moveTo(nose, hy + H * .02); g.lineTo(tail, hy - H * .05); g.lineTo(tail, hy + H * .16); g.lineTo(nose, hy + H * .12); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(tail, hy - H * .42, L, H * .05); g.restore();
-    // canopy glass
-    const cx0 = x + L * .02, cg = g.createLinearGradient(0, hy - H * .7, 0, hy - H * .15); cg.addColorStop(0, '#d8f4ff'); cg.addColorStop(.4, '#3a6a88'); cg.addColorStop(1, '#0a1824');
-    g.fillStyle = cg; g.beginPath(); g.moveTo(cx0 + L * .2, hy - H * .25); g.bezierCurveTo(cx0 + L * .1, hy - H * .78, cx0 - L * .18, hy - H * .78, cx0 - L * .24, hy - H * .4); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1.5 * s; g.stroke();
-    // tail fin + engine ring
-    g.fillStyle = shade(col, -.2); g.beginPath(); g.moveTo(tail + L * .12, hy - H * .38); g.lineTo(tail - L * .02, hy - H * .95); g.lineTo(tail + L * .02, hy - H * .95); g.lineTo(tail + L * .26, hy - H * .42); g.fill();
-    g.fillStyle = '#20242c'; g.beginPath(); g.ellipse(tail, hy, 7 * s, H * .3, 0, 0, 7); g.fill(); g.fillStyle = '#ffb347'; g.beginPath(); g.ellipse(tail - 2 * s, hy, 4 * s, H * .2, 0, 0, 7); g.fill();
-    // hover emitters under the hull
-    g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(140,230,255,.8)'; for (const k of [-.3, 0, .28]) { g.beginPath(); g.ellipse(x + L * k, hy + H * .42, 10 * s, 3 * s, 0, 0, 7); g.fill(); } g.restore();
-    return { x: x - L * .05, y: hy - H * .95, w: L, h: H };
+    // tether cables to cockpit
+    g.strokeStyle = 'rgba(30,30,36,.9)'; g.lineWidth = 2 * s; for (const ey of engY) { g.beginPath(); g.moveTo(ex - EL * .45, ey); g.quadraticCurveTo((ex + ckx) / 2 - 20 * s, (ey + cky) / 2 + 10 * s, ckx + 18 * s, cky); g.stroke(); }
+    // engines
+    for (const ey of engY) {
+      const mg = g.createLinearGradient(0, ey - ER, 0, ey + ER); mg.addColorStop(0, '#f2f2f0'); mg.addColorStop(.4, '#a9adb4'); mg.addColorStop(.75, '#4b4f58'); mg.addColorStop(1, '#16181d');
+      g.fillStyle = mg; g.beginPath(); g.moveTo(ex + EL / 2 + 16 * s, ey); g.quadraticCurveTo(ex + EL / 2, ey - ER * 1.1, ex + EL / 2 - 14 * s, ey - ER); g.lineTo(ex - EL / 2 + 6 * s, ey - ER * .8); g.lineTo(ex - EL / 2, ey - ER * .55); g.lineTo(ex - EL / 2, ey + ER * .55); g.lineTo(ex - EL / 2 + 6 * s, ey + ER * .8); g.lineTo(ex + EL / 2 - 14 * s, ey + ER); g.quadraticCurveTo(ex + EL / 2, ey + ER * 1.1, ex + EL / 2 + 16 * s, ey); g.fill();
+      g.fillStyle = shade(col, -.1); g.fillRect(ex - EL * .1, ey - ER * .95, EL * .28, ER * 1.9); // livery band
+      g.fillStyle = '#20242c'; g.beginPath(); g.ellipse(ex + EL / 2 + 2 * s, ey, 4 * s, ER * .7, 0, 0, 7); g.fill(); // intake
+      g.fillStyle = '#ffb347'; g.beginPath(); g.ellipse(ex - EL / 2, ey, 3 * s, ER * .5, 0, 0, 7); g.fill();
+      g.fillStyle = shade(col, -.35); g.beginPath(); g.moveTo(ex - EL * .3, ey - ER * .8); g.lineTo(ex - EL * .46, ey - ER * 2.1); g.lineTo(ex - EL * .38, ey - ER * 2.1); g.lineTo(ex - EL * .12, ey - ER * .8); g.fill(); // fin
+    }
+    // energy binder between engines (crackling)
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (const [k, w, a] of [[0, 6, .35], [0, 2.2, .95]]) { g.strokeStyle = a > .5 ? '#ffe6ff' : '#ff4fd8'; g.globalAlpha = a; g.lineWidth = w * s; g.beginPath(); const bx = ex + EL * .15; g.moveTo(bx, engY[0] + ER * .6); for (let i = 1; i < 6; i++) { const yy = lerp(engY[0] + ER * .6, engY[1] - ER * .6, i / 6); g.lineTo(bx + (Math.sin(t * 50 + i * 7 + v.ph) * 3) * s, yy); } g.lineTo(bx, engY[1] - ER * .6); g.stroke(); }
+    // binder glow along the cables
+    g.globalAlpha = .5 + .3 * Math.sin(t * 20); g.strokeStyle = '#7fe8ff'; g.lineWidth = 1.2 * s; for (const ey of engY) { g.beginPath(); g.moveTo(ex - EL * .45, ey); g.quadraticCurveTo((ex + ckx) / 2 - 20 * s, (ey + cky) / 2 + 10 * s, ckx + 18 * s, cky); g.stroke(); }
+    g.restore();
+    // cockpit tub
+    const cg = g.createLinearGradient(0, cky - 16 * s, 0, cky + 14 * s); cg.addColorStop(0, shade(col, .35)); cg.addColorStop(.6, col); cg.addColorStop(1, shade(col, -.55));
+    g.fillStyle = cg; g.beginPath(); g.moveTo(ckx + 26 * s, cky + 2 * s); g.quadraticCurveTo(ckx + 18 * s, cky - 15 * s, ckx - 8 * s, cky - 14 * s); g.lineTo(ckx - 30 * s, cky - 6 * s); g.lineTo(ckx - 32 * s, cky + 10 * s); g.quadraticCurveTo(ckx, cky + 16 * s, ckx + 26 * s, cky + 2 * s); g.fill();
+    g.fillStyle = 'rgba(180,230,255,.85)'; g.beginPath(); g.ellipse(ckx + 2 * s, cky - 12 * s, 10 * s, 6 * s, 0, Math.PI, 0); g.fill();
+    g.fillStyle = 'rgba(140,230,255,.8)'; g.beginPath(); g.ellipse(ckx - 4 * s, cky + 15 * s, 14 * s, 3 * s, 0, 0, 7); g.fill();
+    return { x: ckx + 20 * s, y: hy - ER * 2.4, w: 250 * s, h: 64 * s };
   }
+  // ---- sci-fi desert dressing (all original) ----
+  function drawSky(g) { // twin suns + towering sandstone arches over the far plate
+    const t = performance.now() / 1000; g.save(); g.globalCompositeOperation = 'lighter';
+    g.globalCompositeOperation = 'source-over'; for (const [X, Y, R, c] of [[150, 300, 34, '255,246,215'], [235, 345, 22, '255,200,140']]) { g.fillStyle = `rgba(${c},.35)`; g.beginPath(); g.arc(X, Y, R * 2.2, 0, 7); g.fill(); g.fillStyle = `rgb(${c})`; g.beginPath(); g.arc(X, Y, R, 0, 7); g.fill(); const gr = g.createRadialGradient(X, Y, 0, X, Y, R * 5); gr.addColorStop(0, `rgba(${c},1)`); gr.addColorStop(.18, `rgba(${c},.9)`); gr.addColorStop(.22, `rgba(${c},.35)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(X - R * 5, Y - R * 5, R * 10, R * 10); }
+    g.restore();
+    const off = ((cam.x * PPM * .3) % 1400 + 1400) % 1400;
+    for (let k = -1; k <= 1; k++) { const b = -off + k * 1400; arch(g, b + 80, 640, 260, 430, '#b0623a', '#7a3d22'); arch(g, b + 720, 650, 200, 330, '#c27448', '#83462a'); mesa(g, b + 470, 655, 160, 250); mesa(g, b + 1120, 655, 220, 300); }
+    // heat shimmer streaks
+    g.save(); g.globalAlpha = .12; g.fillStyle = '#fff2d8'; for (let i = 0; i < 6; i++) { const yy = 600 + i * 16 + Math.sin(t * 3 + i) * 3; g.fillRect(0, yy, VW, 2); } g.restore();
+  }
+  function arch(g, x, base, w, h, c1, c2) { const gr = g.createLinearGradient(x, 0, x + w, 0); gr.addColorStop(0, c1); gr.addColorStop(1, c2); g.fillStyle = gr; g.beginPath(); g.moveTo(x, base); g.lineTo(x + w * .05, base - h * .7); g.quadraticCurveTo(x + w * .1, base - h, x + w * .5, base - h * 1.02); g.quadraticCurveTo(x + w * .92, base - h, x + w * .95, base - h * .7); g.lineTo(x + w, base); g.lineTo(x + w * .78, base); g.quadraticCurveTo(x + w * .74, base - h * .72, x + w * .5, base - h * .74); g.quadraticCurveTo(x + w * .26, base - h * .72, x + w * .22, base); g.closePath(); g.fill(); g.fillStyle = 'rgba(60,20,10,.25)'; for (let i = 1; i < 5; i++) g.fillRect(x + w * .05, base - h * i / 5, w * .9, 2); }
+  function mesa(g, x, base, w, h) { const gr = g.createLinearGradient(x, 0, x + w, 0); gr.addColorStop(0, '#c98656'); gr.addColorStop(1, '#8a4b2c'); g.fillStyle = gr; g.beginPath(); g.moveTo(x, base); g.lineTo(x + w * .12, base - h); g.lineTo(x + w * .85, base - h * .96); g.lineTo(x + w, base); g.fill(); }
+  function drawGrandstand(g) { // start-grid grandstand with crowd + banners, scrolls with the track near the start
+    const X0 = sx(-2, LANE_TOP - 70); if (X0 < -900 || X0 > VW + 300) return; const top = 520, bot = 700, t = performance.now() / 1000;
+    g.fillStyle = '#5a3620'; g.beginPath(); g.moveTo(X0 - 700, bot); g.lineTo(X0 - 680, top); g.lineTo(X0 + 140, top + 20); g.lineTo(X0 + 180, bot); g.fill();
+    const r = mulberry(99); for (let row = 0; row < 6; row++) for (let i = 0; i < 70; i++) { const px = X0 - 670 + i * 12 + (row % 2) * 6, py = top + 30 + row * 26 + Math.sin(t * 6 + i * 1.7 + row) * (r() > .7 ? 3 : 0); g.fillStyle = ['#2a1a14', '#3b2418', '#1d1210'][Math.floor(r() * 3)]; g.beginPath(); g.arc(px, py - 9, 4.5, 0, 7); g.fill(); g.fillRect(px - 5, py - 5, 10, 12); }
+    for (let i = 0; i < 5; i++) { const px = X0 - 640 + i * 170; g.fillStyle = '#ccc'; g.fillRect(px, top - 70, 3, 70); g.fillStyle = ['#ff3d8b', '#00c8ff', '#ffc83d', '#39ff14', '#ff7a00'][i]; g.beginPath(); g.moveTo(px + 3, top - 70); g.lineTo(px + 40 + Math.sin(t * 4 + i) * 4, top - 60); g.lineTo(px + 3, top - 48); g.fill(); }
+  }
+  function drawSpeedLines(g, vel) { if (vel < 60) return; const t = performance.now() / 1000, a = clamp((vel - 60) / 150, 0, .5); g.save(); g.strokeStyle = `rgba(255,240,210,${a})`; g.lineWidth = 2; const r = mulberry(Math.floor(t * 12)); for (let i = 0; i < 26; i++) { const y = 300 + r() * 950, x = r() * VW, L = 80 + r() * 220; g.beginPath(); g.moveTo(x, y); g.lineTo(x - L, y); g.stroke(); } g.restore(); }
+  function startLights(ms) { const lit = ms > 3000 ? 0 : 4 - Math.ceil(ms / 1000); glass(190, 470, 340, 90, 24); for (let i = 0; i < 3; i++) { const on = i < lit; ctx.save(); ctx.fillStyle = on ? '#ff2a2a' : '#3a0d0d'; if (on) { ctx.shadowColor = '#ff2a2a'; ctx.shadowBlur = 30; } ctx.beginPath(); ctx.arc(260 + i * 100, 515, 30, 0, 7); ctx.fill(); ctx.restore(); } }
   // dust + confetti (2D)
   const puffTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(222,190,145,.75)'); gr.addColorStop(1, 'rgba(222,190,145,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return c; })();
   let dust = [], confetti = [];
@@ -197,6 +223,7 @@ await (async () => {
     const fw = FAR.width, nw = NEAR.width;
     const offF = ((cam.x * PPM * .18) % fw + fw) % fw, offN = ((cam.x * PPM * .82) % nw + nw) % nw;
     for (let k = -1; k <= 1; k++) g.drawImage(FAR, -offF + k * fw, FAR_Y);
+    drawSky(g); drawGrandstand(g);
     for (let k = -1; k <= 1; k++) g.drawImage(NEAR, -offN + k * nw, NEAR_Y, nw, NEAR.height + 2);
     // heat haze band over the horizon
     const hz = g.createLinearGradient(0, NEAR_Y - 90, 0, NEAR_Y + 40); hz.addColorStop(0, 'rgba(255,214,160,0)'); hz.addColorStop(.6, 'rgba(255,214,160,.22)'); hz.addColorStop(1, 'rgba(255,214,160,0)'); g.fillStyle = hz; g.fillRect(-400, NEAR_Y - 90, VW + 800, 130);
@@ -223,6 +250,7 @@ await (async () => {
       const hd = drawCamel(g, c, x, yy, sc, fr, vel); camelsShown.push({ c, i, x: hd.x, y: hd.y, s: sc, lead: c === curLeader });
       if (live && vel > 40 && fx() < (LOWQ ? .4 : .9) * dt * 60) puff(X - 1.4 * v.s, y, sc);
     }
+    if (live && mode === 'racing') drawSpeedLines(g, cam.shot === 'leader' ? 200 : 110);
     camelsShown.sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0));
     // dust
     for (const p of dust) { p.life += dt; p.X += p.vx * dt * .3; p.y += p.vy * dt; p.vy *= .96; } dust = dust.filter(p => p.life < p.L);
@@ -345,7 +373,7 @@ await (async () => {
       if (!n) champsPanel(400); return;
     }
     if (mode === 'countdown') { drawLabels(cs, pos, null, now); const ms = startAtLocal - Date.now(), s = Math.ceil(ms / 1000), frac = (ms % 1000) / 1000;
-      if (s >= 1 && s <= 3) txt(String(s), 360, 420, Math.round(190 + 90 * frac), '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 10 }); else if (s > 3) txt('GET READY!', 360, 420, 72, '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 8 }); return; }
+      startLights(ms); if (s >= 1 && s <= 3) txt(String(s), 360, 380, Math.round(190 + 90 * frac), '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 10 }); else if (s > 3) txt('ENGINES READY!', 360, 400, 72, '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 8 }); return; }
     if (mode === 'inprogress' || mode === 'over') { glass(90, 300, 540, 150, 28); txt(mode === 'over' ? 'Race over!' : 'Race in progress…', 360, 352, 40, '#fff'); txt('Results coming up!', 360, 404, 28, T.accent3, { w: 800 }); return; }
     if (mode === 'finished' || mode === 'podiumOnly') { drawPodiumHud(t, now); return; }
     if (!sim) return;
@@ -367,6 +395,7 @@ await (async () => {
     glass(16, 168, 230, 40, 20); ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(38, 188, 6 + Math.sin(t * 6) * 1, 0, 7); ctx.fill();
     txt(`${Math.min(raceT, 99).toFixed(1)}s`, 80, 189, 20, '#fff', { w: 800, shadow: false }); txt(SHOT_NAME[cam.shot] || '', 178, 189, 14, 'rgba(255,255,255,.85)', { w: 800, shadow: false });
     if (slow < .7 && mode === 'racing') txt('PHOTO FINISH?!', 360, 470, Math.round(56 + Math.sin(t * 10) * 3), '#fff', { grad: ['#ffffff', '#ffc83d'], stroke: 7 });
+    if (mode === 'racing' && raceT < 1.6) { ctx.save(); ctx.fillStyle='#3ddc84'; ctx.shadowColor='#3ddc84'; ctx.shadowBlur=30; for (let i=0;i<3;i++){ctx.beginPath();ctx.arc(260+i*100,560,30,0,7);ctx.fill();} ctx.restore(); }
     if (mode === 'racing' && raceT < 1.6) txt('GO!', 360, 440, Math.round(210 - raceT * 30), '#fff', { grad: ['#ffffff', '#3ddc84'], stroke: 10 });
     if (mode === 'photo') drawPhoto(now);
   }
