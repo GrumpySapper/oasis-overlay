@@ -127,7 +127,7 @@ await (async () => {
   function laneY(i, N) { return N <= 1 ? (LANE_TOP + LANE_BOT) / 2 : LANE_TOP + (LANE_BOT - LANE_TOP) * (i / (N - 1)); }
   function depthS(y) { return lerp(S_FAR, S_NEAR, (y - 700) / (LANE_BOT - 700)); }
   const cam = { x: 0, z: 1, f: 1, lz: 0, shot: 'lineup', t0: 0, next: 0, seq: 0, force: true, fx: 360, fy: 900 };
-  const SHOT_NAME = { lineup: 'STARTING GRID', countdown: 'START CAM', wide: 'TRACKSIDE', leader: 'LEADER CAM', pack: 'PACK CAM', finish: 'FINISH LINE', photo: 'PHOTO FINISH', podium: 'WINNERS' };
+  const SHOT_NAME = { lineup: 'STARTING GRID', countdown: 'START CAM', wide: 'PACK ZOOM', leader: 'LEADER CAM', pack: 'PACK CAM', finish: 'FINISH LINE', photo: 'PHOTO FINISH', podium: 'WINNERS' };
   // screen position of a world x at depth y (before the camera zoom)
   const sx = (X, y) => 360 + (X - cam.x) * PPM * depthS(y) * cam.f;
   // field-size fit: shrink sprites for big fields so every lane stays readable
@@ -201,21 +201,42 @@ await (async () => {
     let L = 0, sum = 0, n = 0; for (const c of cs) { const x = pos.get(c.id) * K; L = Math.max(L, x); sum += x; n++; } const P = n ? sum / n : 0;
     const set = s => { if (cam.shot !== s || cam.force) { cam.shot = s; cam.t0 = now; cam.force = false; } };
     if (mode === 'entries' || mode === 'idle' || mode === 'countdown') set(mode === 'countdown' ? 'countdown' : 'lineup');
-    else if (mode === 'racing') { const lx = L / K; if (lx > D - 330) set('photo'); else if (lx > D - 1100) set('finish');
-      else if (cam.shot === 'leader' && now - cam.t0 > 2600) { set('wide'); cam.next = now + (8 + dir() * 4) * 1000; }
-      else if (cam.shot !== 'leader' && cam.shot !== 'wide') { set('wide'); cam.next = now + (8 + dir() * 4) * 1000; }
-      else if (cam.shot === 'wide' && now >= cam.next) set('leader'); }
+    else if (mode === 'racing') {
+      const lx = L / K, held = now - cam.t0;
+      if (lx > D - 330) set('photo');
+      else if (lx > D - 1100) set('finish');
+      else if (cam.shot === 'wide' && held > 3000) { set('pack'); cam.next = now + (10000 + dir() * 2000); cam.leadAt = now + (6000 + dir() * 3000); }
+      else if (cam.shot === 'leader' && held > 2200) set('pack');
+      else if (cam.shot === 'pack' && now >= (cam.next || 0)) set('wide'); // ~3s pack zoom-out every ~10-12s
+      else if (cam.shot === 'pack' && now >= (cam.leadAt || 0)) { set('leader'); cam.leadAt = now + (7000 + dir() * 4000); }
+      else if (cam.shot !== 'pack' && cam.shot !== 'wide' && cam.shot !== 'leader') { set('pack'); cam.next = now + 11000; cam.leadAt = now + 7000; }
+    }
     else if (mode === 'photo') set('photo'); else set('podium');
     let mn = 1e9; for (const c of cs) mn = Math.min(mn, pos.get(c.id) * K); if (!n) mn = 0;
     // fit-all: centre on the field and shrink horizontal spacing so first..last all fit (~540px usable)
     const span = Math.max(.01, L - mn), fitF = Math.min(1, 540 / (span * PPM * S_NEAR)), mid = (L + mn) / 2 + .35;
+    // pack bias: sit between field mid and the leader so the pack stays framed while chasing
+    const packX = mid * .35 + L * .65;
     const u = (now - cam.t0) / 1000; let tx = P, tz = 1, tf = fitF;
-    switch (cam.shot) { case 'lineup': tx = 1.5; tz = 1; break; case 'countdown': tx = 1.5; tz = 1 + Math.min(u, 4) * .04; break;
-      case 'wide': case 'pack': tx = mid; tz = 1; break; case 'leader': tx = L; tz = 1.8; tf = cam.f; break;
-      case 'finish': tx = mid; tz = 1; break; case 'photo': tx = Math.min(L - .5, FINX - .6); tz = 1.25; break; case 'podium': tx = cam.x; tz = 1; break; }
+    switch (cam.shot) {
+      case 'lineup': tx = 1.5; tz = 1; tf = 1; break;
+      case 'countdown': tx = 1.5; tz = 1 + Math.min(u, 4) * .04; tf = 1; break;
+      case 'wide': tx = mid; tz = 1; tf = fitF; break; // zoom-out: whole field in frame
+      case 'pack': tx = packX; tz = 1.45; tf = Math.min(1, Math.max(fitF, .72)); break; // continuous follow
+      case 'leader': tx = L; tz = 1.9; tf = Math.min(1, Math.max(fitF * 1.05, .85)); break; // brief leader zoom
+      case 'finish': tx = mid; tz = 1.15; tf = fitF; break;
+      case 'photo': tx = Math.min(L - .5, FINX - .6); tz = 1.25; tf = fitF; break;
+      case 'podium': tx = cam.x; tz = 1; break;
+    }
     const snap = u < .05 && (cam.shot === 'lineup' || cam.shot === 'photo' || cam.shot === 'finish');
-    const k = snap ? 1 : Math.min(1, .06 * 60 / 60 * 3); cam.x += (tx - cam.x) * (cam.shot === 'leader' || cam.shot === 'wide' ? .08 : k); cam.z += (tz - cam.z) * (cam.shot === 'leader' ? .07 : .05); cam.f += (tf - cam.f) * .08; if (snap) cam.f = tf;
-    const ly = cam.shot === 'leader' && camelsShown.length ? camelsShown[0].y + 60 : 960; cam.fy += ((cam.shot === 'leader' ? ly - 60 : 960) - cam.fy) * .05;
+    // smooth glides: follow shots track tightly, zoom-out eases in/out
+    const xk = cam.shot === 'pack' || cam.shot === 'leader' ? .12 : (cam.shot === 'wide' ? .07 : Math.min(1, .18));
+    const zk = cam.shot === 'leader' ? .09 : (cam.shot === 'pack' ? .07 : .05);
+    if (snap) { cam.x = tx; cam.z = tz; cam.f = tf; }
+    else { cam.x += (tx - cam.x) * xk; cam.z += (tz - cam.z) * zk; cam.f += (tf - cam.f) * .08; }
+    const ly = (cam.shot === 'leader' || cam.shot === 'pack') && camelsShown.length ? camelsShown[0].y + 40 : 960;
+    const ty = cam.shot === 'leader' ? ly - 40 : (cam.shot === 'pack' ? ly - 20 : 960);
+    cam.fy += (ty - cam.fy) * .06;
   }
   function drawWorld(t, dt, cs, pos, curLeader) {
     const g = wctx; g.setTransform(RS, 0, 0, RS, 0, 0);

@@ -6,7 +6,7 @@
      Same entries/races/champs as the camel race + hover race; Grumpy runs it from camel-control.html (pick "Marble Run" as tonight's game).
      When another game is picked there, this page hides itself (transparent) and never runs or reports a race.
      Physics: Rapier 3D (deterministic, fixed 60 Hz) on a big downhill track: bends, zig-zag, jump, spiral helix, drop, split, sweeper, rollers.
-     Camera: crane at the start, chase cam on the leading pack, slow-mo jump, inside-the-spiral shot, occasional wide shots, finish line, podium.
+     Camera: crane at the start, continuous chase on the leading pack, brief pack zoom-outs every ~11s (~3s), slow-mo jump, spiral shot, finish line, podium.
      ?test=1&n=8  pretend names (no server).   ?theme=halloween   ?quality=low   ?fps=1 -->
 <style>
 html,body{margin:0;height:100%;background:transparent;overflow:hidden}
@@ -469,13 +469,15 @@ await fontWait;
   });
 
   // =====================================================================
-  //   CAMERA DIRECTOR: smooth chase cam + cutaways (start crane, jump slow-mo, helix overhead, finish line, podium)
+  //   CAMERA DIRECTOR: continuous chase on leader+pack, pack zoom-outs every ~11s (~3s), jump/helix/finish cutaways
   // =====================================================================
-  const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), s: 0, shot: '', shotT: 0, jumpDone: false, helixDone: false, firstFin: 0, fov: 60, yaw: 0, init: false, shake: 0 };
+  const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), s: 0, shot: '', shotT: 0, jumpDone: false, helixDone: false, firstFin: 0, fov: 60, yaw: 0, init: false, shake: 0, nextZoom: 0 };
   let timeScale = 1; const _f1 = trackFrame(0), _f2 = trackFrame(0), _tp = new THREE.Vector3(), _tl = new THREE.Vector3(), UPW = new THREE.Vector3(0, 1, 0), _up = new THREE.Vector3();
   const HELIX = featS('helix');
-  function resetDirector() { cam.jumpDone = cam.helixDone = false; cam.firstFin = 0; cam.shot = ''; }
-  function packPos(l, out) { out.set(0, 0, 0); let w = 0; for (const m of race.marbles) { if (m.finished || l.s - m.s > 6 || m.s > l.s + .1) continue; const k = m === l ? 3 : 1; out.x += m.pos.x * k; out.y += m.pos.y * k; out.z += m.pos.z * k; w += k; } return out.multiplyScalar(1 / Math.max(1, w)); }
+  function resetDirector() { cam.jumpDone = cam.helixDone = false; cam.firstFin = 0; cam.shot = ''; cam.nextZoom = 0; }
+  // weighted pack centre (leader heavier); span = how far behind the leader still counts
+  function packPos(l, out, span = 6) { out.set(0, 0, 0); let w = 0; for (const m of race.marbles) { if (m.finished || l.s - m.s > span || m.s > l.s + .1) continue; const k = m === l ? 3 : 1; out.x += m.pos.x * k; out.y += m.pos.y * k; out.z += m.pos.z * k; w += k; } return out.multiplyScalar(1 / Math.max(1, w)); }
+  function fieldPos(out) { out.set(0, 0, 0); let w = 0; for (const m of race.marbles) { if (m.finished) continue; out.x += m.pos.x; out.y += m.pos.y; out.z += m.pos.z; w++; } return out.multiplyScalar(1 / Math.max(1, w)); }
   function placeCamera(dt, now) {
     let shot = 'orbit', fov = 60, k = 1 - Math.exp(-dt / 200), roll = 0; timeScale = 1;
     const l = race && mode === 'racing' ? race.leader() : null;
@@ -486,34 +488,43 @@ await fontWait;
     else if (mode === 'countdown') shot = 'crane';
     else if (mode === 'racing') {
       const t = race.t, sinceShot = now - cam.shotT;
-      if (cam.shot === 'jump' && sinceShot < 2900) shot = 'jump';
-      else if (cam.shot === 'helix' && sinceShot < 3400) shot = 'helix';
-      else if (t < 3000) shot = 'start';
+      if (!cam.nextZoom) cam.nextZoom = now + 11000;
+      // hold special shots for their full duration, then fall back to chase
+      if (cam.shot === 'jump' && sinceShot < 2500) shot = 'jump';
+      else if (cam.shot === 'helix' && sinceShot < 2800) shot = 'helix';
+      else if (cam.shot === 'zoom' && sinceShot < 3000) shot = 'zoom'; // pack zoom-out (~3s)
+      else if (t < 1600) shot = 'start';
       else if (l && !cam.jumpDone && l.s > kickS - 10 && l.s < kickS) { shot = 'jump'; cam.jumpDone = true; }
       else if (l && !cam.helixDone && l.s > HELIX.s0 + 40 && l.s < HELIX.s1 - 30) { shot = 'helix'; cam.helixDone = true; }
-      else if (cam.shot === 'wide' && sinceShot < 2600) shot = 'wide';
-      else if (l && cam.shot === 'chase' && sinceShot > 9000 && l.s < TR.finishS - 25) shot = 'wide';
       else if ((cam.firstFin && now - cam.firstFin < 3200) || (l && l.s > TR.finishS - 12)) shot = 'finish';
+      else if (l && now >= cam.nextZoom && l.s < TR.finishS - 30) { shot = 'zoom'; cam.nextZoom = now + 11000 + Math.random() * 2000; }
       else shot = 'chase';
     }
-    const cut = shot !== cam.shot; if (cut) { cam.shot = shot; cam.shotT = now; if (shot === 'wide') cam.wideSide = -(cam.wideSide || 1); if (shot === 'chase' && l) cam.s = l.s - 1.5; }
+    const cut = shot !== cam.shot; if (cut) { cam.shot = shot; cam.shotT = now; if ((shot === 'chase' || shot === 'zoom') && l) cam.s = l.s - 1.2; }
     const st = now - cam.shotT;
     if (shot === 'orbit') { const a = now / 1000 * .05; _tl.copy(CENTER); _tl.y = (GROUND + maxY) / 2 - 8; _tp.set(CENTER.x + Math.cos(a) * 95, maxY + 30, CENTER.z + Math.sin(a) * 95); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 600); }
     else if (shot === 'pen') { const a = now / 1000 * .16; trackFrame(5.5, _f1); _tl.copy(_f1.p).addScaledVector(_f1.u, .6); _tp.copy(_tl).add(_up.set(Math.cos(a) * 9.5, 6.5, Math.sin(a) * 9.5)); fov = 55; k = cut ? 1 : 1 - Math.exp(-dt / 500); }
     else if (shot === 'crane') { trackFrame(1, _f1); trackFrame(TR.gateS + 6, _f2); const kk = Math.min(1, st / 3800), e = kk * kk * (3 - 2 * kk);
       _tp.copy(_f1.p).addScaledVector(_f1.t, -9 + e * 6.5).addScaledVector(_f1.r, 7 * (1 - e)); _tp.y += 17 - e * 7; _tl.copy(_f2.p).lerp(trackFrame(5, _f2).p, .6 * (1 - e)); fov = 56; k = cut ? 1 : 1 - Math.exp(-dt / 120); }
-    else if (shot === 'start') { trackFrame(1, _f1); trackFrame(TR.gateS + 8 + st / 1000 * 8, _f2); _tp.copy(_f1.p).addScaledVector(_f1.t, -2.5 + st / 1000 * 3); _tp.y += 10 - Math.min(1, st / 3000) * 2; _tl.copy(_f2.p); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 150); }
-    else if (shot === 'jump') { const gs = (kickS + landS) / 2; trackFrame(gs, _f1); trackFrame(landS + 9, _f2); _tp.copy(_f2.p); _tp.y += 3.4; trackFrame(kickS - 1, _f2); _tl.copy(_f2.p); _tl.y += .6; if (l) _tl.lerp(l.pos, .3); fov = 56;
-      timeScale = st > 500 && st < 2300 ? .33 : 1; k = cut ? 1 : 1 - Math.exp(-dt / 250); }
-    else if (shot === 'helix') { const hc = track.userData.helix; if (l) { _up.set(l.pos.x - hc.x, 0, l.pos.z - hc.z); const d = _up.length() || 1; _up.multiplyScalar(1 / d); _tp.set(hc.x + _up.x * 4.5, l.pos.y + 4, hc.z + _up.z * 4.5); _tl.copy(l.pos); _tl.y -= .3; } fov = 62; k = cut ? 1 : 1 - Math.exp(-dt / 160); }
-    else if (shot === 'finish') { trackFrame(TR.finishS + 6, _f1); trackFrame(TR.finishS - 7, _f2); _tp.copy(_f1.p).addScaledVector(_f1.r, 2.6).addScaledVector(_f1.u, 2.1); _tl.copy(_f2.p).addScaledVector(_f2.u, .5); if (l && l.s > TR.finishS - 14) _tl.lerp(l.pos, .3); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 300); }
-    else if (shot === 'wide' && l) { trackFrame(l.s + 4, _f2); const sd = cam.wideSide || 1; _tl.copy(l.pos).lerp(_f2.p, .3); _tp.copy(_tl).addScaledVector(_f2.r, sd * (15 + st / 1000 * 1.5)).addScaledVector(_f2.t, -9); _tp.y = Math.max(_tl.y, _f2.p.y) + 13; fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 400); }
-    else if (shot === 'chase' && l) {
-      cam.s += (l.s - 1.2 - cam.s) * (1 - Math.exp(-dt / 380));
-      trackFrame(cam.s - 8.5, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 2.4); _tp.y += 3.3;
-      trackFrame(cam.s + 6, _f2); packPos(l, _tl); _tl.lerp(_f2.p, .45); _tl.y += .2;
-      roll = (_f1.u.x * _f1.r.x + _f1.u.z * _f1.r.z) * 0; fov = 62;
-      _up.copy(_f1.u); roll = Math.asin(Math.max(-1, Math.min(1, -_f1.r.y))) * .35; k = cut ? 1 : 1 - Math.exp(-dt / 150);
+    else if (shot === 'start') { // brief crane that still frames the marbles at the gate
+      trackFrame(TR.gateS - 2, _f1); trackFrame(TR.gateS + 6 + st / 1000 * 5, _f2);
+      _tp.copy(_f1.p).addScaledVector(_f1.t, -4 + st / 1000 * 2).addScaledVector(_f1.u, 4.5); _tp.y += 5.5;
+      if (l) packPos(l, _tl, 8); else _tl.copy(_f2.p); fov = 58; k = cut ? 1 : 1 - Math.exp(-dt / 150); }
+    else if (shot === 'jump') { // stay with the airborne pack, not a static side plate
+      if (l) { cam.s += (l.s - cam.s) * (1 - Math.exp(-dt / 200)); trackFrame(cam.s - 6, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 2.2); _tp.y += 4.2; packPos(l, _tl, 10); _tl.y += .8; }
+      else { const gs = (kickS + landS) / 2; trackFrame(gs, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 3); _tp.y += 4; _tl.copy(_f1.p); }
+      timeScale = st > 400 && st < 2100 ? .33 : 1; fov = 56; k = cut ? 1 : 1 - Math.exp(-dt / 200); }
+    else if (shot === 'helix') { const hc = track.userData.helix; if (l) { _up.set(l.pos.x - hc.x, 0, l.pos.z - hc.z); const d = _up.length() || 1; _up.multiplyScalar(1 / d); _tp.set(hc.x + _up.x * 5.2, l.pos.y + 3.2, hc.z + _up.z * 5.2); packPos(l, _tl, 8); } fov = 60; k = cut ? 1 : 1 - Math.exp(-dt / 160); }
+    else if (shot === 'finish') { trackFrame(TR.finishS + 5, _f1); trackFrame(TR.finishS - 5, _f2); _tp.copy(_f1.p).addScaledVector(_f1.r, 1.4).addScaledVector(_f1.u, 2.4); if (l) packPos(l, _tl, 10); else _tl.copy(_f2.p).addScaledVector(_f2.u, .5); fov = 56; k = cut ? 1 : 1 - Math.exp(-dt / 280); }
+    else if (shot === 'zoom' && l) { // smooth pack zoom-out: pull back + wider FOV, still centred on the field
+      cam.s += (l.s - 1.0 - cam.s) * (1 - Math.exp(-dt / 320));
+      trackFrame(cam.s - 16, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 6.5); _tp.y += 9.5;
+      fieldPos(_tl); _tl.y += .4; fov = 74; k = cut ? 1 : 1 - Math.exp(-dt / 320); }
+    else if (shot === 'chase' && l) { // tight continuous follow of leader + nearby pack
+      cam.s += (l.s - 0.8 - cam.s) * (1 - Math.exp(-dt / 280));
+      trackFrame(cam.s - 5.2, _f1); _tp.copy(_f1.p).addScaledVector(_f1.u, 1.7); _tp.y += 2.35;
+      trackFrame(cam.s + 3.5, _f2); packPos(l, _tl, 7); _tl.lerp(_f2.p, .22); _tl.y += .15;
+      fov = 56; roll = Math.asin(Math.max(-1, Math.min(1, -_f1.r.y))) * .28; k = cut ? 1 : 1 - Math.exp(-dt / 130);
     }
     if (shot === 'podium') { const t = now / 1000; const tp = new THREE.Vector3(Math.sin(t * .25) * 160, PODIUM_Y + 420, 1250 + Math.cos(t * .25) * 50), tl = new THREE.Vector3(0, PODIUM_Y + 185, 0);
       finale.updateMatrixWorld(); finale.localToWorld(tp); finale.localToWorld(tl); _tp.copy(tp); _tl.copy(tl); fov = 52; k = cut ? 1 : .06; }
