@@ -122,7 +122,8 @@ await (async () => {
     if (PL) { g.drawImage(PL, 0, y0, 1024, y1 - y0, 0, 0, w, h); g.save(); g.translate(w * 2, 0); g.scale(-1, 1); g.drawImage(PL, 0, y0, 1024, y1 - y0, 0, 0, w, h); g.restore(); } else { g.fillStyle = '#d4a46c'; g.fillRect(0, 0, w * 2, h); } return c; }
   const FAR = mkLayer(SPLIT - NEAR_TOP / PSC, SPLIT, NEAR_TOP), NEAR = mkLayer(SPLIT, 576, VH - NEAR_TOP), FAR_Y = 0, NEAR_Y = NEAR_TOP;
   // lanes: far lane near the rail, near lane at the bottom; perspective scale by depth
-  const LANE_TOP = 760, LANE_BOT = 1190, S_FAR = .5, S_NEAR = 1.05, PPM = 108; // px per metre at scale 1
+  const LANE_TOP = 730, LANE_BOT = 1200, S_FAR = .5, S_NEAR = 1.05, PPM = 108; // px per metre at scale 1
+  let podFit = 1;
   function laneY(i, N) { return N <= 1 ? (LANE_TOP + LANE_BOT) / 2 : LANE_TOP + (LANE_BOT - LANE_TOP) * (i / (N - 1)); }
   function depthS(y) { return lerp(S_FAR, S_NEAR, (y - 700) / (LANE_BOT - 700)); }
   const cam = { x: 0, z: 1, f: 1, lz: 0, shot: 'lineup', t0: 0, next: 0, seq: 0, force: true, fx: 360, fy: 900 };
@@ -137,25 +138,25 @@ await (async () => {
   const shade = (hex, k) => { let h = String(hex || '#ff3d8b').replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h, 16); let r = n >> 16 & 255, g2 = n >> 8 & 255, b = n & 255; const f = v => Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k); return `rgb(${f(r)},${f(g2)},${f(b)})`; };
   function drawCamel(g, c, x, y, s, frame, vel = 0) {
     // original twin-engine racer: two long turbine nacelles out front, energy-binder beams, small trailing cockpit
-    s *= 1.35; const t = performance.now() / 1000, v = vr(c), col = c.color || '#ff3d8b', bob = Math.sin(t * 3.1 + v.ph) * 4 * s, hy = y - 50 * s + bob;
+    s *= 1.35 * podFit; const t = performance.now() / 1000, v = vr(c), col = c.color || '#ff3d8b', bob = Math.sin(t * 3.1 + v.ph) * 4 * s, hy = y - 50 * s + bob;
     const EL = 112 * s, ER = 13 * s, gap = 15 * s, ex = x + 50 * s, ckx = x - 85 * s, cky = hy + 8 * s;
-    const pw = clamp(vel / 158, .15, 1.6), fl = (.75 + .25 * Math.sin(t * 40 + v.ph)) * pw;
+    const pw = clamp(vel / 158, .3, 1.2), fl = (.75 + .25 * Math.sin(t * 40 + v.ph)) * pw;
     g.save(); g.globalAlpha = .3; g.fillStyle = '#2a1608'; g.beginPath(); g.ellipse(x, y, 140 * s, 9 * s, 0, 0, 7); g.fill(); g.restore();
     const engY = [hy - gap - Math.sin(t * 7 + v.ph) * 2 * s, hy + gap + Math.sin(t * 6.3 + v.ph) * 2 * s];
     // exhaust plumes
     g.save(); g.globalCompositeOperation = 'lighter';
-    for (const ey of engY) { const tx = ex - EL / 2; for (const [len, w, a, cc] of [[150 * s, ER * 2.2, .35, '#ff5a1a'], [90 * s, ER * 1.3, .7, '#ffcf6a'], [45 * s, ER * .6, .95, '#ffffff']]) { const L2 = len * fl; const gr = g.createLinearGradient(tx, 0, tx - L2, 0); gr.addColorStop(0, cc); gr.addColorStop(1, 'rgba(255,100,30,0)'); g.globalAlpha = a; g.fillStyle = gr; g.beginPath(); g.moveTo(tx, ey - w / 2); g.quadraticCurveTo(tx - L2 * .5, ey - w * .15, tx - L2, ey); g.quadraticCurveTo(tx - L2 * .5, ey + w * .15, tx, ey + w / 2); g.fill(); } }
+    for (const ey of engY) { const tx = ex - EL / 2; for (const [len, w, a, cc] of [[55 * s, ER * 1.7, .4, '#ff5a1a'], [34 * s, ER * 1.1, .75, '#ffcf6a'], [16 * s, ER * .55, .95, '#ffffff']]) { const L2 = len * fl; const gr = g.createLinearGradient(tx, 0, tx - L2, 0); gr.addColorStop(0, cc); gr.addColorStop(1, 'rgba(255,100,30,0)'); g.globalAlpha = a; g.fillStyle = gr; g.beginPath(); g.moveTo(tx, ey - w / 2); g.quadraticCurveTo(tx - L2 * .5, ey - w * .15, tx - L2, ey); g.quadraticCurveTo(tx - L2 * .5, ey + w * .15, tx, ey + w / 2); g.fill(); } }
     g.restore();
     // tether cables to cockpit
     g.strokeStyle = 'rgba(30,30,36,.9)'; g.lineWidth = 2 * s; for (const ey of engY) { g.beginPath(); g.moveTo(ex - EL * .45, ey); g.quadraticCurveTo((ex + ckx) / 2 - 20 * s, (ey + cky) / 2 + 10 * s, ckx + 18 * s, cky); g.stroke(); }
     // engines
     for (const ey of engY) {
       const mg = g.createLinearGradient(0, ey - ER, 0, ey + ER); mg.addColorStop(0, '#f2f2f0'); mg.addColorStop(.4, '#a9adb4'); mg.addColorStop(.75, '#4b4f58'); mg.addColorStop(1, '#16181d');
-      g.fillStyle = mg; g.beginPath(); g.moveTo(ex + EL / 2 + 16 * s, ey); g.quadraticCurveTo(ex + EL / 2, ey - ER * 1.1, ex + EL / 2 - 14 * s, ey - ER); g.lineTo(ex - EL / 2 + 6 * s, ey - ER * .8); g.lineTo(ex - EL / 2, ey - ER * .55); g.lineTo(ex - EL / 2, ey + ER * .55); g.lineTo(ex - EL / 2 + 6 * s, ey + ER * .8); g.lineTo(ex + EL / 2 - 14 * s, ey + ER); g.quadraticCurveTo(ex + EL / 2, ey + ER * 1.1, ex + EL / 2 + 16 * s, ey); g.fill();
+      g.fillStyle = mg; g.beginPath(); g.moveTo(ex + EL / 2 + 30 * s, ey); g.quadraticCurveTo(ex + EL / 2 + 4 * s, ey - ER * 1.05, ex + EL / 2 - 14 * s, ey - ER); g.lineTo(ex - EL / 2 + 6 * s, ey - ER * .8); g.lineTo(ex - EL / 2, ey - ER * .55); g.lineTo(ex - EL / 2, ey + ER * .55); g.lineTo(ex - EL / 2 + 6 * s, ey + ER * .8); g.lineTo(ex + EL / 2 - 14 * s, ey + ER); g.quadraticCurveTo(ex + EL / 2 + 4 * s, ey + ER * 1.05, ex + EL / 2 + 30 * s, ey); g.fill();
       g.fillStyle = shade(col, -.1); g.fillRect(ex - EL * .1, ey - ER * .95, EL * .28, ER * 1.9); // livery band
-      g.fillStyle = '#20242c'; g.beginPath(); g.ellipse(ex + EL / 2 + 2 * s, ey, 4 * s, ER * .7, 0, 0, 7); g.fill(); // intake
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(ex + EL / 2 + 6 * s, ey - ER * .3, 8 * s, 2 * s, 0, 0, 7); g.fill(); // nose glint
       g.fillStyle = '#ffb347'; g.beginPath(); g.ellipse(ex - EL / 2, ey, 3 * s, ER * .5, 0, 0, 7); g.fill();
-      g.fillStyle = shade(col, -.35); g.beginPath(); g.moveTo(ex - EL * .3, ey - ER * .8); g.lineTo(ex - EL * .46, ey - ER * 2.1); g.lineTo(ex - EL * .38, ey - ER * 2.1); g.lineTo(ex - EL * .12, ey - ER * .8); g.fill(); // fin
+      g.fillStyle = shade(col, -.35); g.beginPath(); g.moveTo(ex - EL * .1, ey - ER * .8); g.lineTo(ex - EL * .48, ey - ER * 1.9); g.lineTo(ex - EL * .4, ey - ER * 1.9); g.lineTo(ex - EL * .45, ey - ER * .8); g.fill(); // fin
     }
     // energy binder between engines (crackling)
     g.save(); g.globalCompositeOperation = 'lighter';
@@ -173,10 +174,10 @@ await (async () => {
   // ---- sci-fi desert dressing (all original) ----
   function drawSky(g) { // twin suns + towering sandstone arches over the far plate
     const t = performance.now() / 1000; g.save(); g.globalCompositeOperation = 'lighter';
-    g.globalCompositeOperation = 'source-over'; for (const [X, Y, R, c] of [[150, 300, 34, '255,246,215'], [235, 345, 22, '255,200,140']]) { g.fillStyle = `rgba(${c},.35)`; g.beginPath(); g.arc(X, Y, R * 2.2, 0, 7); g.fill(); g.fillStyle = `rgb(${c})`; g.beginPath(); g.arc(X, Y, R, 0, 7); g.fill(); const gr = g.createRadialGradient(X, Y, 0, X, Y, R * 5); gr.addColorStop(0, `rgba(${c},1)`); gr.addColorStop(.18, `rgba(${c},.9)`); gr.addColorStop(.22, `rgba(${c},.35)`); gr.addColorStop(1, `rgba(${c},0)`); g.fillStyle = gr; g.fillRect(X - R * 5, Y - R * 5, R * 10, R * 10); }
+    for (const [X, Y, R] of [[150, 300, 30], [232, 342, 19]]) { const gr = g.createRadialGradient(X, Y, 0, X, Y, R * 6); gr.addColorStop(0, 'rgba(255,255,240,1)'); gr.addColorStop(.16, 'rgba(255,240,190,1)'); gr.addColorStop(.2, 'rgba(255,200,110,.55)'); gr.addColorStop(.5, 'rgba(255,150,60,.18)'); gr.addColorStop(1, 'rgba(255,120,40,0)'); g.fillStyle = gr; g.fillRect(X - R * 6, Y - R * 6, R * 12, R * 12); }
     g.restore();
     const off = ((cam.x * PPM * .3) % 1400 + 1400) % 1400;
-    for (let k = -1; k <= 1; k++) { const b = -off + k * 1400; arch(g, b + 80, 640, 260, 430, '#b0623a', '#7a3d22'); arch(g, b + 720, 650, 200, 330, '#c27448', '#83462a'); mesa(g, b + 470, 655, 160, 250); mesa(g, b + 1120, 655, 220, 300); }
+    if (0) for (let k = -1; k <= 1; k++) { const b = -off + k * 1400; arch(g, b + 80, 640, 260, 430, '#b0623a', '#7a3d22'); arch(g, b + 720, 650, 200, 330, '#c27448', '#83462a'); mesa(g, b + 470, 655, 160, 250); mesa(g, b + 1120, 655, 220, 300); }
     // heat shimmer streaks
     g.save(); g.globalAlpha = .12; g.fillStyle = '#fff2d8'; for (let i = 0; i < 6; i++) { const yy = 600 + i * 16 + Math.sin(t * 3 + i) * 3; g.fillRect(0, yy, VW, 2); } g.restore();
   }
@@ -239,7 +240,7 @@ await (async () => {
     // distance markers on the rail
     for (const f of [.25, .5, .75]) { const X = FINX * f, y = NEAR_Y + 30, x = sx(X, LANE_TOP - 70); if (x < -50 || x > VW + 50) continue; g.fillStyle = 'rgba(10,12,24,.85)'; g.fillRect(x - 34, y - 44, 68, 30); g.fillStyle = T.accent2; g.fillRect(x - 34, y - 16, 68, 3); g.fillStyle = '#fff'; g.font = `900 16px ${FONT}`; g.textAlign = 'center'; g.fillText(Math.round((1 - f) * 1000) + 'm', x, y - 29); g.fillStyle = '#eee'; g.fillRect(x - 2, y - 14, 4, 40); }
     // camels far -> near
-    const N = cs.length, live = sim && mode !== 'countdown'; camelsShown = [];
+    const N = cs.length, live = sim && mode !== 'countdown'; camelsShown = []; { const gapPx = N > 1 ? (LANE_BOT - LANE_TOP) / (N - 1) : 200; podFit = clamp(gapPx * .8 / (95 * depthS(LANE_BOT) * fieldS(N)), .35, 1); }
     const order = cs.map((c, i) => [c, i]).sort((a, b) => a[1] - b[1]);
     for (const [c, i] of order) { const v = vr(c), y = laneY(i, N), s = depthS(y) * v.s * .95 * fieldS(N); const X = pos.get(c.id) * K, x = sx(X, y);
       let fr = v.ph, vel = 0; if (live) { vel = (xAt(c, raceT + .05) - xAt(c, Math.max(0, raceT - .05))) * 10; c._ph = (c._ph || v.ph) + dt * FPS_SPR * clamp(vel / 158, 0, 1.4) * slow; fr = c._ph; } else fr = v.ph; // standing: still frame
@@ -266,7 +267,7 @@ await (async () => {
     for (const [i, x, top, hgt, col] of P) { const r = list[i]; if (!r) continue; const m = byId.get(r.id) || { id: r.id, name: r.name, color: col };
       const gr = g.createLinearGradient(0, top, 0, top + hgt); gr.addColorStop(0, col); gr.addColorStop(1, '#3a2a10'); g.fillStyle = gr; g.fillRect(x - 95, top, 190, hgt + 200); g.fillStyle = T.accent; g.fillRect(x - 95, top, 190, 4);
       g.font = `900 64px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(0,0,0,.45)'; g.fillText(String(i + 1), x, top + 60);
-      const s = i === 0 ? .85 : .7, v = vr(m); const hd = drawCamel(g, m, x + 10 * s, top, s * .7, v.ph, 40); podTags.push({ m, x: hd.x, y: hd.y, lead: i === 0 }); }
+      const s = i === 0 ? .85 : .7, v = vr(m); podFit = 1; const hd = drawCamel(g, m, x + 10 * s, top, s * .7, v.ph, 40); podTags.push({ m, x: hd.x, y: hd.y, lead: i === 0 }); }
     for (const p of confetti) { p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt; } confetti = confetti.filter(p => p.y < VH + 20);
     for (const p of confetti) { g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-5, -3, 10, 6); g.restore(); }
   }
@@ -287,7 +288,7 @@ await (async () => {
   let MINC = 30; let mode = 'idle', roster = [], sim = null, raceId = null, startAtLocal = 0, raceT = 0, official = null, champs = [], auto = { on: false, minutes: 3 }, openedAtLocal = 0;
   let leaderId = null, reported = false, slow = 1, photo = null, photoAt = 0, podiumAt = 0, flashAt = -1e9;
   let toasts = [], toastQ = [], seenEv = new Set();
-  let lastLow = 0; function toast(s, col, low) { if (low) { const n = Date.now(); if (toastQ.length || n - lastLow < 3500) return; lastLow = n; } toastQ.push({ s, col: col || T.accent3 }); if (toastQ.length > 3) toastQ.shift(); }
+  let lastLow = 0, lastLead = 0; function toast(s, col, low) { if (/takes the lead/.test(s)) { const n = Date.now(); if (n - lastLead < 4000) return; lastLead = n; toastQ = toastQ.filter(x => !/takes the lead/.test(x.s)); } if (low) { const n = Date.now(); if (toastQ.length || n - lastLow < 3500) return; lastLow = n; } toastQ.push({ s, col: col || T.accent3 }); if (toastQ.length > 3) toastQ.shift(); }
   function rosterKey(l) { return l.map(m => m.id).join('|'); }
   function setRoster(list) { const old = new Map(roster.map(r => [r.id, r])); roster = list.map((m, i) => Object.assign({}, m, { idx: i, joinT: (old.get(m.id) || {}).joinT || performance.now() })); }
   let skew = 0;
@@ -359,7 +360,7 @@ await (async () => {
     toasts.forEach((x, i) => { const a = Math.min(1, (3000 - (now - x.t)) / 400, (now - x.t) / 150); ctx.save(); ctx.globalAlpha = a; const y = 1218 - (toasts.length - 1 - i) * 56; const sz = fit(x.s, 620, 24, 800); ctx.font = `800 ${sz}px ${FONT}`; const w = Math.min(690, ctx.measureText(x.s).width + 48);
       glass(360 - w / 2, y - 24, w, 48, 24, x.col); ctx.fillStyle = x.col; rr(ctx, 360 - w / 2 + 2, y - 22, 6, 44, 3); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = `800 ${sz}px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(x.s, 362, y + 1); ctx.restore(); });
   }
-  function stepToasts(now) { if (toastQ.length && (!toasts.length || now - toasts[toasts.length - 1].t > 1100)) { const n = toastQ.shift(); n.t = now; toasts.push(n); if (toasts.length > 2) toasts.shift(); } toasts = toasts.filter(x => now - x.t < 3000); }
+  function stepToasts(now) { if (toastQ.length && (!toasts.length || now - toasts[toasts.length - 1].t > 2200)) { const n = toastQ.shift(); n.t = now; toasts.push(n); if (toasts.length > 1) toasts.shift(); } toasts = toasts.filter(x => now - x.t < 3000); }
   function drawHud(t, now, cs, pos, curLeader) {
     titleBar();
     if (mode === 'idle') { glass(70, 160, 580, 220, 28); txt('The hover race', 360, 210, 38, '#fff'); txt('is coming!', 360, 254, 38, '#fff'); txt(`Send a ${MINC}+ coin gift`, 360, 308, 36, T.accent3); txt('when entries open to race!', 360, 350, 26, '#fff', { w: 800 }); champsPanel(410); return; }
@@ -428,14 +429,14 @@ await (async () => {
   let lastPerf = 0, lastKey = '', podAt = 0;
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(.05, lastPerf ? (now - lastPerf) / 1000 : 1 / 60); lastPerf = now; const t = now / 1000;
+    const dt = Math.min(.1, lastPerf ? (now - lastPerf) / 1000 : 1 / 60); lastPerf = now; const t = now / 1000;
     fpsS.n++; if (now - fpsS.t0 >= 1000) { fpsS.fps = fpsS.n * 1000 / (now - fpsS.t0); fpsS.n = 0; fpsS.t0 = now; }
     const wall = Date.now();
     if (sim && mode === 'countdown' && wall >= startAtLocal) { mode = 'racing'; raceT = Math.min(3, (wall - startAtLocal) / 1000); toast("AND THEY'RE OFF!", T.accent2); }
     if (sim && (mode === 'racing' || mode === 'photo' || mode === 'finished')) {
       const lead = sim.order[0]; let lx = 0; for (const c of sim.cs) lx = Math.max(lx, xAt(c, raceT));
       const target = (mode === 'racing' && lx > D - 260 && raceT < lead.cross + .3) ? .3 : 1;
-      slow += (target - slow) * Math.min(1, dt * 6); raceT += dt * slow;
+      slow += (target - slow) * Math.min(1, dt * 6); raceT += dt * slow * 1.8;
       if (mode === 'racing' && raceT >= lead.cross + .04) { mode = 'photo'; photoAt = now; flashAt = now; photo = 'pending'; }
       if (mode === 'photo' && now - photoAt > 3600) { mode = 'finished'; podiumAt = now; burstConfetti(LOWQ ? 80 : 180); report(); }
     }
