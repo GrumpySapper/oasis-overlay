@@ -296,6 +296,9 @@ await (async () => {
     if (!st) return;
     skew = (st.now || Date.now()) - Date.now(); champs = st.champs || []; if (st.minDiamonds) MINC = st.minDiamonds; auto = st.auto || auto;
     const list = st.marbles || [];
+    // race-game picker: hide and stay idle unless the Hover Race is tonight's game
+    const off = !TEST && (st.game || 'camel') !== 'pod'; document.body.style.visibility = off ? 'hidden' : '';
+    if (off) { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
     if (st.phase === 'idle') { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
     if (st.phase === 'entries') {
       if (mode !== 'entries') { mode = 'entries'; official = null; sim = null; raceId = null; photo = null; confetti = []; cam.force = true; }
