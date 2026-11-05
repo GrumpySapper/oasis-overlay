@@ -254,7 +254,9 @@ await (async () => {
     if (!st) return;
     skew = (st.now || Date.now()) - Date.now(); champs = st.champs || []; auto = st.auto || auto;
     const list = st.marbles || [];
-    if (st.phase === 'idle') { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
+    // race-game picker (camel-control.html): when another game is picked tonight, this overlay hides itself and never races/reports
+    const off = !TEST && (st.game || 'camel') !== 'camel'; document.body.style.visibility = off ? 'hidden' : '';
+    if (off || st.phase === 'idle') { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
     if (st.phase === 'entries') {
       if (mode !== 'entries') { mode = 'entries'; official = null; sim = null; raceId = null; photo = null; confetti = []; cam.force = true; }
       openedAtLocal = (st.openedAt || Date.now()) - skew;
