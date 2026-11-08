@@ -2,12 +2,14 @@
 <title>Oasis Radio Duck Race</title>
 <!-- Oasis Radio DUCK RACE (3D little rubber ducks floating down a river) – 720x1280 Link source for TikTok LIVE Studio.
      Same entries/races/champs as Camel / Hover / Marble; Grumpy picks "Duck Race" in camel-control.html. Hidden unless picked.
-     ?demo=1  offline DEMO with pretend ducks (no network, no live data touched)   ?n=8  ?seed=123  ?quality=low -->
+     Timed to music: the winner crosses exactly 3:21 (201 s) after GO; Grumpy starts the track on the GO cue (no audio is played by this page).
+     ?demo=1  offline DEMO with pretend ducks (no network, no live data touched)   ?n=8  ?seed=123  ?quality=low
+     demo-only QA helpers: ?speed=4 (fast-forward)  ?seek=180 (start the race at 3:00)  keys → +15 s, ← −15 s; ignored outside demo -->
 <meta name="viewport" content="width=720,initial-scale=1">
 <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#wrap{position:absolute;left:50%;top:50%;width:720px;height:1280px}#wrap canvas{position:absolute;left:0;top:0;width:720px;height:1280px;display:block}</style>
 </head><body><div id="wrap"><canvas id="g3" width="720" height="1280"></canvas><canvas id="c" width="720" height="1280"></canvas></div>
-<script src="duck-race-core.js?v=2"></script>
-<script src="duck-race-3d.js?v=1"></script>
+<script src="duck-race-core.js?v=3"></script>
+<script src="duck-race-3d.js?v=2"></script>
 <script type="module">
 // three.js r169 (same version/CDN as the Marble Run overlay). The offline demo build inlines it instead.
 try { window.__DUCK_THREE = await import(window.__DUCK_THREE_URL || 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js'); }
@@ -18,12 +20,16 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
   const THREE = window.__DUCK_THREE || null, threeErr = window.__DUCK_THREE_ERR || null;
   const DEMO = q.get('demo') === '1', LOWQ = q.get('quality') === 'low';
   const VW = 720, VH = 1280, FONT = '"Montserrat","Arial Black",system-ui,sans-serif';
-  const T = { accent: '#ff3d8b', accent2: '#00d9ff', accent3: '#ffd43b', gold: '#ffc83d', panel: 'rgba(30,20,90,.72)', line: 'rgba(255,255,255,.18)' };
+  const T = { accent: '#e8641a', accent2: '#7fd6cf', accent3: '#f2c14e', gold: '#f2c14e', panel: 'rgba(9,14,26,.74)', line: 'rgba(242,193,78,.35)' };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;
   const wrap = document.getElementById('wrap'), cv = document.getElementById('c'), ctx = cv.getContext('2d');
-  const RS = LOWQ ? 1 : Math.min(1.5, Math.max(1, devicePixelRatio || 1)); cv.width = VW * RS; cv.height = VH * RS;
+  const RS = LOWQ ? 1 : Math.min(2, Math.max(1.25, devicePixelRatio || 1)); cv.width = VW * RS; cv.height = VH * RS;   // HD: render above 720x1280 when the GPU allows
   function fitWrap() { const s = Math.min(innerWidth / VW, innerHeight / VH); wrap.style.transform = `translate(-50%,-50%) scale(${s})`; } fitWrap(); addEventListener('resize', fitWrap);
   const fx = C.mulberry(777); // visual-only randomness
+  // Clock. Live: real wall clock. DEMO only: optional fast-forward (?speed) for QA; default is real time (full 201 s race).
+  const SPEED = DEMO ? clamp(+q.get('speed') || 1, .25, 16) : 1, SEEK = DEMO ? clamp(+q.get('seek') || 0, 0, 215) : 0;
+  const realT0 = Date.now(); const nowMs = () => DEMO ? realT0 + (Date.now() - realT0) * SPEED : Date.now();
+  const later = (fn, ms) => setTimeout(fn, ms / SPEED);
   function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
   // ---------- avatars (same approach as the other race overlays) ----------
@@ -57,6 +63,7 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
     if (!THREE) throw new Error(threeErr || '3D engine not loaded');
     R = window.Duck3D.create(THREE, document.getElementById('g3'), { D: C.D, lowq: LOWQ, dpr: RS });
   } catch (e) { err3d = String(e && e.message || e); R = null; }
+  if (DEMO) window.__duckR = R;   // demo-only QA hook
   let rosterKeyNow = '';
   function syncDucks(list) { const k = list.map(m => m.id + ':' + (m.color || '')).join('|'); if (R && k !== rosterKeyNow) { rosterKeyNow = k; R.setDucks(list); } }
   // ---------- state ----------
@@ -69,16 +76,18 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
   });
   function applyState(st, ev) {
     if (!st) return; lastState = st;
-    skew = (st.now || Date.now()) - Date.now(); champs = st.champs || []; if (st.minDiamonds) MINC = st.minDiamonds;
+    skew = (st.now || nowMs()) - nowMs(); champs = st.champs || []; if (st.minDiamonds) MINC = st.minDiamonds;
     const active = C.isActive(st, DEMO); document.body.style.visibility = active ? '' : 'hidden';
     const list = (st.marbles || []).map((m, i) => Object.assign({}, m, { idx: i }));
     if (!active || st.phase === 'idle') { mode = 'idle'; sim = null; official = null; roster = []; raceId = null; return; }
     if (st.phase === 'entries') { if (mode !== 'entries') { official = null; sim = null; raceId = null; } mode = 'entries'; const old = new Set(roster.map(r => r.id)); for (const m of list) if (!old.has(m.id) && roster.length) toast(`🦆 ${clip(m.name, 16)} joins the race!`); roster = list; return; }
     if (st.phase === 'countdown' || (st.phase === 'racing' && ev === 'start')) {
-      if (raceId !== st.raceId) { raceId = st.raceId; roster = list; sim = C.simulate(roster, st.seed); startAtLocal = (st.startAt || Date.now()) - skew; mode = 'countdown'; official = null; }
+      if (raceId !== st.raceId) { raceId = st.raceId; roster = list; sim = C.simulate(roster, st.seed); startAtLocal = (st.startAt || nowMs()) - skew; mode = 'countdown'; official = null; }
       return;
     }
-    if (st.phase === 'racing') { if (raceId !== st.raceId) { raceId = st.raceId; roster = list; sim = null; mode = 'inprogress'; } return; } // joined mid-race: can't replay, show holding card
+    // joined / reconnected mid-race: same seed + server startAt => same race at the same elapsed time (the 201 s clock never restarts)
+    if (st.phase === 'racing') { if (raceId !== st.raceId) { raceId = st.raceId; roster = list; official = null;
+      if (st.seed != null && st.startAt) { sim = C.simulate(roster, st.seed); startAtLocal = st.startAt - skew; mode = 'racing'; } else { sim = null; mode = 'inprogress'; } } return; }
     if (st.phase === 'finished') {
       if (st.results && st.results.length) { official = st.results; if (mode !== 'racing' && mode !== 'finish') mode = 'podium'; }
       else if (mode !== 'racing' && mode !== 'finish') mode = 'over';   // timed out without a result
@@ -87,18 +96,40 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
 
   // ---------- HUD ----------
   function panel(x, y, w, h) { ctx.fillStyle = T.panel; roundRect(x, y, w, h, 18); ctx.fill(); ctx.strokeStyle = T.line; ctx.lineWidth = 2; ctx.stroke(); }
-  function titleBar(sub) { panel(20, 18, VW - 40, 92); txt('🦆 OASIS RADIO DUCK RACE', VW / 2, 50, 32, T.accent3); txt(sub, VW / 2, 86, 20, '#fff', { w: 700 }); }
-  function demoBadge() { if (!DEMO) return; ctx.save(); ctx.fillStyle = 'rgba(220,0,60,.85)'; roundRect(VW - 250, 122, 230, 44, 12); ctx.fill(); ctx.restore(); txt('DEMO – not live', VW - 135, 144, 22, '#fff'); }
+  function titleBar(sub) { panel(20, 18, VW - 40, 88); ctx.fillStyle = T.gold; ctx.fillRect(40, 30, 4, 64); txt('OASIS RADIO  ·  DUCK RACE', 60, 46, 28, '#f4f1e8', { align: 'left', w: 800 }); txt(sub, 60, 80, 19, T.accent3, { align: 'left', w: 600 }); }
+  function demoBadge() { if (!DEMO) return; ctx.save(); ctx.fillStyle = 'rgba(220,0,60,.85)'; roundRect(VW - 250, 122, 230, 44, 12); ctx.fill(); ctx.restore(); txt('DEMO – not live' + (SPEED !== 1 ? ` · ${SPEED}× QA` : ''), VW - 135, 144, 18, '#fff'); }
   function entriesHud() {
-    titleBar(`Send a ${MINC}+ coin gift to get your duck in the river!`);
-    const n = roster.length; panel(60, 820, VW - 120, 120 + Math.min(n, 10) * 0); txt(n ? `${n} duck${n === 1 ? '' : 's'} on the start line` : 'Waiting for the first duck…', VW / 2, 860, 28, '#fff');
-    txt('Gift Doughnut or bigger to enter 🍩', VW / 2, 900, 22, T.accent2, { w: 700 });
+    titleBar(`Entries open · ${MINC}+ coin gift puts your duck on the line`);
+    const n = roster.length; panel(60, 900, VW - 120, 110); txt(n ? `${n} duck${n === 1 ? '' : 's'} on the start line` : 'Waiting for the first duck…', VW / 2, 938, 28, '#f4f1e8', { w: 800 });
+    txt('Race length 3:21 · first across the line wins', VW / 2, 976, 19, T.accent3, { w: 600 });
   }
-  function nameTag(m, x, y, lead) { avatarDisc(m, x - 34, y, 16, lead ? T.gold : '#fff'); ctx.fillStyle = lead ? '#ff3d8b' : 'rgba(10,20,60,.85)'; roundRect(x - 14, y - 15, 128, 30, 12); ctx.fill(); ctx.strokeStyle = lead ? '#ffd43b' : '#fff'; ctx.lineWidth = 2; ctx.stroke(); txt(clip(m.name, 11), x + 50, y, 17, lead ? '#fff59d' : '#fff', { w: 900 }); }
+  // Name tags: measured width, clamped inside the frame, stacked so they never overlap; a thin leader line points at the duck.
+  function tagSize(m) { ctx.font = `800 17px ${FONT}`; return Math.min(170, ctx.measureText(clip(m.name, 14)).width) + 52; }
+  function nameTag(m, x, y, w, lead, ax, ay, num) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + w / 2, y + 15); ctx.lineTo(ax, ay); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = lead ? 'rgba(60,40,6,.9)' : 'rgba(9,14,26,.82)'; roundRect(x, y - 15, w, 30, 9); ctx.fill(); ctx.strokeStyle = lead ? T.gold : 'rgba(255,255,255,.35)'; ctx.lineWidth = lead ? 2 : 1; ctx.stroke();
+    avatarDisc(m, x + 16, y, 12, lead ? T.gold : (m.color || '#fff'));
+    txt(clip(m.name, 14), x + 34, y + 1, 17, lead ? '#ffe6a6' : '#fff', { align: 'left', w: 800 });
+    if (num) txt(String(num), x + w - 4, y - 14, 11, 'rgba(255,255,255,.7)', { align: 'right', w: 700 }); }
+  function layoutTags(cands, maxN) {
+    const placed = [], TOP = 120, BOT = 1050;
+    for (const c of cands) { if (placed.length >= maxN && !c.lead) continue;
+      const w = tagSize(c.m); let x = clamp(c.sx - w / 2, 8, VW - 8 - w), y = clamp(c.sy - 26, TOP, BOT), ok = false;
+      for (const dy of [0, -34, 34, -68, 68, -102]) { const yy = clamp(y + dy, TOP, BOT); if (!placed.some(p => Math.abs(p.y - yy) < 32 && x < p.x + p.w + 6 && p.x < x + w + 6)) { y = yy; ok = true; break; } }
+      if (!ok && !c.lead) continue; placed.push({ x, y, w, c }); }
+    return placed; }
   function board(t) {
     const rank = sim.ds.slice().sort((a, b) => C.yAt(b, t) - C.yAt(a, t)).slice(0, 5);
-    panel(20, 1070, 340, 190); txt('LEADERS', 190, 1094, 20, T.accent3);
-    rank.forEach((c, i) => { avatarDisc(c, 52, 1128 + i * 28, 12); txt(`${i + 1}. ${clip(c.name, 14)}`, 76, 1128 + i * 28, 18, i ? '#fff' : T.gold, { align: 'left', w: 800 }); });
+    panel(20, 1066, 360, 194); txt('POSITIONS', 40, 1090, 16, T.accent3, { align: 'left', w: 800 });
+    rank.forEach((c, i) => { const m = roster.find(r => r.id === c.id) || c; avatarDisc(m, 56, 1124 + i * 29, 12, i ? 'rgba(255,255,255,.6)' : T.gold); txt(`${i + 1}  ${clip(c.name, 16)}`, 78, 1124 + i * 29, 18, i ? '#f4f1e8' : T.gold, { align: 'left', w: 700 }); });
+  }
+  // Race clock synced to the 3:21 track: elapsed, remaining and a progress bar. Grumpy starts the music on GO.
+  function raceClock(t) {
+    panel(400, 1066, 300, 194); const e = clamp(t, 0, C.RACE_S);
+    txt('RACE CLOCK', 420, 1090, 16, T.accent3, { align: 'left', w: 800 });
+    txt(C.clock(e), 550, 1140, 52, '#f4f1e8', { w: 800 }); txt('/ ' + C.clock(C.RACE_S), 550, 1182, 18, 'rgba(255,255,255,.7)', { w: 600 });
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; roundRect(420, 1210, 260, 10, 5); ctx.fill(); ctx.fillStyle = T.gold; roundRect(420, 1210, Math.max(10, 260 * e / C.RACE_S), 10, 5); ctx.fill();
+    txt(t < 0 ? '🎵 track cue: start on GO' : e < C.RACE_S ? '🎵 ' + C.clock(C.RACE_S - e) + ' to the line' : '🏁 finish', 550, 1240, 15, T.accent2, { w: 700 });
   }
   function podium(list, sub) {
     titleBar(sub); const w = list.slice(0, 3);
@@ -108,7 +139,7 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
     const champ = champs && champs.length ? champs.slice().sort((a, b) => b.wins - a.wins)[0] : null;
     if (champ) { panel(110, 900, VW - 220, 60); txt(`🏆 Top champ: ${clip(champ.name, 16)} – ${champ.wins} win${champ.wins === 1 ? '' : 's'}`, VW / 2, 930, 22, '#fff'); }
   }
-  function drawToasts(now) { let y = 200; for (let i = toasts.length - 1; i >= 0; i--) { const k = toasts[i], a = now - k.t; if (a > 4000) { toasts.splice(i, 1); continue; } panel(110, y, VW - 220, 46); txt(k.s, VW / 2, y + 23, 20, k.col); y += 56; } }
+  function drawToasts(now) { let y = 124; for (let i = toasts.length - 1; i >= 0; i--) { const k = toasts[i], a = now - k.t; if (a > 4000) { toasts.splice(i, 1); continue; } panel(140, y, VW - 280, 40); txt(k.s, VW / 2, y + 20, 18, k.col, { w: 700 }); y += 48; } }
 
   // ---------- frame ----------
   let lastNow = 0, prevY = new Map();
@@ -118,7 +149,7 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
     ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.clearRect(0, 0, VW, VH);
     const g3 = document.getElementById('g3'); g3.style.visibility = mode === 'idle' && !DEMO ? 'hidden' : '';
     if (mode === 'idle') { if (DEMO) { titleBar('DEMO starting…'); demoBadge(); } return; }
-    const wall = Date.now(), t = (wall - startAtLocal) / 1000, tt = Math.max(0, t);
+    const wall = nowMs(), t = (wall - startAtLocal) / 1000, tt = Math.max(0, t);
     let duckState = [], view = { mode: 'entries', t: tt }, lead = null;
     if ((mode === 'countdown' || mode === 'racing' || mode === 'finish') && sim) {
       if (mode === 'countdown' && t >= 0) mode = 'racing';
@@ -126,45 +157,53 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
       duckState = sim.ds.map(c => { const y = C.yAt(c, tt), e = C.eventAt(c, tt), sp = (y - C.yAt(c, Math.max(0, tt - .25))) / .25;
         return { id: c.id, p: y, moving: t > 0 && tt < (c.cross ?? 1e9) + 3, speed: sp, spin: e && e[0].type === 'spin' ? e[1] * 6.283 : 0 }; });
       lead = sim.ds.reduce((a, c) => C.yAt(c, tt) > C.yAt(a, tt) ? c : a, sim.ds[0]);
-      view = { mode: 'race', t: tt };
+      view = { mode: 'race', t: tt, forceShot: DEMO ? q.get('shot') : null, snap: DEMO && q.get('snap') === '1' };   // demo-only QA: pin a shot / no camera easing (for slow headless captures)
     } else if (mode === 'entries') { syncDucks(roster); duckState = roster.map(m => ({ id: m.id, p: 0, moving: false, speed: 0 })); }
     else if ((mode === 'podium' || mode === 'podiumLocal') && sim) { syncDucks(roster); duckState = sim.ds.map(c => ({ id: c.id, p: C.yAt(c, 1e4), moving: false, speed: 0 })); view = { mode: 'podium', t: tt }; }
     let out = null;
     if (R) { try { out = R.frame(now, duckState, view); } catch (e) { err3d = String(e && e.message || e); R = null; } }
-    if (!R) { ctx.fillStyle = '#0b8fd6'; ctx.fillRect(0, 0, VW, VH); panel(40, 980, VW - 80, 78); txt('3D view not available on this screen – race still counts', VW / 2, 1006, 18, '#fff'); txt(clip(err3d || 'WebGL unavailable', 60), VW / 2, 1036, 15, T.accent3, { w: 700 }); }
+    if (!R) { ctx.fillStyle = '#0d2a33'; ctx.fillRect(0, 0, VW, VH); panel(40, 980, VW - 80, 78); txt('3D view not available on this screen – race still counts', VW / 2, 1006, 18, '#fff'); txt(clip(err3d || 'WebGL unavailable', 60), VW / 2, 1036, 15, T.accent3, { w: 700 }); }
     // name tags + profile pictures over the 3D ducks
     if (out && duckState.length) {
-      const byId = new Map(roster.map(m => [String(m.id), m])), many = duckState.length > 10;
-      const ls = out.labels.filter(l => l.on).sort((a, b) => b.dist - a.dist);
-      for (const l of ls) { const m = byId.get(String(l.id)); if (!m) continue; const isLead = lead && String(lead.id) === String(l.id);
-        if (many && out.shot === 'wide' && !isLead) continue; nameTag(m, l.sx - 40, l.sy, isLead); }
+      const byId = new Map(roster.map(m => [String(m.id), m])), place = new Map();
+      if (sim && (mode === 'racing' || mode === 'finish')) sim.ds.slice().sort((a, b) => C.yAt(b, tt) - C.yAt(a, tt)).forEach((c, i) => place.set(String(c.id), i));
+      const cands = out.labels.filter(l => l.on && byId.has(String(l.id))).map(l => ({ ...l, m: byId.get(String(l.id)), lead: !!lead && String(lead.id) === String(l.id), rank: place.has(String(l.id)) ? place.get(String(l.id)) : 99 }))
+        .sort((a, b) => (b.lead - a.lead) || (a.rank - b.rank) || (a.dist - b.dist));
+      const maxN = out.shot === 'leader' ? 2 : out.shot === 'front' || out.shot === 'waterline' ? 4 : out.shot === 'pack' || out.shot === 'overhead' ? 8 : 5;   // fewer, readable tags
+      for (const p of layoutTags(cands, maxN)) nameTag(p.c.m, p.x, p.y, p.w, p.c.lead, clamp(p.c.sx, 0, VW), clamp(p.c.sy, 0, VH), p.c.m.idx + 1);
     }
     if (mode === 'countdown' || mode === 'racing' || mode === 'finish') {
-      titleBar(t < 0 ? 'Ducks at the ready…' : `Leading: ${clip(lead ? lead.name : '', 18)}`);
-      if (t < 0) txt(String(Math.ceil(-t)), VW / 2, 560, 180, T.accent3);
-      else if (t < 1.2) txt('QUACK! GO!', VW / 2, 560, 90, T.accent2);
-      if (sim) board(tt);
-      if (sim && tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
+      titleBar(t < 0 ? 'Ducks on the line – music cue on GO' : `Leading: ${clip(lead ? lead.name : '', 20)}`);
+      if (t < 0) { txt(String(Math.ceil(-t)), VW / 2, 560, 170, '#f4f1e8'); txt('▶ START THE TRACK ON GO', VW / 2, 680, 26, T.gold, { w: 800 }); }
+      else if (t < 1.4) { txt('GO', VW / 2, 560, 150, T.gold); txt('▶ TRACK STARTS NOW · 3:21', VW / 2, 670, 24, '#f4f1e8', { w: 800 }); }
+      if (sim) { board(tt); raceClock(t); }
+      if (sim && tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); if (DEMO) official = sim.order.map((c, i) => ({ place: i + 1, id: c.id, name: c.name }));   // demo: winner shown locally, nothing is posted
+        reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
       if (mode === 'finish' && now - finishShownAt > Math.max(6000, (sim.lastCross - sim.firstCross) * 1000 + 2500)) mode = official ? 'podium' : 'podiumLocal';
-    } else if (mode === 'podium') podium(official, 'Official result');
+    } else if (mode === 'podium') podium(official, DEMO ? 'DEMO result – local only, not live' : 'Official result');
     else if (mode === 'podiumLocal') podium(sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : [], 'Result (waiting for the box to confirm)');
     else if (mode === 'inprogress') titleBar('Race in progress – results coming up!');
     else if (mode === 'over') titleBar('Race ended without a result – Grumpy can re-run it');
     else if (mode === 'entries') entriesHud();
-    drawToasts(now); demoBadge();
+    drawToasts(now); demoBadge(); perf(now);
   }
+  // auto quality: if the encoder machine can't hold ~40 fps, drop pixel ratio, then shadows (once each, never back up mid-show)
+  let pf = { n: 0, t0: 0, step: 0 };
+  function perf(now) { if (!R || LOWQ) return; if (!pf.t0) pf.t0 = now; pf.n++; if (now - pf.t0 < 4000) return; const fps = pf.n * 1000 / (now - pf.t0); pf = { n: 0, t0: now, step: pf.step };
+    if (fps < 40 && pf.step === 0) { R.setQuality({ dpr: 1 }); pf.step = 1; } else if (fps < 34 && pf.step === 1) { R.setQuality({ shadows: false }); pf.step = 2; } }
 
   // ---------- DEMO: offline loop with pretend ducks, never touches the box ----------
   if (DEMO) {
-    const n = clamp(+q.get('n') || 6, 1, 40), names = ['Allie Duck', 'Quackers', 'Sir Paddles', 'Bubbles', 'Captain Beak', 'Puddles', 'Waddles', 'Mr Splash', 'Dabbles', 'Ducky Mo'];
-    const cols = ['#ff3d8b', '#00d9ff', '#9b5cff', '#3ddc84', '#ff8a3d', '#ffffff'];
+    const n = clamp(+q.get('n') || 12, 1, 40), names = ['Allie.Moyet', 'BLACKSMITHO2', 'Racquel.Verte', 'jamesrennef', 'Alan', 'DJ Deb', 'Cassette Kev', 'Synth Sue', 'Mixtape Mia', 'Boombox Barry', 'Walkman Wayne', 'Neon Nina'];
+    const cols = ['#c8352b', '#1f5fbf', '#2e8b57', '#6a3fa0', '#d97a16', '#1b1b1b', '#e4e0d6', '#0f8c8c'];
     const ms = Array.from({ length: n }, (_, i) => ({ id: 'demo_' + i, name: names[i % names.length] + (i >= names.length ? ' ' + (i + 1) : ''), color: cols[i % cols.length], avatar: null }));
     let seed = +q.get('seed') || 123, k = 0;
-    const cycle = () => { const base = { game: 'duck', now: Date.now(), minDiamonds: 30, champs: [] };
+    addEventListener('keydown', e => { if (e.key === 'ArrowRight') startAtLocal -= 15000; if (e.key === 'ArrowLeft') startAtLocal += 15000; });
+    const cycle = () => { const base = { game: 'duck', now: nowMs(), minDiamonds: 30, champs: [] };
       applyState(Object.assign({}, base, { phase: 'entries', marbles: [] }), 'open');
-      ms.forEach((m, i) => setTimeout(() => applyState(Object.assign({}, base, { now: Date.now(), phase: 'entries', marbles: ms.slice(0, i + 1) }), 'join'), 600 + i * 400));
-      setTimeout(() => { const id = 'demo-' + (++k); applyState(Object.assign({}, base, { now: Date.now(), phase: 'countdown', raceId: id, seed: seed + k, startAt: Date.now() + 4000, marbles: ms }), 'countdown');
-        const s = C.simulate(ms, seed + k); setTimeout(cycle, (s.lastCross + 16) * 1000 + 4000); }, 1000 + n * 400 + 3000); };
+      ms.forEach((m, i) => later(() => applyState(Object.assign({}, base, { now: nowMs(), phase: 'entries', marbles: ms.slice(0, i + 1) }), 'join'), 600 + i * 300));
+      later(() => { const id = 'demo-' + (++k), sk = k === 1 ? SEEK * 1000 : 0; applyState(Object.assign({}, base, { now: nowMs(), phase: 'countdown', raceId: id, seed: seed + k, startAt: nowMs() + 4000 - sk, marbles: ms }), 'countdown');
+        const s = C.simulate(ms, seed + k); later(cycle, (s.lastCross + 16) * 1000 + 4000 - sk); }, 1000 + n * 300 + 3000); };
     cycle(); requestAnimationFrame(frame); return;
   }
 

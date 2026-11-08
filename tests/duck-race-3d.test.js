@@ -14,20 +14,21 @@ test('3D scene builds, ducks animate, camera cycles shots, labels project on scr
     R.setDucks(ents(n)); assert.strictEqual(R.duckCount, n);
     const sim = C.simulate(ents(n), 99);
     const shots = new Set(); let onScreen = 0;
-    for (let ms = 0; ms < 60000; ms += 250) {
-      const t = ms / 1000, st = sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 110, spin: 0 }));
+    for (let ms = 0; ms < 206000; ms += 500) {
+      const t = ms / 1000, st = sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31, spin: 0 }));
       const out = R.frame(ms, st, { mode: 'race', t });
       shots.add(out.shot); for (const l of out.labels) { assert.ok(Number.isFinite(l.sx) && Number.isFinite(l.sy)); if (l.on) onScreen++; }
       assert.ok(Number.isFinite(R.camera.position.z));
     }
-    assert.ok(shots.has('follow') && shots.has('wide') && shots.has('close'), [...shots].join());
+    for (const k of D3.SHOT_NAMES) assert.ok(shots.has(k), 'missing shot ' + k + ' in ' + [...shots].join());
+    assert.ok(shots.size >= 10, 'at least 10 distinct camera angles over one 201 s race');
     assert.ok(onScreen > 0);
     R.setDucks(ents(Math.max(1, n - 1))); assert.strictEqual(R.duckCount, Math.max(1, n - 1));     // roster change removes a duck
   }
 });
 test('duck geometry is volumetric 3D (spheres/cones/torus), not flat sprites', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'duck-race-3d.js'), 'utf8');
-  for (const k of ['SphereGeometry', 'ConeGeometry', 'TorusGeometry', 'MeshPhysicalMaterial', 'castShadow', 'ShaderMaterial', 'PerspectiveCamera']) assert.ok(src.includes(k), k);
+  for (const k of ['LatheGeometry', 'SphereGeometry', 'ConeGeometry', 'TorusGeometry', 'MeshPhysicalMaterial', 'clearcoat', 'PMREMGenerator', 'castShadow', 'ShaderMaterial', 'PerspectiveCamera', 'InstancedMesh', 'vertexColors']) assert.ok(src.includes(k), k);
 });
 test('page: 3D failure shows an honest message; logic and report still run without WebGL', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
@@ -36,8 +37,8 @@ test('page: 3D failure shows an honest message; logic and report still run witho
   const body = html.split('<script type="module">')[1].split('</script>')[0]; const iife = body.slice(body.indexOf('(() => {')); new Function(iife);
   assert.ok(iife.indexOf('reportOnce(raceId, sim.ids)') > iife.indexOf('if (!R) {'), 'report happens after (independent of) 3D render');
 });
-test('offline demo build: three inlined, DEMO forced, no box URL used for data', { skip: !fs.existsSync('/workspace/duck-demo-3d.html') && 'demo not built' }, () => {
-  const s = fs.readFileSync('/workspace/duck-demo-3d.html', 'utf8');
+test('offline demo build: three inlined, DEMO forced, no box URL used for data', { skip: !fs.existsSync('/workspace/duck-demo-hd-201s.html') && 'demo not built' }, () => {
+  const s = fs.readFileSync('/workspace/duck-demo-hd-201s.html', 'utf8');
   assert.ok(s.includes('const DEMO = true')); assert.ok(s.includes('__DUCK_THREE_URL = URL.createObjectURL'));
   assert.doesNotMatch(s, /x-key|nowplaying-key|game-key/i);
 });
@@ -50,4 +51,65 @@ test('demo builder embeds three.js byte-identical (regression: String.replace ex
   assert.strictEqual(s.slice(i, j), three);
   assert.strictEqual((s.match(/<script src=/g) || []).length, 0, 'no stray external script tags');
   for (const m of s.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(m[1]);
+});
+
+test('shot schedule is deterministic from race time (all viewers cut together) and the finish camera takes the final approach', () => {
+  assert.strictEqual(D3.shotAt(3, null), 'establish'); assert.strictEqual(D3.shotAt(120, 30), 'finish');
+  const seq = []; for (let t = 0; t < 200; t += 1) seq.push(D3.shotAt(t, 300)); assert.ok(new Set(seq).size >= 9);
+  for (let t = 0; t < 200; t += 7) assert.strictEqual(D3.shotAt(t, 300), D3.shotAt(t, 300));
+});
+test('cutesy v1 props removed (balloons / bunting / pastel flowers)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'duck-race-3d.js'), 'utf8');
+  assert.doesNotMatch(src, /balloon|bunting|flCols|leafCols|#ff80ab/i);
+});
+test('demo QA helpers (speed/seek/shot/snap) are gated on DEMO only', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
+  assert.match(html, /const SPEED = DEMO \?/); assert.match(html, /SEEK = DEMO \?/); assert.match(html, /forceShot: DEMO \?/); assert.match(html, /snap: DEMO &&/);
+  assert.match(html, /nowMs = \(\) => DEMO \? [^:]+ : Date\.now\(\)/);
+});
+test('pack-safe framing: leader + front of pack on screen in EVERY shot through the finish (1/12/40 ducks, 3 seeds)', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  for (const n of [1, 12, 40]) for (const seed of [3, 77, 9001]) {
+    const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), seed); const shots = new Set();
+    for (let ms = 0; ms <= 206000; ms += 250) {
+      const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t, snap: true }); shots.add(out.shot);
+      const rank = sim.ds.slice().sort((a, b) => C.yAt(b, t) - C.yAt(a, t)), need = rank.slice(0, out.shot === 'leader' ? 1 : 6);
+      for (const c of need) assert.ok(out.labels.find(l => l.id === c.id).on, `n${n} s${seed} t${t} ${out.shot}: ${c.id} off screen`);
+    }
+    assert.ok(shots.has('finish') && shots.size >= 10);
+  }
+});
+test('eased (live) camera: leader never off screen for more than ~0.7 s during transitions', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  for (const n of [1, 12, 40]) { const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), 42); let run = 0, worst = 0;
+    for (let ms = 0; ms <= 206000; ms += 1000 / 30) { const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t });
+      const ld = sim.ds.reduce((a, c) => C.yAt(c, t) > C.yAt(a, t) ? c : a); if (!out.labels.find(l => l.id === ld.id).on) worst = Math.max(worst, ++run / 30); else run = 0; }
+    assert.ok(worst <= .7, `n${n} worst gap ${worst}s`); }
+});
+test('race clock runs 0:00 -> 3:21 and holds at 3:21 through the finish', () => {
+  assert.strictEqual(C.clock(-3), '0:00'); assert.strictEqual(C.clock(100.6), '1:40'); assert.strictEqual(C.clock(201), '3:21'); assert.strictEqual(C.clock(214), '3:21');
+});
+test('camera never inside banks/trees/rocks: stays over the river and has a clear line of sight to the leader and pack centre (regression: 1:07 green-screen)', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  const rc = new THREE.Raycaster(), dir = new THREE.Vector3(), tgt = new THREE.Vector3();
+  for (const n of [1, 12, 40]) for (const seed of [3, 9001]) {
+    const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), seed);
+    R.scene.updateMatrixWorld(true);
+    for (let ms = 0; ms <= 206000; ms += 1000 / 30) {
+      const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t });
+      if (Math.round(ms) % 1000 > 34) continue;
+      const cp = R.camera.position; assert.ok(Math.abs(cp.x) <= R.HALF_W - 3.99 && cp.y >= .99, `n${n} t${t} ${out.shot} camera off the water ${cp.toArray()}`);
+      const ld = sim.ds.reduce((a, c) => C.yAt(c, t) > C.yAt(a, t) ? c : a), z = -C.yAt(ld, t) * D3.S;
+      for (const [x, y, zz] of [[D3.laneX(ld.idx, n), 1.6, z + D3.laneBack(ld.idx, n)], [0, .5, z + 6]]) {
+        tgt.set(x, y, zz); dir.subVectors(tgt, cp); const dist = dir.length(); rc.set(cp, dir.normalize()); rc.far = dist - 1;
+        const hit = rc.intersectObjects(R.occluders, false)[0];
+        assert.ok(!hit, `n${n} t${t.toFixed(1)} ${out.shot}: view blocked by ${hit && hit.object.type} at ${hit && hit.distance.toFixed(1)}`);
+      }
+    }
+  }
+});
+test('demo shows its own winner locally (no "waiting for the box"); live path unchanged', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
+  assert.match(html, /if \(DEMO\) official = sim\.order\.map/); assert.match(html, /DEMO result – local only, not live/);
+  assert.match(html, /post: DEMO \? async \(\) =>/);
 });

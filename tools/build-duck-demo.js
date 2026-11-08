@@ -9,12 +9,13 @@ const three = fs.readFileSync(threePath, 'utf8');
 if (/<\/script/i.test(three)) throw new Error('three source contains </script');
 const inline = f => '<script>\n' + fs.readFileSync(path.join(root, f), 'utf8') + '\n</script>';
 // NOTE: replacer FUNCTIONS, never replacement strings – three.js contains `$&`, which String.replace would expand.
-s = s.replace('<script src="duck-race-core.js?v=2"></script>', () => inline('duck-race-core.js'));
-s = s.replace('<script src="duck-race-3d.js?v=1"></script>', () => inline('duck-race-3d.js') +
+s = s.replace(/<script src="duck-race-core\.js\?v=\d+"><\/script>/, () => inline('duck-race-core.js'));
+s = s.replace(/<script src="duck-race-3d\.js\?v=\d+"><\/script>/, () => inline('duck-race-3d.js') +
   '\n<script type="text/plain" id="three-src">' + three + '</script>\n<script>window.__DUCK_THREE_URL = URL.createObjectURL(new Blob([document.getElementById("three-src").textContent], { type: "text/javascript" }));</script>');
 // self-check: the embedded three.js must be byte-identical to the source
 { const i = s.indexOf('id="three-src">') + 'id="three-src">'.length, j = s.indexOf('</script>', i); if (s.slice(i, j) !== three) throw new Error('embedded three.js corrupted'); }
-s = s.replace("const DEMO = q.get('demo') === '1'", "const DEMO = true /* offline preview build */");
-s = s.replace('<title>Oasis Radio Duck Race</title>', '<title>Oasis Radio Duck Race 3D – OFFLINE DEMO</title>');
+s = s.replace("const DEMO = q.get('demo') === '1'", () => "const DEMO = true /* offline preview build */");
+s = s.replace('<title>Oasis Radio Duck Race</title>', () => '<title>Oasis Radio Duck Race HD (3:21) – OFFLINE DEMO</title>');
 for (const must of ['const DEMO = true', '__DUCK_THREE_URL = URL.createObjectURL', 'window.DuckCore', 'window.Duck3D', 'root.Duck3D']) if (!s.includes(must) && must !== 'window.DuckCore' && must !== 'window.Duck3D') throw new Error('missing ' + must);
+if (/<script src=/.test(s)) throw new Error('external script tag left in demo');
 fs.writeFileSync(out, s); console.log('wrote', out, s.length, 'bytes');
