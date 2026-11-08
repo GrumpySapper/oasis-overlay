@@ -89,3 +89,27 @@ test('eased (live) camera: leader never off screen for more than ~0.7 s during t
 test('race clock runs 0:00 -> 3:21 and holds at 3:21 through the finish', () => {
   assert.strictEqual(C.clock(-3), '0:00'); assert.strictEqual(C.clock(100.6), '1:40'); assert.strictEqual(C.clock(201), '3:21'); assert.strictEqual(C.clock(214), '3:21');
 });
+test('camera never inside banks/trees/rocks: stays over the river and has a clear line of sight to the leader and pack centre (regression: 1:07 green-screen)', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  const rc = new THREE.Raycaster(), dir = new THREE.Vector3(), tgt = new THREE.Vector3();
+  for (const n of [1, 12, 40]) for (const seed of [3, 9001]) {
+    const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), seed);
+    R.scene.updateMatrixWorld(true);
+    for (let ms = 0; ms <= 206000; ms += 1000 / 30) {
+      const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t });
+      if (Math.round(ms) % 1000 > 34) continue;
+      const cp = R.camera.position; assert.ok(Math.abs(cp.x) <= R.HALF_W - 3.99 && cp.y >= .99, `n${n} t${t} ${out.shot} camera off the water ${cp.toArray()}`);
+      const ld = sim.ds.reduce((a, c) => C.yAt(c, t) > C.yAt(a, t) ? c : a), z = -C.yAt(ld, t) * D3.S;
+      for (const [x, y, zz] of [[D3.laneX(ld.idx, n), 1.6, z + D3.laneBack(ld.idx, n)], [0, .5, z + 6]]) {
+        tgt.set(x, y, zz); dir.subVectors(tgt, cp); const dist = dir.length(); rc.set(cp, dir.normalize()); rc.far = dist - 1;
+        const hit = rc.intersectObjects(R.occluders, false)[0];
+        assert.ok(!hit, `n${n} t${t.toFixed(1)} ${out.shot}: view blocked by ${hit && hit.object.type} at ${hit && hit.distance.toFixed(1)}`);
+      }
+    }
+  }
+});
+test('demo shows its own winner locally (no "waiting for the box"); live path unchanged', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
+  assert.match(html, /if \(DEMO\) official = sim\.order\.map/); assert.match(html, /DEMO result – local only, not live/);
+  assert.match(html, /post: DEMO \? async \(\) =>/);
+});

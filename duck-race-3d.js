@@ -145,6 +145,7 @@
     const L = -ZF + 520, zc = ZF / 2 - 30;
     const mudC = new THREE.Color('#2e261c'), siltC = new THREE.Color('#6a5b40'), g1 = new THREE.Color('#3d6a26'), g2 = new THREE.Color('#5d8b2e'), g3 = new THREE.Color('#2a4a1d'), dry = new THREE.Color('#8a8a4a'), tmp = new THREE.Color();
     function bankHeight(d, z) { if (d < 0) return -1.2; const slope = smooth(d / 7) * 1.6; return -.5 + slope + fbm(d * .05, z * .03) * 3.2 * smooth((d - 4) / 25) + fbm(d * .4, z * .4, 2) * .25; }
+    const occluders = [];
     const bankMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0 });
     for (const sd of [-1, 1]) {
       const W = 150, geo = new THREE.PlaneGeometry(W, L, LOWQ ? 40 : 110, LOWQ ? 220 : 560); geo.rotateX(-Math.PI / 2);
@@ -160,14 +161,14 @@
       geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
       if (sd < 0) { const ix = geo.index.array; for (let i = 0; i < ix.length; i += 3) { const t = ix[i + 1]; ix[i + 1] = ix[i + 2]; ix[i + 2] = t; } }   // mirrored side: keep faces pointing up
       geo.computeVertexNormals();
-      const bank = new THREE.Mesh(geo, bankMat); bank.receiveShadow = true; scene.add(bank);
+      const bank = new THREE.Mesh(geo, bankMat); bank.receiveShadow = true; scene.add(bank); occluders.push(bank);
     }
     const bankY = (x, z) => bankHeight(Math.abs(x) - HALF_W, z);
 
     // ---- scenery: instanced, deterministic placement ----
     const rnd = mulberry(20261108), dummy = new THREE.Object3D(), col = new THREE.Color();
     const zr = () => 120 - rnd() * (L - 60);
-    function inst(geo, mat, n, place, shadow = true) { const m = new THREE.InstancedMesh(geo, mat, n); for (let i = 0; i < n; i++) { dummy.position.set(0, 0, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); col.set('#ffffff'); place(i, dummy, col); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix); m.setColorAt(i, col); } m.castShadow = shadow && !LOWQ; m.receiveShadow = true; scene.add(m); return m; }
+    function inst(geo, mat, n, place, shadow = true) { const m = new THREE.InstancedMesh(geo, mat, n); for (let i = 0; i < n; i++) { dummy.position.set(0, 0, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); col.set('#ffffff'); place(i, dummy, col); dummy.updateMatrix(); m.setMatrixAt(i, dummy.matrix); m.setColorAt(i, col); } m.castShadow = shadow && !LOWQ; m.receiveShadow = true; scene.add(m); if (shadow) occluders.push(m); return m; }
     function jitter(geo, amt, seed) { const p = geo.attributes.position, r = mulberry(seed); const seen = new Map();
       for (let i = 0; i < p.count; i++) { const k = p.getX(i).toFixed(3) + ',' + p.getY(i).toFixed(3) + ',' + p.getZ(i).toFixed(3); let f = seen.get(k); if (f === undefined) { f = 1 + (r() - .5) * amt; seen.set(k, f); } p.setXYZ(i, p.getX(i) * f, p.getY(i) * f, p.getZ(i) * f); }
       geo.computeVertexNormals(); return geo; }
@@ -199,7 +200,7 @@
     inst(coneGeo, leafM, con.length * 3, (i, d, c) => { const t = con[Math.floor(i / 3)], k = i % 3; d.position.set(t.x, t.y + (3.6 + k * 2.6) * t.s, t.z); d.scale.setScalar((1.35 - k * .3) * t.s); c.setHSL(.33 + rnd() * .04, .35, .12 + rnd() * .05); });
     // distant ridge line (fog does the depth)
     for (let i = 0; i < 14; i++) { const sd = i % 2 ? 1 : -1, h = new THREE.Mesh(jitter(new THREE.IcosahedronGeometry(1, 2), .25, 100 + i), new THREE.MeshStandardMaterial({ color: '#41573a', roughness: 1, flatShading: true }));
-      h.position.set(sd * (200 + rnd() * 120), -8, 160 - i * (L / 12)); h.scale.set(110 + rnd() * 60, 30 + rnd() * 26, 90 + rnd() * 50); scene.add(h); }
+      h.position.set(sd * (200 + rnd() * 120), -8, 160 - i * (L / 12)); h.scale.set(110 + rnd() * 60, 30 + rnd() * 26, 90 + rnd() * 50); scene.add(h); occluders.push(h); }
 
     // ---- canvas textures (null in Node tests) ----
     function canvasTex(w, h, draw) { if (!doc) return null; const cv = doc.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
@@ -306,8 +307,8 @@
         case 'establish': { const a = clamp(t / 7, 0, 1); return [P(-22 + a * 14, 30 - a * 8, mid + 44 - a * 6), P(0, 0, mid - 30), 48]; }
         case 'chase': return [P(osc * 4, 5.2, last + 13), P(0, 1.2, first - 10), 50];
         case 'waterline': return [P(osc * 3, 1.7, last + 8), P(lead.x * .4, 1.2, first - 12), 56];
-        case 'side': return [P(HALF_W + 7, 4.2, lead.z + 3), P(lead.x * .3, 1, lead.z + 7), 44];
-        case 'sideFar': return [P(-(HALF_W + 16), 9, mid + 6), P(0, .5, mid - 2), 38];
+        case 'side': return [P(CAM_X, 4.2, lead.z + 3), P(lead.x * .3 - 6, 1, lead.z + 7), 44];
+        case 'sideFar': return [P(-CAM_X, 11, mid + 10), P(8, .5, mid - 4), 44];
         case 'front': return [P(lead.x * .6 + osc * 3, 2.4, first - 15), P(lead.x * .5, 1.4, first + 6), 46];
         case 'overhead': { const h = Math.max(34, span * 1.15, w * 1.9); return [P(0, h, mid + h * .18), P(0, 0, mid), 50]; }
         case 'leader': { const a = Math.sin(now / 3500) * .6; return [P(lead.x + Math.sin(a) * 9, 4.4, lead.z - 15 + Math.abs(Math.sin(a)) * 3), P(lead.x, 1.9, lead.z + 1.5), 38]; }   // from ahead: nothing between lens and leader
@@ -320,13 +321,17 @@
     }
     // Pack-safe framing: whatever the shot, pull the lens back (and up a little) along its own axis until the leader and the
     // front of the pack (top 6 by position; leader only for the close-up) sit inside a safe area clear of the HUD panels.
+    // Camera safety: the lens always stays above open water inside the rope lines (banks, trees and rocks are all outside |x| > HALF_W - 1.5),
+    // so no shot can end up inside terrain or foliage. Pull-backs keep this clamp.
+    const CAM_X = HALF_W - 4, CAM_MIN_Y = 1.0;
+    function clampCam(p) { p.x = clamp(p.x, -CAM_X, CAM_X); p.y = Math.max(p.y, CAM_MIN_Y); p.z = clamp(p.z, ZF - 40, 60); return p; }
     const probe = new THREE.PerspectiveCamera(50, 720 / 1280, .2, 1400), pv = new THREE.Vector3(), SAFE_X = .86, SAFE_TOP = .74, SAFE_BOT = -.62;
     function inSafe(pts) { probe.updateMatrixWorld(); for (const o of pts) { pv.set(o.x, 1.4, o.z).project(probe); if (!(pv.z < 1 && pv.z > -1 && Math.abs(pv.x) < SAFE_X && pv.y < SAFE_TOP && pv.y > SAFE_BOT)) return false; } return true; }
     function fitPack(shot, tp, tl, fov, list) {
       const byZ = list.slice().sort((a, b) => b.p - a.p), need = shot === 'leader' ? byZ.slice(0, 1) : byZ.slice(0, Math.min(6, byZ.length));
       probe.fov = fov; probe.updateProjectionMatrix();
       for (let i = 0; i < 24; i++) { probe.position.copy(tp); probe.lookAt(tl); if (inSafe(need)) return i;
-        pv.subVectors(tp, tl).multiplyScalar(.14); tp.add(pv); tp.y += .6; }
+        pv.subVectors(tp, tl).multiplyScalar(.14); tp.add(pv); tp.y += .6; clampCam(tp); if (i > 8) { tp.y += 1.5; tp.x *= .9; } }
       return 24; }
     function direct(now, view, list, dt) {
       let shot, L_ = null;
@@ -340,7 +345,7 @@
       }
       if (!L_) L_ = { lead: { x: 0, z: ZF }, first: ZF, last: ZF, mid: ZF, xmin: -10, xmax: 10, span: 0 };
       const [tp, tl, fov] = pose(shot, now, view.t || 0, L_);
-      tp.z = Math.max(tp.z, ZF - 40); tl.z = Math.max(tl.z, ZF - 40); tp.y = Math.max(tp.y, .8);
+      clampCam(tp); tl.z = Math.max(tl.z, ZF - 40);
       if (list.length && view.mode === 'race') fitPack(shot, tp, tl, fov, list);
       if (shot !== cam.shot) { cam.from = { pos: cam.pos.clone(), look: cam.look.clone(), fov: cam.fov }; cam.blendT0 = now; cam.shot = shot; }
       if (cam.first || view.snap) { cam.pos.copy(tp); cam.look.copy(tl); cam.fov = fov; cam.first = false; cam.from = null; }
@@ -348,7 +353,7 @@
         const k = 1 - Math.exp(-dt * 7); cam.pos.lerp(tp, k); cam.look.lerp(tl, k); cam.fov = lerp(cam.fov, fov, k);
         if (cam.from) { const b = smooth((now - cam.blendT0) / 900); if (b >= 1) cam.from = null; else { cam.pos.lerpVectors(cam.from.pos, tp, b); cam.look.lerpVectors(cam.from.look, tl, b); cam.fov = lerp(cam.from.fov, fov, b); } }
       }
-      camera.position.copy(cam.pos); camera.lookAt(cam.look); if (Math.abs(camera.fov - cam.fov) > .01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
+      clampCam(cam.pos); camera.position.copy(cam.pos); camera.lookAt(cam.look); if (Math.abs(camera.fov - cam.fov) > .01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
       sun.position.copy(cam.look).addScaledVector(SUN_DIR, 120); sun.target.position.copy(cam.look);
     }
 
@@ -386,7 +391,7 @@
       return { labels, shot: cam.shot };
     }
     function setQuality(q) { if (!renderer) return; if (q.dpr) renderer.setPixelRatio(q.dpr); if (q.shadows === false) { renderer.shadowMap.enabled = false; sun.castShadow = false; } }
-    return { setDucks, frame, setQuality, scene, camera, renderer, get duckCount() { return ducks.size; }, ZF };
+    return { setDucks, frame, setQuality, occluders, HALF_W, scene, camera, renderer, get duckCount() { return ducks.size; }, ZF };
   }
   return { create, laneX, laneBack, zOf, S, shotAt, SHOT_NAMES, SHOT_CYCLE };
 });

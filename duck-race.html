@@ -177,9 +177,10 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
       if (t < 0) { txt(String(Math.ceil(-t)), VW / 2, 560, 170, '#f4f1e8'); txt('▶ START THE TRACK ON GO', VW / 2, 680, 26, T.gold, { w: 800 }); }
       else if (t < 1.4) { txt('GO', VW / 2, 560, 150, T.gold); txt('▶ TRACK STARTS NOW · 3:21', VW / 2, 670, 24, '#f4f1e8', { w: 800 }); }
       if (sim) { board(tt); raceClock(t); }
-      if (sim && tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
+      if (sim && tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); if (DEMO) official = sim.order.map((c, i) => ({ place: i + 1, id: c.id, name: c.name }));   // demo: winner shown locally, nothing is posted
+        reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
       if (mode === 'finish' && now - finishShownAt > Math.max(6000, (sim.lastCross - sim.firstCross) * 1000 + 2500)) mode = official ? 'podium' : 'podiumLocal';
-    } else if (mode === 'podium') podium(official, 'Official result');
+    } else if (mode === 'podium') podium(official, DEMO ? 'DEMO result – local only, not live' : 'Official result');
     else if (mode === 'podiumLocal') podium(sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : [], 'Result (waiting for the box to confirm)');
     else if (mode === 'inprogress') titleBar('Race in progress – results coming up!');
     else if (mode === 'over') titleBar('Race ended without a result – Grumpy can re-run it');
