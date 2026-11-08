@@ -8,7 +8,7 @@ const ents = n => Array.from({ length: n }, (_, i) => ({ id: 'user_' + i, name: 
 test('single entrant finishes and wins', () => {
   const r = C.simulate(ents(1), 42);
   assert.deepStrictEqual(r.ids, ['user_0']);
-  assert.ok(Number.isFinite(r.firstCross) && r.firstCross > 10);
+  assert.strictEqual(r.firstCross, 201);
 });
 test('deterministic: same entries + seed => same order on every client', () => {
   const a = C.simulate(ents(12), 98765), b = C.simulate(ents(12), 98765);
@@ -25,11 +25,35 @@ test('order is a full permutation and the winner is the first duck across', () =
     assert.strictEqual(r.ids[0], fastest.id);
   }
 });
-test('every duck finishes well inside the server 95s race timeout (no no-winner races)', () => {
-  let worst = 0;
-  for (let s = 1; s <= 400; s++) { const r = C.simulate(ents(1 + (s % 40)), s * 7919); assert.ok(r.order.every(c => c.cross !== null)); worst = Math.max(worst, r.lastCross); }
-  assert.ok(worst < C.MAX_FINISH_S, 'worst ' + worst);
-  assert.ok(worst + 4 /* countdown */ < 95);
+test('201 s timing: winner crosses EXACTLY at GO+201 s for 1/12/40 entrants; field within the stagger window', () => {
+  assert.strictEqual(C.RACE_S, 201); assert.strictEqual(C.RACE_MS, 201000);
+  for (const n of [1, 12, 40]) for (const seed of [1, 7, 99, 4242, 123457]) {
+    const r = C.simulate(ents(n), seed), w = r.order[0];
+    assert.strictEqual(r.firstCross, 201, `n${n} s${seed}`);
+    assert.ok(C.yAt(w, 200.95) < C.D && C.yAt(w, 201.02) >= C.D, 'winner is on the line at 201 s, not before');
+    for (const c of r.ds) assert.ok(C.yAt(c, 200.9) < C.D, 'nobody crosses before 201 s');
+    assert.ok(r.order.every(c => c.cross !== null)); assert.ok(r.lastCross <= C.MAX_FINISH_S, 'last ' + r.lastCross);
+    assert.ok(Math.abs(r.k - 1) < .1, 'time warp stays subtle: k=' + r.k);
+  }
+});
+test('no early result: the report trigger (t >= firstCross) never fires before 201 s; old 50 s finish impossible', () => {
+  for (let s = 1; s <= 60; s++) { const r = C.simulate(ents(1 + (s % 40)), s * 7919); assert.ok(r.firstCross >= 201); assert.ok(C.yAt(r.order[0], 50) < C.D * .4); }
+  const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
+  assert.match(html, /tt >= sim\.firstCross && mode !== 'finish'/);
+});
+test('late join / reconnect: same seed + server startAt => same positions at the same elapsed time (clock never restarts)', () => {
+  const list = ents(12), a = C.simulate(list, 5150), b = C.simulate(list, 5150);
+  const startAt = 1_000_000, joinNow = startAt + 137_500;
+  const t = C.elapsedS(startAt, joinNow); assert.strictEqual(t, 137.5);
+  for (let i = 0; i < 12; i++) assert.strictEqual(C.yAt(a.ds[i], t), C.yAt(b.ds[i], t));
+  assert.deepStrictEqual(a.ids, b.ids);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
+  assert.match(html, /st\.phase === 'racing'\) \{ if \(raceId !== st\.raceId\)[\s\S]{0,200}sim = C\.simulate\(roster, st\.seed\); startAtLocal = st\.startAt - skew; mode = 'racing'/);
+  assert.strictEqual(C.clock(201), '3:21'); assert.strictEqual(C.clock(0), '0:00');
+});
+test('reporter retries 425 Too Early (server guard) and then succeeds once', async () => {
+  let n = 0; const rep = C.createReporter({ post: async () => { n++; return n < 3 ? { status: 425, body: { retryAfterMs: 800 } } : { status: 200, body: {} }; }, sleep: async () => {} });
+  const r = await rep('race-425', ['a']); assert.ok(r.ok); assert.strictEqual(n, 3);
 });
 test('game picker: visible only when duck selected, or in demo', () => {
   assert.strictEqual(C.isActive({ game: 'duck' }), true);
