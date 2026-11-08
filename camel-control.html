@@ -21,11 +21,11 @@ label.sw{display:flex;align-items:center;gap:10px;font-weight:700}label.sw input
 </style></head><body>
 <h1>🐪 Camel Race – control</h1>
 <div class="sub">Only for Grumpy. Viewers join by sending any gift of 30+ coins (a Doughnut) while entries are open.</div>
-<div class="sub" style="color:#ffcf6a">Shares entries, races and champs with Marble / Camel / Hover Race – pick tonight's game below; still best to keep only ONE race overlay visible in your Live Studio scene.</div>
+<div class="sub" style="color:#ffcf6a">Shares entries, races and champs with Marble / Camel / Hover / Duck Race – pick tonight's game below; still best to keep only ONE race overlay visible in your Live Studio scene.</div>
 
 <div class="card">
   <div style="font-weight:800;margin-bottom:6px">🎮 Tonight's race game</div>
-  <div class="row" id="games" style="grid-template-columns:1fr 1fr 1fr"></div>
+  <div class="row" id="games" style="grid-template-columns:1fr 1fr"></div>
   <div class="small" style="margin-top:8px">Only the picked game's overlay plays the race; the others show "not tonight". Change it before opening entries (can't switch mid-race).</div>
 </div>
 
@@ -109,7 +109,7 @@ function render(s) {
   document.querySelectorAll('#games button').forEach(b => { const on = b.dataset.game === (s.game || 'camel'); b.style.background = on ? 'var(--grn)' : ''; b.style.color = on ? '#111' : ''; b.disabled = ['countdown', 'racing'].includes(s.phase); });
 }
 async function refresh() { try { const r = await fetch(BOX + '/api/marble/state', { headers: H, cache: 'no-store' }); render(await r.json()); } catch (e) { $('phase').textContent = 'offline – retrying'; } }
-const GAMES = [['camel', '🐪 Camel Race'], ['pod', '🛸 Hover Race'], ['marble', '🔮 Marble Run']]; // add more here
+const GAMES = [['camel', '🐪 Camel Race'], ['pod', '🛸 Hover Race'], ['marble', '🔮 Marble Run'], ['duck', '🦆 Duck Race']]; // add more here
 $('games').innerHTML = GAMES.map(([id, nm]) => `<button class="ghost" data-game="${id}">${nm}</button>`).join('');
 $('games').onclick = e => { const b = e.target.closest('button'); const g = b && b.dataset.game; if (g && (!st || st.game !== g)) call('game', { game: g }); };
 $('bOpen').onclick = () => { if (st && ['countdown', 'racing'].includes(st.phase) && !confirm('A race is running. Open new entries anyway?')) return; call('open'); };
