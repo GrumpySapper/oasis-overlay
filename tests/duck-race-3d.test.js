@@ -41,3 +41,13 @@ test('offline demo build: three inlined, DEMO forced, no box URL used for data',
   assert.ok(s.includes('const DEMO = true')); assert.ok(s.includes('__DUCK_THREE_URL = URL.createObjectURL'));
   assert.doesNotMatch(s, /x-key|nowplaying-key|game-key/i);
 });
+test('demo builder embeds three.js byte-identical (regression: String.replace expanded "$&" and broke the module)', { skip: !TP && 'THREE_MODULE not set' }, () => {
+  const out = require('os').tmpdir() + '/duck-demo-test.html';
+  require('child_process').execFileSync('node', [path.join(__dirname, '..', 'tools', 'build-duck-demo.js'), TP, out]);
+  const s = fs.readFileSync(out, 'utf8'), three = fs.readFileSync(TP, 'utf8');
+  assert.ok(three.includes('$&'), 'fixture really contains $&');
+  const i = s.indexOf('id="three-src">') + 'id="three-src">'.length, j = s.indexOf('</script>', i);
+  assert.strictEqual(s.slice(i, j), three);
+  assert.strictEqual((s.match(/<script src=/g) || []).length, 0, 'no stray external script tags');
+  for (const m of s.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(m[1]);
+});

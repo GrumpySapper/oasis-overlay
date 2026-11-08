@@ -131,7 +131,7 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
     else if ((mode === 'podium' || mode === 'podiumLocal') && sim) { syncDucks(roster); duckState = sim.ds.map(c => ({ id: c.id, p: C.yAt(c, 1e4), moving: false, speed: 0 })); view = { mode: 'podium', t: tt }; }
     let out = null;
     if (R) { try { out = R.frame(now, duckState, view); } catch (e) { err3d = String(e && e.message || e); R = null; } }
-    if (!R) { ctx.fillStyle = '#0b8fd6'; ctx.fillRect(0, 0, VW, VH); panel(60, 520, VW - 120, 150); txt('3D view not available on this screen', VW / 2, 560, 26, '#fff'); txt(clip(err3d || 'WebGL unavailable', 46), VW / 2, 600, 18, T.accent3, { w: 700 }); txt('The race still runs and results still count.', VW / 2, 636, 18, '#fff', { w: 700 }); }
+    if (!R) { ctx.fillStyle = '#0b8fd6'; ctx.fillRect(0, 0, VW, VH); panel(40, 980, VW - 80, 78); txt('3D view not available on this screen – race still counts', VW / 2, 1006, 18, '#fff'); txt(clip(err3d || 'WebGL unavailable', 60), VW / 2, 1036, 15, T.accent3, { w: 700 }); }
     // name tags + profile pictures over the 3D ducks
     if (out && duckState.length) {
       const byId = new Map(roster.map(m => [String(m.id), m])), many = duckState.length > 10;
