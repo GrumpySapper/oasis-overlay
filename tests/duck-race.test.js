@@ -57,7 +57,7 @@ test('reporter ignores empty/missing race', async () => {
 });
 test('page: hidden unless duck picked, demo never posts to the box, inline script parses', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'duck-race.html'), 'utf8');
-  const js = html.split('<script>')[1].split('</script>')[0]; new Function(js);
+  const mod = html.split('<script type="module">')[1].split('</script>')[0]; const js = mod.slice(mod.indexOf('(() => {')); new Function(js);
   assert.match(js, /C\.isActive\(st, DEMO\)/);
   assert.match(js, /post: DEMO \? async \(\) =>/);
   assert.match(js, /if \(DEMO\) \{[\s\S]*cycle\(\); requestAnimationFrame\(frame\); return;/);

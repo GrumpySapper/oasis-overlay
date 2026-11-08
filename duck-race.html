@@ -1,16 +1,21 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>Oasis Radio Duck Race</title>
-<!-- Oasis Radio DUCK RACE (little rubber ducks floating down a river) – 720x1280 Link source for TikTok LIVE Studio.
+<!-- Oasis Radio DUCK RACE (3D little rubber ducks floating down a river) – 720x1280 Link source for TikTok LIVE Studio.
      Same entries/races/champs as Camel / Hover / Marble; Grumpy picks "Duck Race" in camel-control.html. Hidden unless picked.
      ?demo=1  offline DEMO with pretend ducks (no network, no live data touched)   ?n=8  ?seed=123  ?quality=low -->
 <meta name="viewport" content="width=720,initial-scale=1">
-<style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#wrap{position:absolute;left:50%;top:50%;width:720px;height:1280px}#c{width:720px;height:1280px;display:block}</style>
-</head><body><div id="wrap"><canvas id="c" width="720" height="1280"></canvas></div>
-<script src="duck-race-core.js?v=1"></script>
-<script>
+<style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}#wrap{position:absolute;left:50%;top:50%;width:720px;height:1280px}#wrap canvas{position:absolute;left:0;top:0;width:720px;height:1280px;display:block}</style>
+</head><body><div id="wrap"><canvas id="g3" width="720" height="1280"></canvas><canvas id="c" width="720" height="1280"></canvas></div>
+<script src="duck-race-core.js?v=2"></script>
+<script src="duck-race-3d.js?v=1"></script>
+<script type="module">
+// three.js r169 (same version/CDN as the Marble Run overlay). The offline demo build inlines it instead.
+try { window.__DUCK_THREE = await import(window.__DUCK_THREE_URL || 'https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js'); }
+catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e && e.message || e).slice(0, 60) + ')'; }
 (() => {
   'use strict';
   const C = window.DuckCore, q = new URLSearchParams(location.search);
+  const THREE = window.__DUCK_THREE || null, threeErr = window.__DUCK_THREE_ERR || null;
   const DEMO = q.get('demo') === '1', LOWQ = q.get('quality') === 'low';
   const VW = 720, VH = 1280, FONT = '"Montserrat","Arial Black",system-ui,sans-serif';
   const T = { accent: '#ff3d8b', accent2: '#00d9ff', accent3: '#ffd43b', gold: '#ffc83d', panel: 'rgba(30,20,90,.72)', line: 'rgba(255,255,255,.18)' };
@@ -43,80 +48,17 @@
     g.lineWidth = Math.max(2, r * .16); g.strokeStyle = ring || '#fff'; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.restore();
   }
 
-  // ---------- river world: progress p runs from 0 (start, bottom) to C.D (finish, top) ----------
-  const RIVER_L = 70, RIVER_R = 650;
-  const cam = { p: 0, z: 1, wide: false, nextCut: 0 };
-  const toY = p => VH * .62 - (p - cam.p) * cam.z;                      // screen y of a river position
-  const laneX = (i, n) => { const cols = Math.min(n, 8), c = i % cols, row = Math.floor(i / cols); return RIVER_L + 40 + (RIVER_R - RIVER_L - 80) * (cols === 1 ? .5 : c / (cols - 1)) + (row % 2) * 18; };
-  const laneOff = (i, n) => -Math.floor(i / Math.min(n, 8)) * 26;     // later rows start a little further back
-  const ripples = [];
-
-  function drawWater(now) {
-    const g = ctx, t = now / 1000;
-    const bank = g.createLinearGradient(0, 0, VW, 0); bank.addColorStop(0, '#2ecc40'); bank.addColorStop(.09, '#7dff5a'); bank.addColorStop(.91, '#7dff5a'); bank.addColorStop(1, '#2ecc40');
-    g.fillStyle = bank; g.fillRect(0, 0, VW, VH);
-    // wavy river edges
-    g.beginPath(); for (let y = -20; y <= VH + 20; y += 20) { const wp = (cam.p + (VH * .62 - y) / cam.z); g.lineTo(RIVER_L - 8 + 10 * Math.sin(wp / 140), y); }
-    for (let y = VH + 20; y >= -20; y -= 20) { const wp = (cam.p + (VH * .62 - y) / cam.z); g.lineTo(RIVER_R + 8 + 10 * Math.sin(wp / 170 + 2), y); } g.closePath();
-    const w = g.createLinearGradient(RIVER_L, 0, RIVER_R, 0); w.addColorStop(0, '#00b4e6'); w.addColorStop(.5, '#3ff0f0'); w.addColorStop(1, '#00b4e6');
-    g.fillStyle = w; g.fill(); g.save(); g.clip();
-    // flowing light streaks (water moves toward the finish = up the screen)
-    g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
-    for (let k = 0; k < 26; k++) { const x = RIVER_L + 20 + (k * 97) % (RIVER_R - RIVER_L - 40), sp = 60 + (k * 37) % 50, y = ((VH + 60) - ((t * sp + k * 211 + cam.p * cam.z) % (VH + 120)));
-      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 8, y - 14, x, y - 30); g.stroke(); }
-    for (let k = 0; k < (LOWQ ? 14 : 34); k++) { const sx = RIVER_L + 10 + (k * 173) % (RIVER_R - RIVER_L - 20), sy = (k * 389 + cam.p * cam.z * .9) % VH, tw = .5 + .5 * Math.sin(t * 4 + k * 1.7);
-      if (tw > .7) { g.fillStyle = `rgba(255,255,255,${(tw - .7) * 3})`; g.beginPath(); g.moveTo(sx, sy - 6); g.lineTo(sx + 2, sy); g.lineTo(sx, sy + 6); g.lineTo(sx - 2, sy); g.closePath(); g.fill(); g.fillRect(sx - 6, sy - 1, 12, 2); } } // sparkles
-    g.restore();
-    // reeds, rocks and lily pads on the banks (anchored to world positions so they scroll with the river)
-    const p0 = cam.p - (VH * .4) / cam.z, p1 = cam.p + (VH * .7) / cam.z;
-    for (let p = Math.floor(p0 / 220) * 220; p < p1; p += 220) {
-      const r = C.mulberry(p * 13 + 5), y = toY(p);
-      for (const side of [0, 1]) {
-        const x = side ? RIVER_R + 30 + r() * 30 : RIVER_L - 30 - r() * 30;
-        if (r() < .55) { g.strokeStyle = '#2e7d32'; g.lineWidth = 3; for (let j = 0; j < 4; j++) { g.beginPath(); g.moveTo(x + j * 5, y); g.quadraticCurveTo(x + j * 5 + 6 * Math.sin(now / 900 + j), y - 22, x + j * 5 + 3, y - 40 - j * 4); g.stroke(); }
-          g.fillStyle = '#6d4c2f'; g.fillRect(x + 6, y - 46, 5, 14); }
-        else { g.fillStyle = '#9e9e9e'; g.beginPath(); g.ellipse(x, y, 18 + r() * 10, 11, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.ellipse(x - 5, y - 4, 7, 3, 0, 0, 7); g.fill(); }
-      }
-      for (const side of [0, 1]) for (let f = 0; f < 3; f++) { const fx_ = side ? RIVER_R + 20 + r() * 50 : 4 + r() * 46, fy = y + 60 + r() * 120, fc = ['#ff3d8b', '#ffd43b', '#ff8a3d', '#b46bff', '#ffffff'][Math.floor(r() * 5)];
-        g.fillStyle = fc; for (let a = 0; a < 5; a++) { g.beginPath(); g.arc(fx_ + 5 * Math.cos(a * 1.2566), fy + 5 * Math.sin(a * 1.2566), 4, 0, 7); g.fill(); } g.fillStyle = '#ffeb3b'; g.beginPath(); g.arc(fx_, fy, 3, 0, 7); g.fill(); }
-      if (r() < .4) { const lx = RIVER_L + 12 + r() * 30; g.fillStyle = '#43a047'; g.beginPath(); g.arc(lx, y + 40, 13, .3, 6.0); g.lineTo(lx, y + 40); g.fill(); }
-    }
-  }
-  function drawLine(p, label, checker) {
-    const g = ctx, y = toY(p); if (y < -60 || y > VH + 60) return;
-    if (checker) { for (let i = 0; i < 29; i++) for (let j = 0; j < 2; j++) { g.fillStyle = (i + j) % 2 ? '#111' : '#fff'; g.fillRect(RIVER_L + i * 20, y - 20 + j * 10, 20, 10); } }
-    else { g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(RIVER_L, y - 4, RIVER_R - RIVER_L, 8); }
-    // banner on posts
-    g.fillStyle = '#7b4a2a'; g.fillRect(RIVER_L - 18, y - 120, 8, 120); g.fillRect(RIVER_R + 10, y - 120, 8, 120);
-    g.fillStyle = checker ? T.accent : T.accent2; roundRect(RIVER_L - 22, y - 150, RIVER_R - RIVER_L + 44, 40, 12); g.fill();
-    txt(label, VW / 2, y - 130, 26, '#fff');
-    if (checker) { const cs = ['#ff3d8b', '#ffd43b', '#00d9ff', '#3ddc84', '#ff8a3d', '#b46bff']; for (let i = 0; i < 16; i++) { const bx = RIVER_L - 10 + i * 38, by = y - 108; g.fillStyle = cs[i % cs.length]; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + 30, by); g.lineTo(bx + 15, by + 26); g.closePath(); g.fill(); }
-      for (let i = 0; i < 10; i++) { const bx = (i % 2 ? RIVER_R + 24 : RIVER_L - 34), by = y - 60 - i * 8; g.fillStyle = cs[i % cs.length]; g.beginPath(); g.arc(bx, by - 150, 16, 0, 7); g.fill(); } }
-  }
   function roundRect(x, y, w, h, r) { const g = ctx; g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-  function txt(s, x, y, size, col, o = {}) { const g = ctx; g.save(); g.font = `${o.w || 900} ${size}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; g.lineWidth = Math.max(3, size / 6); g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(s, x, y); g.fillStyle = col || '#fff'; g.fillText(s, x, y); g.restore(); }
+  function txt(s, x, y, size, col, o = {}) { const g = ctx; g.save(); g.font = `${o.w || 900} ${size}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; g.lineWidth = Math.max(3, size / 6); g.strokeStyle = 'rgba(0,0,0,.6)'; g.strokeText(s, x, y); g.fillStyle = col || '#fff'; g.fillText(s, x, y); g.restore(); }
 
-  // little yellow rubber duck seen from slightly above, facing up-river (toward the finish)
-  function drawDuck(x, y, s, m, now, moving, spin) {
-    const g = ctx, t = now / 1000 + (m.idx || 0) * .7, bob = Math.sin(t * 3.1) * 2.2 * s, tilt = Math.sin(t * 2.3) * .08 + (spin || 0);
-    if (moving) { g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2 * s; g.beginPath(); g.moveTo(x - 16 * s, y + 30 * s); g.lineTo(x - 4 * s, y + 10 * s); g.lineTo(x + 4 * s, y + 10 * s); g.lineTo(x + 16 * s, y + 30 * s); g.stroke(); }
-    g.save(); g.translate(x, y + bob); g.rotate(tilt); g.scale(s, s);
-    g.fillStyle = 'rgba(0,40,80,.25)'; g.beginPath(); g.ellipse(2, 12, 26, 10, 0, 0, 7); g.fill();           // shadow on water
-    g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.ellipse(0, 12, 28, 8, 0, 0, 7); g.lineWidth = 2; g.strokeStyle = 'rgba(255,255,255,.6)'; g.stroke();
-    const body = g.createRadialGradient(-6, -4, 4, 0, 4, 28); body.addColorStop(0, '#fff59d'); body.addColorStop(.6, '#ffd600'); body.addColorStop(1, '#f9a825');
-    g.fillStyle = body; g.beginPath(); g.ellipse(0, 4, 24, 14, 0, 0, 7); g.fill();                         // body
-    g.beginPath(); g.moveTo(18, 0); g.quadraticCurveTo(30, -10, 26, 6); g.closePath(); g.fill();              // tail flick
-    g.fillStyle = '#fbc02d'; g.beginPath(); g.ellipse(4, 4, 11, 6, -.3, 0, 7); g.fill();                       // wing
-    const head = g.createRadialGradient(-12, -20, 2, -10, -16, 14); head.addColorStop(0, '#fff9c4'); head.addColorStop(1, '#ffd600');
-    g.fillStyle = head; g.beginPath(); g.arc(-10, -16, 12, 0, 7); g.fill();                                   // head
-    g.fillStyle = '#ff7a00'; g.beginPath(); g.ellipse(-23, -13, 8, 4, .15, 0, 7); g.fill();                  // beak
-    g.strokeStyle = '#d35400'; g.lineWidth = 1; g.beginPath(); g.moveTo(-30, -13); g.lineTo(-17, -13); g.stroke();
-    g.fillStyle = '#111'; g.beginPath(); g.arc(-13, -19, 2.8, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(-12.2, -20, 1, 0, 7); g.fill(); // eye
-    g.fillStyle = 'rgba(255,120,120,.35)'; g.beginPath(); g.arc(-8, -12, 3, 0, 7); g.fill();                  // cheek
-    if (m.color) { g.fillStyle = m.color; g.fillRect(-6, -6, 12, 3); }                                          // rider colour neckband
-    g.restore();
-  }
-
+  // ---------- 3D scene (WebGL). If it can't start we say so on screen; the race logic keeps running either way ----------
+  let R = null, err3d = null;
+  try {
+    if (!THREE) throw new Error(threeErr || '3D engine not loaded');
+    R = window.Duck3D.create(THREE, document.getElementById('g3'), { D: C.D, lowq: LOWQ, dpr: RS });
+  } catch (e) { err3d = String(e && e.message || e); R = null; }
+  let rosterKeyNow = '';
+  function syncDucks(list) { const k = list.map(m => m.id + ':' + (m.color || '')).join('|'); if (R && k !== rosterKeyNow) { rosterKeyNow = k; R.setDucks(list); } }
   // ---------- state ----------
   let MINC = 30, mode = 'idle', roster = [], sim = null, raceId = null, startAtLocal = 0, official = null, champs = [], skew = 0, finishShownAt = 0, lastState = null;
   const toasts = [];
@@ -143,18 +85,6 @@
     }
   }
 
-  // ---------- camera: follow the pack, with periodic wide shots showing every duck ----------
-  function direct(now, t) {
-    if (!sim) return;
-    const ys = sim.ds.map(c => C.yAt(c, t) + laneOff(c.idx, sim.ds.length)), lead = Math.max(...ys), last = Math.min(...ys);
-    if (now > cam.nextCut) { cam.wide = !cam.wide; cam.nextCut = now + (cam.wide ? 3500 : 9000 + fx() * 3000); }
-    let tp, tz;
-    if (cam.wide || t < 2) { tz = clamp((VH * .62) / Math.max(300, lead - last + 260), .35, 1); tp = (lead + last) / 2 + 60 / tz; }
-    else { const top = ys.slice().sort((a, b) => b - a).slice(0, 3); tp = top.reduce((a, b) => a + b, 0) / top.length - 40; tz = 1; }
-    tp = Math.min(tp, C.D + 200);
-    cam.p = lerp(cam.p, tp, .06); cam.z = lerp(cam.z, tz, .05);
-  }
-
   // ---------- HUD ----------
   function panel(x, y, w, h) { ctx.fillStyle = T.panel; roundRect(x, y, w, h, 18); ctx.fill(); ctx.strokeStyle = T.line; ctx.lineWidth = 2; ctx.stroke(); }
   function titleBar(sub) { panel(20, 18, VW - 40, 92); txt('🦆 OASIS RADIO DUCK RACE', VW / 2, 50, 32, T.accent3); txt(sub, VW / 2, 86, 20, '#fff', { w: 700 }); }
@@ -174,41 +104,53 @@
     titleBar(sub); const w = list.slice(0, 3);
     const pos = [[VW / 2, 470, 70], [VW / 2 - 200, 560, 54], [VW / 2 + 200, 600, 50]];
     w.forEach((r, i) => { const m = roster.find(x => x.id === r.id) || { id: r.id, name: r.name }; const [x, y, s] = pos[i];
-      drawDuck(x, y + 70, s / 30, m, performance.now(), false); avatarDisc(m, x, y - 20, s * .7, i ? '#fff' : T.gold); txt(['🥇', '🥈', '🥉'][i] + ' ' + clip(r.name || m.name, 14), x, y + s + 70, i ? 22 : 30, i ? '#fff' : T.gold); });
+      avatarDisc(m, x, y - 20, s * .7, i ? '#fff' : T.gold); txt(['🥇', '🥈', '🥉'][i] + ' ' + clip(r.name || m.name, 14), x, y + s + 70, i ? 22 : 30, i ? '#fff' : T.gold); });
     const champ = champs && champs.length ? champs.slice().sort((a, b) => b.wins - a.wins)[0] : null;
     if (champ) { panel(110, 900, VW - 220, 60); txt(`🏆 Top champ: ${clip(champ.name, 16)} – ${champ.wins} win${champ.wins === 1 ? '' : 's'}`, VW / 2, 930, 22, '#fff'); }
   }
   function drawToasts(now) { let y = 200; for (let i = toasts.length - 1; i >= 0; i--) { const k = toasts[i], a = now - k.t; if (a > 4000) { toasts.splice(i, 1); continue; } panel(110, y, VW - 220, 46); txt(k.s, VW / 2, y + 23, 20, k.col); y += 56; } }
 
   // ---------- frame ----------
+  let lastNow = 0, prevY = new Map();
   function frame(now) {
     requestAnimationFrame(frame);
+    const dtS = Math.min(.1, (now - (lastNow || now)) / 1000); lastNow = now;
     ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.clearRect(0, 0, VW, VH);
-    if (mode === 'idle') { if (DEMO) { drawWater(now); titleBar('DEMO starting…'); demoBadge(); } return; }
-    const wall = Date.now(), t = (wall - startAtLocal) / 1000;
+    const g3 = document.getElementById('g3'); g3.style.visibility = mode === 'idle' && !DEMO ? 'hidden' : '';
+    if (mode === 'idle') { if (DEMO) { titleBar('DEMO starting…'); demoBadge(); } return; }
+    const wall = Date.now(), t = (wall - startAtLocal) / 1000, tt = Math.max(0, t);
+    let duckState = [], view = { mode: 'entries', t: tt }, lead = null;
     if ((mode === 'countdown' || mode === 'racing' || mode === 'finish') && sim) {
       if (mode === 'countdown' && t >= 0) mode = 'racing';
-      direct(now, Math.max(0, t)); drawWater(now); drawLine(0, 'START', false); drawLine(C.D, '🏁 FINISH 🏁', true);
-      const n = sim.ds.length, tt = Math.max(0, t), lead = sim.ds.reduce((a, c) => C.yAt(c, tt) > C.yAt(a, tt) ? c : a, sim.ds[0]);
-      const sorted = sim.ds.slice().sort((a, b) => C.yAt(a, tt) - C.yAt(b, tt));      // back ducks drawn first
-      for (const c of sorted) { const y = toY(C.yAt(c, tt) + laneOff(c.idx, n)), x = laneX(c.idx, n) + 6 * Math.sin(now / 700 + c.idx); if (y < -80 || y > VH + 80) continue;
-        const e = C.eventAt(c, tt), spin = e && e[0].type === 'spin' ? e[1] * 6.283 : 0; const s = clamp(cam.z, .45, 1);
-        drawDuck(x, y, s, c, now, tt > 0 && tt < (c.cross ?? 1e9), spin);
-        if (cam.z > .55 || c === lead) nameTag(c, x, y - 44 * s, c === lead);
-        if (e && e[0].type === 'snag' && cam.z > .55) txt('stuck on a reed!', x, y + 36, 14, T.accent3, { w: 700 }); }
-      titleBar(t < 0 ? 'Ducks at the ready…' : `Leading: ${clip(lead.name, 18)}`);
-      if (t < 0) txt(String(Math.ceil(-t)), VW / 2, 600, 180, T.accent3);
-      else if (t < 1) txt('QUACK! GO!', VW / 2, 600, 90, T.accent2);
-      board(tt);
-      if (tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
+      syncDucks(roster);
+      duckState = sim.ds.map(c => { const y = C.yAt(c, tt), e = C.eventAt(c, tt), sp = (y - C.yAt(c, Math.max(0, tt - .25))) / .25;
+        return { id: c.id, p: y, moving: t > 0 && tt < (c.cross ?? 1e9) + 3, speed: sp, spin: e && e[0].type === 'spin' ? e[1] * 6.283 : 0 }; });
+      lead = sim.ds.reduce((a, c) => C.yAt(c, tt) > C.yAt(a, tt) ? c : a, sim.ds[0]);
+      view = { mode: 'race', t: tt };
+    } else if (mode === 'entries') { syncDucks(roster); duckState = roster.map(m => ({ id: m.id, p: 0, moving: false, speed: 0 })); }
+    else if ((mode === 'podium' || mode === 'podiumLocal') && sim) { syncDucks(roster); duckState = sim.ds.map(c => ({ id: c.id, p: C.yAt(c, 1e4), moving: false, speed: 0 })); view = { mode: 'podium', t: tt }; }
+    let out = null;
+    if (R) { try { out = R.frame(now, duckState, view); } catch (e) { err3d = String(e && e.message || e); R = null; } }
+    if (!R) { ctx.fillStyle = '#0b8fd6'; ctx.fillRect(0, 0, VW, VH); panel(60, 520, VW - 120, 150); txt('3D view not available on this screen', VW / 2, 560, 26, '#fff'); txt(clip(err3d || 'WebGL unavailable', 46), VW / 2, 600, 18, T.accent3, { w: 700 }); txt('The race still runs and results still count.', VW / 2, 636, 18, '#fff', { w: 700 }); }
+    // name tags + profile pictures over the 3D ducks
+    if (out && duckState.length) {
+      const byId = new Map(roster.map(m => [String(m.id), m])), many = duckState.length > 10;
+      const ls = out.labels.filter(l => l.on).sort((a, b) => b.dist - a.dist);
+      for (const l of ls) { const m = byId.get(String(l.id)); if (!m) continue; const isLead = lead && String(lead.id) === String(l.id);
+        if (many && out.shot === 'wide' && !isLead) continue; nameTag(m, l.sx - 40, l.sy, isLead); }
+    }
+    if (mode === 'countdown' || mode === 'racing' || mode === 'finish') {
+      titleBar(t < 0 ? 'Ducks at the ready…' : `Leading: ${clip(lead ? lead.name : '', 18)}`);
+      if (t < 0) txt(String(Math.ceil(-t)), VW / 2, 560, 180, T.accent3);
+      else if (t < 1.2) txt('QUACK! GO!', VW / 2, 560, 90, T.accent2);
+      if (sim) board(tt);
+      if (sim && tt >= sim.firstCross && mode !== 'finish') { mode = 'finish'; finishShownAt = now; toast(`🏁 ${clip(sim.order[0].name, 16)} wins!`, T.gold); reportOnce(raceId, sim.ids).then(r => { if (r && r.ok && r.body && r.body.state) applyState(r.body.state, 'result'); }); }
       if (mode === 'finish' && now - finishShownAt > Math.max(6000, (sim.lastCross - sim.firstCross) * 1000 + 2500)) mode = official ? 'podium' : 'podiumLocal';
-    } else if (mode === 'podium') { drawWater(now); podium(official, 'Official result'); }
-    else if (mode === 'podiumLocal') { drawWater(now); podium(sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : [], 'Result (waiting for the box to confirm)'); }
-    else if (mode === 'inprogress') { drawWater(now); titleBar('Race in progress – results coming up!'); }
-    else if (mode === 'over') { drawWater(now); titleBar('Race ended without a result – Grumpy can re-run it'); }
-    else if (mode === 'entries') { cam.p = lerp(cam.p, 0, .1); cam.z = lerp(cam.z, 1, .1); drawWater(now); drawLine(0, 'START', false);
-      roster.forEach(m => { const y = toY(laneOff(m.idx, roster.length)) + 40, x = laneX(m.idx, roster.length); drawDuck(x, y, .9, m, now, false); nameTag(m, x, y - 40, false); });
-      entriesHud(); }
+    } else if (mode === 'podium') podium(official, 'Official result');
+    else if (mode === 'podiumLocal') podium(sim ? sim.order.map(c => ({ id: c.id, name: c.name })) : [], 'Result (waiting for the box to confirm)');
+    else if (mode === 'inprogress') titleBar('Race in progress – results coming up!');
+    else if (mode === 'over') titleBar('Race ended without a result – Grumpy can re-run it');
+    else if (mode === 'entries') entriesHud();
     drawToasts(now); demoBadge();
   }
 
