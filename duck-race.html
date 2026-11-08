@@ -13,7 +13,7 @@
   const C = window.DuckCore, q = new URLSearchParams(location.search);
   const DEMO = q.get('demo') === '1', LOWQ = q.get('quality') === 'low';
   const VW = 720, VH = 1280, FONT = '"Montserrat","Arial Black",system-ui,sans-serif';
-  const T = { accent: '#ff3d8b', accent2: '#00d9ff', accent3: '#ffd43b', gold: '#ffc83d', panel: 'rgba(14,10,30,.62)', line: 'rgba(255,255,255,.18)' };
+  const T = { accent: '#ff3d8b', accent2: '#00d9ff', accent3: '#ffd43b', gold: '#ffc83d', panel: 'rgba(30,20,90,.72)', line: 'rgba(255,255,255,.18)' };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;
   const wrap = document.getElementById('wrap'), cv = document.getElementById('c'), ctx = cv.getContext('2d');
   const RS = LOWQ ? 1 : Math.min(1.5, Math.max(1, devicePixelRatio || 1)); cv.width = VW * RS; cv.height = VH * RS;
@@ -53,17 +53,19 @@
 
   function drawWater(now) {
     const g = ctx, t = now / 1000;
-    const bank = g.createLinearGradient(0, 0, VW, 0); bank.addColorStop(0, '#3f9b3a'); bank.addColorStop(.09, '#6cc04a'); bank.addColorStop(.91, '#6cc04a'); bank.addColorStop(1, '#3f9b3a');
+    const bank = g.createLinearGradient(0, 0, VW, 0); bank.addColorStop(0, '#2ecc40'); bank.addColorStop(.09, '#7dff5a'); bank.addColorStop(.91, '#7dff5a'); bank.addColorStop(1, '#2ecc40');
     g.fillStyle = bank; g.fillRect(0, 0, VW, VH);
     // wavy river edges
     g.beginPath(); for (let y = -20; y <= VH + 20; y += 20) { const wp = (cam.p + (VH * .62 - y) / cam.z); g.lineTo(RIVER_L - 8 + 10 * Math.sin(wp / 140), y); }
     for (let y = VH + 20; y >= -20; y -= 20) { const wp = (cam.p + (VH * .62 - y) / cam.z); g.lineTo(RIVER_R + 8 + 10 * Math.sin(wp / 170 + 2), y); } g.closePath();
-    const w = g.createLinearGradient(RIVER_L, 0, RIVER_R, 0); w.addColorStop(0, '#2f9fd8'); w.addColorStop(.5, '#4fc3f2'); w.addColorStop(1, '#2f9fd8');
+    const w = g.createLinearGradient(RIVER_L, 0, RIVER_R, 0); w.addColorStop(0, '#00b4e6'); w.addColorStop(.5, '#3ff0f0'); w.addColorStop(1, '#00b4e6');
     g.fillStyle = w; g.fill(); g.save(); g.clip();
     // flowing light streaks (water moves toward the finish = up the screen)
     g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
     for (let k = 0; k < 26; k++) { const x = RIVER_L + 20 + (k * 97) % (RIVER_R - RIVER_L - 40), sp = 60 + (k * 37) % 50, y = ((VH + 60) - ((t * sp + k * 211 + cam.p * cam.z) % (VH + 120)));
       g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 8, y - 14, x, y - 30); g.stroke(); }
+    for (let k = 0; k < (LOWQ ? 14 : 34); k++) { const sx = RIVER_L + 10 + (k * 173) % (RIVER_R - RIVER_L - 20), sy = (k * 389 + cam.p * cam.z * .9) % VH, tw = .5 + .5 * Math.sin(t * 4 + k * 1.7);
+      if (tw > .7) { g.fillStyle = `rgba(255,255,255,${(tw - .7) * 3})`; g.beginPath(); g.moveTo(sx, sy - 6); g.lineTo(sx + 2, sy); g.lineTo(sx, sy + 6); g.lineTo(sx - 2, sy); g.closePath(); g.fill(); g.fillRect(sx - 6, sy - 1, 12, 2); } } // sparkles
     g.restore();
     // reeds, rocks and lily pads on the banks (anchored to world positions so they scroll with the river)
     const p0 = cam.p - (VH * .4) / cam.z, p1 = cam.p + (VH * .7) / cam.z;
@@ -75,6 +77,8 @@
           g.fillStyle = '#6d4c2f'; g.fillRect(x + 6, y - 46, 5, 14); }
         else { g.fillStyle = '#9e9e9e'; g.beginPath(); g.ellipse(x, y, 18 + r() * 10, 11, 0, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.25)'; g.beginPath(); g.ellipse(x - 5, y - 4, 7, 3, 0, 0, 7); g.fill(); }
       }
+      for (const side of [0, 1]) for (let f = 0; f < 3; f++) { const fx_ = side ? RIVER_R + 20 + r() * 50 : 4 + r() * 46, fy = y + 60 + r() * 120, fc = ['#ff3d8b', '#ffd43b', '#ff8a3d', '#b46bff', '#ffffff'][Math.floor(r() * 5)];
+        g.fillStyle = fc; for (let a = 0; a < 5; a++) { g.beginPath(); g.arc(fx_ + 5 * Math.cos(a * 1.2566), fy + 5 * Math.sin(a * 1.2566), 4, 0, 7); g.fill(); } g.fillStyle = '#ffeb3b'; g.beginPath(); g.arc(fx_, fy, 3, 0, 7); g.fill(); }
       if (r() < .4) { const lx = RIVER_L + 12 + r() * 30; g.fillStyle = '#43a047'; g.beginPath(); g.arc(lx, y + 40, 13, .3, 6.0); g.lineTo(lx, y + 40); g.fill(); }
     }
   }
@@ -86,6 +90,8 @@
     g.fillStyle = '#7b4a2a'; g.fillRect(RIVER_L - 18, y - 120, 8, 120); g.fillRect(RIVER_R + 10, y - 120, 8, 120);
     g.fillStyle = checker ? T.accent : T.accent2; roundRect(RIVER_L - 22, y - 150, RIVER_R - RIVER_L + 44, 40, 12); g.fill();
     txt(label, VW / 2, y - 130, 26, '#fff');
+    if (checker) { const cs = ['#ff3d8b', '#ffd43b', '#00d9ff', '#3ddc84', '#ff8a3d', '#b46bff']; for (let i = 0; i < 16; i++) { const bx = RIVER_L - 10 + i * 38, by = y - 108; g.fillStyle = cs[i % cs.length]; g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + 30, by); g.lineTo(bx + 15, by + 26); g.closePath(); g.fill(); }
+      for (let i = 0; i < 10; i++) { const bx = (i % 2 ? RIVER_R + 24 : RIVER_L - 34), by = y - 60 - i * 8; g.fillStyle = cs[i % cs.length]; g.beginPath(); g.arc(bx, by - 150, 16, 0, 7); g.fill(); } }
   }
   function roundRect(x, y, w, h, r) { const g = ctx; g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
   function txt(s, x, y, size, col, o = {}) { const g = ctx; g.save(); g.font = `${o.w || 900} ${size}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; g.lineWidth = Math.max(3, size / 6); g.strokeStyle = 'rgba(0,0,0,.55)'; g.strokeText(s, x, y); g.fillStyle = col || '#fff'; g.fillText(s, x, y); g.restore(); }
@@ -158,7 +164,7 @@
     const n = roster.length; panel(60, 820, VW - 120, 120 + Math.min(n, 10) * 0); txt(n ? `${n} duck${n === 1 ? '' : 's'} on the start line` : 'Waiting for the first duck…', VW / 2, 860, 28, '#fff');
     txt('Gift Doughnut or bigger to enter 🍩', VW / 2, 900, 22, T.accent2, { w: 700 });
   }
-  function nameTag(m, x, y, lead) { avatarDisc(m, x - 34, y, 16, lead ? T.gold : '#fff'); ctx.fillStyle = T.panel; roundRect(x - 14, y - 14, 120, 28, 10); ctx.fill(); txt(clip(m.name, 11), x + 46, y, 15, lead ? T.gold : '#fff', { w: 800 }); }
+  function nameTag(m, x, y, lead) { avatarDisc(m, x - 34, y, 16, lead ? T.gold : '#fff'); ctx.fillStyle = lead ? '#ff3d8b' : 'rgba(10,20,60,.85)'; roundRect(x - 14, y - 15, 128, 30, 12); ctx.fill(); ctx.strokeStyle = lead ? '#ffd43b' : '#fff'; ctx.lineWidth = 2; ctx.stroke(); txt(clip(m.name, 11), x + 50, y, 17, lead ? '#fff59d' : '#fff', { w: 900 }); }
   function board(t) {
     const rank = sim.ds.slice().sort((a, b) => C.yAt(b, t) - C.yAt(a, t)).slice(0, 5);
     panel(20, 1070, 340, 190); txt('LEADERS', 190, 1094, 20, T.accent3);
