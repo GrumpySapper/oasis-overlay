@@ -67,3 +67,25 @@ test('demo QA helpers (speed/seek/shot/snap) are gated on DEMO only', () => {
   assert.match(html, /const SPEED = DEMO \?/); assert.match(html, /SEEK = DEMO \?/); assert.match(html, /forceShot: DEMO \?/); assert.match(html, /snap: DEMO &&/);
   assert.match(html, /nowMs = \(\) => DEMO \? [^:]+ : Date\.now\(\)/);
 });
+test('pack-safe framing: leader + front of pack on screen in EVERY shot through the finish (1/12/40 ducks, 3 seeds)', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  for (const n of [1, 12, 40]) for (const seed of [3, 77, 9001]) {
+    const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), seed); const shots = new Set();
+    for (let ms = 0; ms <= 206000; ms += 250) {
+      const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t, snap: true }); shots.add(out.shot);
+      const rank = sim.ds.slice().sort((a, b) => C.yAt(b, t) - C.yAt(a, t)), need = rank.slice(0, out.shot === 'leader' ? 1 : 6);
+      for (const c of need) assert.ok(out.labels.find(l => l.id === c.id).on, `n${n} s${seed} t${t} ${out.shot}: ${c.id} off screen`);
+    }
+    assert.ok(shots.has('finish') && shots.size >= 10);
+  }
+});
+test('eased (live) camera: leader never off screen for more than ~0.7 s during transitions', { skip: !TP && 'THREE_MODULE not set' }, async () => {
+  const THREE = await import(require('url').pathToFileURL(TP).href);
+  for (const n of [1, 12, 40]) { const R = D3.create(THREE, null, { D: C.D, noRender: true }); R.setDucks(ents(n)); const sim = C.simulate(ents(n), 42); let run = 0, worst = 0;
+    for (let ms = 0; ms <= 206000; ms += 1000 / 30) { const t = ms / 1000, out = R.frame(ms, sim.ds.map(c => ({ id: c.id, p: C.yAt(c, t), moving: true, speed: 31 })), { mode: 'race', t });
+      const ld = sim.ds.reduce((a, c) => C.yAt(c, t) > C.yAt(a, t) ? c : a); if (!out.labels.find(l => l.id === ld.id).on) worst = Math.max(worst, ++run / 30); else run = 0; }
+    assert.ok(worst <= .7, `n${n} worst gap ${worst}s`); }
+});
+test('race clock runs 0:00 -> 3:21 and holds at 3:21 through the finish', () => {
+  assert.strictEqual(C.clock(-3), '0:00'); assert.strictEqual(C.clock(100.6), '1:40'); assert.strictEqual(C.clock(201), '3:21'); assert.strictEqual(C.clock(214), '3:21');
+});

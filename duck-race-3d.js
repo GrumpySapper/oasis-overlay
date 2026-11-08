@@ -318,12 +318,22 @@
         default: return [P(Math.sin(now / 5000) * 6, 7, 24), P(0, 1, -4), 50];   // entries: start line
       }
     }
+    // Pack-safe framing: whatever the shot, pull the lens back (and up a little) along its own axis until the leader and the
+    // front of the pack (top 6 by position; leader only for the close-up) sit inside a safe area clear of the HUD panels.
+    const probe = new THREE.PerspectiveCamera(50, 720 / 1280, .2, 1400), pv = new THREE.Vector3(), SAFE_X = .86, SAFE_TOP = .74, SAFE_BOT = -.62;
+    function inSafe(pts) { probe.updateMatrixWorld(); for (const o of pts) { pv.set(o.x, 1.4, o.z).project(probe); if (!(pv.z < 1 && pv.z > -1 && Math.abs(pv.x) < SAFE_X && pv.y < SAFE_TOP && pv.y > SAFE_BOT)) return false; } return true; }
+    function fitPack(shot, tp, tl, fov, list) {
+      const byZ = list.slice().sort((a, b) => b.p - a.p), need = shot === 'leader' ? byZ.slice(0, 1) : byZ.slice(0, Math.min(6, byZ.length));
+      probe.fov = fov; probe.updateProjectionMatrix();
+      for (let i = 0; i < 24; i++) { probe.position.copy(tp); probe.lookAt(tl); if (inSafe(need)) return i;
+        pv.subVectors(tp, tl).multiplyScalar(.14); tp.add(pv); tp.y += .6; }
+      return 24; }
     function direct(now, view, list, dt) {
       let shot, L_ = null;
       if (view.mode === 'entries' || !list.length) shot = 'entries';
       else if (view.mode === 'podium') shot = 'podium';
       else {
-        const zs = list.map(d => d.z), xs = list.map(d => d.x), first = Math.min(...zs), last = Math.max(...zs), lead = list.reduce((a, d) => (d.z < a.z ? d : a));
+        const zs = list.map(d => d.z), xs = list.map(d => d.x), first = Math.min(...zs), last = Math.max(...zs), lead = list.reduce((a, d) => (d.p > a.p ? d : a));   // race leader by position, not by lane row
         L_ = { lead, first, last, mid: (first + last) / 2, xmin: Math.min(...xs), xmax: Math.max(...xs), span: last - first };
         const toFinish = view.mode === 'race' ? Math.max(0, first - ZF) : null;
         shot = view.forceShot || shotAt(view.t || 0, view.t > 5 ? toFinish : null);
@@ -331,11 +341,12 @@
       if (!L_) L_ = { lead: { x: 0, z: ZF }, first: ZF, last: ZF, mid: ZF, xmin: -10, xmax: 10, span: 0 };
       const [tp, tl, fov] = pose(shot, now, view.t || 0, L_);
       tp.z = Math.max(tp.z, ZF - 40); tl.z = Math.max(tl.z, ZF - 40); tp.y = Math.max(tp.y, .8);
+      if (list.length && view.mode === 'race') fitPack(shot, tp, tl, fov, list);
       if (shot !== cam.shot) { cam.from = { pos: cam.pos.clone(), look: cam.look.clone(), fov: cam.fov }; cam.blendT0 = now; cam.shot = shot; }
       if (cam.first || view.snap) { cam.pos.copy(tp); cam.look.copy(tl); cam.fov = fov; cam.first = false; cam.from = null; }
       else {
         const k = 1 - Math.exp(-dt * 7); cam.pos.lerp(tp, k); cam.look.lerp(tl, k); cam.fov = lerp(cam.fov, fov, k);
-        if (cam.from) { const b = smooth((now - cam.blendT0) / 1300); if (b >= 1) cam.from = null; else { cam.pos.lerpVectors(cam.from.pos, tp, b); cam.look.lerpVectors(cam.from.look, tl, b); cam.fov = lerp(cam.from.fov, fov, b); } }
+        if (cam.from) { const b = smooth((now - cam.blendT0) / 900); if (b >= 1) cam.from = null; else { cam.pos.lerpVectors(cam.from.pos, tp, b); cam.look.lerpVectors(cam.from.look, tl, b); cam.fov = lerp(cam.from.fov, fov, b); } }
       }
       camera.position.copy(cam.pos); camera.lookAt(cam.look); if (Math.abs(camera.fov - cam.fov) > .01) { camera.fov = cam.fov; camera.updateProjectionMatrix(); }
       sun.position.copy(cam.look).addScaledVector(SUN_DIR, 120); sun.target.position.copy(cam.look);
@@ -362,13 +373,13 @@
         if (s.moving && prnd() < dt * 3 * sp) emit(x, z - 2.2, 2, .45);
         d.lastSp = lerp(d.lastSp, sp, .05);
         if (wi < MAXW) duckU[wi++].set(x, z, s.moving ? sp : 0, 1);
-        list.push({ id: s.id, x, z });
+        list.push({ id: s.id, x, z, p: s.p });
       }
       waterU.uN.value = wi;
       for (let i = 0; i < SPN; i++) { if (spLife[i] <= 0) continue; spLife[i] -= dt; spVel[i * 3 + 1] -= 9.8 * dt; spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt; if (spPos[i * 3 + 1] < 0 || spLife[i] <= 0) { spLife[i] = 0; spPos[i * 3 + 1] = -50; } }
       spGeo.attributes.position.needsUpdate = true;
       direct(now, view, list, dt);
-      sky.position.copy(camera.position);
+      camera.updateMatrixWorld(); sky.position.copy(camera.position);
       if (renderer) renderer.render(scene, camera);
       const labels = list.map(o => { v.set(o.x, 4.4, o.z).project(camera); tmpV.set(o.x, 0, o.z);
         return { id: o.id, sx: (v.x * .5 + .5) * 720, sy: (-v.y * .5 + .5) * 1280, on: v.z < 1 && v.z > -1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05, dist: camera.position.distanceTo(tmpV) }; });

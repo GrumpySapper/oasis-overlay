@@ -169,7 +169,7 @@ catch (e) { window.__DUCK_THREE_ERR = '3D engine failed to load (' + String(e &&
       if (sim && (mode === 'racing' || mode === 'finish')) sim.ds.slice().sort((a, b) => C.yAt(b, tt) - C.yAt(a, tt)).forEach((c, i) => place.set(String(c.id), i));
       const cands = out.labels.filter(l => l.on && byId.has(String(l.id))).map(l => ({ ...l, m: byId.get(String(l.id)), lead: !!lead && String(lead.id) === String(l.id), rank: place.has(String(l.id)) ? place.get(String(l.id)) : 99 }))
         .sort((a, b) => (b.lead - a.lead) || (a.rank - b.rank) || (a.dist - b.dist));
-      const maxN = out.shot === 'leader' || out.shot === 'front' ? 3 : out.shot === 'pack' || out.shot === 'overhead' ? 12 : 7;
+      const maxN = out.shot === 'leader' ? 2 : out.shot === 'front' || out.shot === 'waterline' ? 4 : out.shot === 'pack' || out.shot === 'overhead' ? 8 : 5;   // fewer, readable tags
       for (const p of layoutTags(cands, maxN)) nameTag(p.c.m, p.x, p.y, p.w, p.c.lead, clamp(p.c.sx, 0, VW), clamp(p.c.sy, 0, VH), p.c.m.idx + 1);
     }
     if (mode === 'countdown' || mode === 'racing' || mode === 'finish') {
