@@ -3,7 +3,7 @@
 <title>Oasis Radio Christmas Gift Tree</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">
-<!-- oasis-overlay christmas-tree-gifts v4 -->
+<!-- oasis-overlay christmas-tree-gifts v5 -->
 <!-- Oasis Radio Christmas Gift Tree. TikTok LIVE Studio browser source, 1080x1920 (or 720x1280). Transparent background.
      Gifts fall as wrapped presents; Bob the Bot catches each one and stacks it under the tree.
      ?demo=1 or ?test=1 simulates gifts (preview, no server needed).  ?channel=test listens to the test SSE channel.
@@ -102,14 +102,15 @@
     reflowSlots();
     bakeTree();
     if (!bob.ready) {
-      bob.x = W * 0.15; bob.y = scene.ground; bob.ready = true;
+      bob.x = bobHomeX(); bob.y = scene.ground; bob.ready = true;
     } else {
       if (!current) { /* keep him where he last stood, just on the ground */ bob.y = scene.ground; }
     }
   }
 
   const bob = { x: 0, y: 0, facing: 1, hop: 0, bounce: 0, reach: 0, ready: false, phase: 'idle', walkT: 0, pomT: 9999, pomNext: 1800,
-    pose: { walkOn: 0, lookUp: 0, headTilt: 0, squash: 1, crouch: 0, reach: 0, lean: 0, pom: 0, breathe: 0, gaitHop: 0 } };
+    idleName: null, idleT: 0, idleDur: 0, idleGap: 550, idleNudge: null,
+    pose: { walkOn: 0, lookUp: 0, headTilt: 0, squash: 1, crouch: 0, reach: 0, lean: 0, pom: 0, breathe: 0, gaitHop: 0, idleBounce: 0, hatTilt: 0 } };
   const sparkles = [];
   let treeBake = null, treeBakeKey = '', treeLights = [], treeStar = null, catchFlash = 0;
   function bobSize() {
@@ -120,13 +121,16 @@
   function bobHands(b) {
     const s = bobSize();
     const P = b.pose || {};
-    const yBase = b.y - (b.hop || 0) - (b.bounce || 0) - (P.gaitHop || 0);
+    const yBase = b.y - (b.hop || 0) - (b.bounce || 0) - (P.gaitHop || 0) - (P.idleBounce || 0);
     const hold = lerp(0.50, 0.57, P.reach || 0);
     const down = (P.crouch || 0) * s.h * 0.12;
     return { x: b.x + b.facing * s.w * 0.04, y: yBase - s.h * hold + down };
   }
   function bobHomeX() {
-    return Math.min(W * 0.16, Math.max(W * 0.12, scene.left - bobSize().w * 0.55));
+    // Stand right beside the tree, just left of the red skirt, overlapping it slightly.
+    const s = bobSize();
+    const skirtL = scene.cx - scene.moundR * 0.92;
+    return clamp(skirtL - s.w * 0.38, s.w * 0.42, scene.left - s.w * 0.12);
   }
 
   // ---- presents ----
@@ -249,8 +253,12 @@
     if (current || !queue.length || !scene) return;
     const ev = queue.shift();
     const present = makePresent(ev);
-    const catchX = lerp(W * 0.22, Math.max(W * 0.22, scene.left - 48), Math.random());
-    const catchY = scene.ground - bobSize().h * 0.62;
+    const bs = bobSize();
+    const home = bobHomeX();
+    const catchLo = home - bs.w * 0.10;
+    const catchHi = Math.min(scene.left - 18, home + bs.w * 0.32);
+    const catchX = lerp(catchLo, Math.max(catchLo + 8, catchHi), Math.random());
+    const catchY = scene.ground - bs.h * 0.62;
     present.x = catchX + (Math.random() - 0.5) * 36;
     present.y = -present.h - 10;
     present.rot = (Math.random() - 0.5) * 0.4;
@@ -261,6 +269,7 @@
       bobX0: bob.x, bobY0: scene.ground,
       spin: (Math.random() - 0.5) * 1.2
     };
+    endIdleAct();
     bob.facing = catchX >= bob.x ? 1 : -1;
     bob.phase = 'run';
   }
@@ -346,6 +355,191 @@
     }
   }
 
+  const IDLE_ACTS = ['dance', 'wave', 'star', 'hat', 'tap', 'tidy'];
+
+  function clearIdleNudge() {
+    const n = bob.idleNudge;
+    if (n && n.p) { n.p.wobbleX = 0; n.p.wobbleY = 0; n.p.wobbleR = 0; }
+    bob.idleNudge = null;
+  }
+  function endIdleAct() {
+    bob.idleName = null;
+    bob.idleT = 0;
+    bob.idleDur = 0;
+    bob.idleGap = 650 + Math.random() * 850;
+    clearIdleNudge();
+  }
+  function pickIdleAct() {
+    const acts = IDLE_ACTS.filter(a => a !== bob.idleName);
+    return acts[(Math.random() * acts.length) | 0];
+  }
+  function startIdleAct(name) {
+    if (!scene) return;
+    const act = name && IDLE_ACTS.indexOf(name) >= 0 ? name : pickIdleAct();
+    clearIdleNudge();
+    bob.idleName = act;
+    bob.idleT = 0;
+    bob.phase = 'idle';
+    bob.idleDur = act === 'tidy' ? 2500 : act === 'dance' ? 2800 : act === 'wave' ? 2000 : 1800;
+    if (act === 'hat' || act === 'wave') { bob.pomT = 0; bob.pomNext = 3600 + Math.random() * 2000; }
+    if (act === 'tidy') {
+      const vis = placed.filter(p => p.settled && !p.hidden);
+      let targetX, gift = null;
+      if (vis.length) {
+        gift = vis.reduce((best, g) => Math.abs((g.x || 0) - bob.x) < Math.abs((best.x || 0) - bob.x) ? g : best);
+        const side = Math.sign((gift.x || scene.cx) - bob.x) || 1;
+        targetX = (gift.x || scene.cx) - side * bobSize().w * 0.26;
+      } else {
+        targetX = scene.cx - scene.moundR * 0.62;
+      }
+      targetX = clamp(targetX, bobHomeX() - bobSize().w * 0.08, scene.cx - scene.trunkW * 1.2);
+      bob.idleNudge = { p: gift, targetX, home: bobHomeX() };
+    }
+  }
+  function forceIdle(name) {
+    if (current) return false;
+    startIdleAct(name);
+    return true;
+  }
+  window.__idle = forceIdle;
+
+  function tickIdle(dt, now) {
+    const s = bobSize();
+    const home = bobHomeX();
+    const act = bob.idleName;
+    const dancing = act === 'dance';
+    const beat = now / (dancing ? 230 : 300);
+    const amp = dancing ? 0.048 : 0.032;
+    bob.pose.idleBounce = Math.abs(Math.sin(beat)) * s.h * amp;
+    bob.pose.breathe = 0.5 + 0.5 * Math.sin(now / 520);
+    easePose('squash', 1 + Math.sin(beat) * (dancing ? 0.06 : 0.042), 0.22);
+
+    // Walk back to his spot beside the tree before starting a bit, unless tidy is mid-walk.
+    if (!act && Math.abs(bob.x - home) > 6) {
+      moveBobTowards(home, dt, 0.9);
+      easePose('headTilt', 0, 0.15);
+      easePose('lookUp', 0, 0.12);
+      easePose('crouch', 0, 0.15);
+      easePose('reach', 0, 0.15);
+      easePose('hatTilt', 0, 0.15);
+      bob.hop = lerp(bob.hop, 0, 0.2);
+      bob.bounce = lerp(bob.bounce, 0, 0.2);
+      return;
+    }
+
+    if (!act) {
+      bob.facing = 1;
+      bob.walkT += dt * 0.0055;
+      easePose('walkOn', 0.28, 0.08);
+      easePose('lean', Math.sin(now / 400) * 0.14, 0.16);
+      easePose('headTilt', Math.sin(now / 720) * 0.28, 0.12);
+      easePose('lookUp', 0, 0.1);
+      easePose('crouch', 0, 0.12);
+      easePose('reach', 0, 0.12);
+      easePose('hatTilt', 0, 0.12);
+      bob.hop = lerp(bob.hop, 0, 0.2);
+      bob.bounce = lerp(bob.bounce, 0, 0.2);
+      bob.idleGap -= dt;
+      if (bob.idleGap <= 0) startIdleAct(pickIdleAct());
+      return;
+    }
+
+    bob.idleT += dt;
+    const u = clamp(bob.idleT / Math.max(1, bob.idleDur), 0, 1);
+
+    if (act === 'dance') {
+      bob.facing = 1;
+      bob.walkT += dt * 0.017;
+      easePose('walkOn', 0.95, 0.2);
+      bob.pose.lean = Math.sin(bob.walkT) * 0.22;
+      bob.pose.headTilt = Math.sin(bob.walkT * 0.5) * 0.7;
+      easePose('lookUp', 0.15 + 0.1 * Math.sin(bob.walkT), 0.15);
+      easePose('crouch', 0, 0.15);
+      easePose('hatTilt', Math.sin(bob.walkT) * 0.12, 0.2);
+      bob.hop = Math.abs(Math.sin(bob.walkT)) * s.h * 0.018;
+    } else if (act === 'wave') {
+      bob.facing = 1;
+      const flap = Math.sin(bob.idleT / 130);
+      const intro = easeOut(clamp(u / 0.12, 0, 1)) * (u < 0.88 ? 1 : 1 - (u - 0.88) / 0.12);
+      easePose('walkOn', 0.2, 0.15);
+      bob.pose.lean = 0.10 + flap * 0.16 * intro;
+      bob.pose.headTilt = (0.45 + flap * 0.7) * intro;
+      easePose('lookUp', 0.08, 0.15);
+      easePose('crouch', 0, 0.15);
+      easePose('hatTilt', flap * 0.15 * intro, 0.2);
+      bob.hop = Math.abs(Math.sin(u * Math.PI * 3.2)) * s.h * 0.07 * intro;
+    } else if (act === 'star') {
+      bob.facing = 1;
+      const up = u < 0.22 ? easeOut(u / 0.22) : u > 0.75 ? 1 - easeIn((u - 0.75) / 0.25) : 1;
+      easePose('walkOn', 0.2, 0.12);
+      easePose('lookUp', up, 0.2);
+      easePose('lean', -0.06 * up, 0.15);
+      easePose('headTilt', 0.12 * up, 0.12);
+      easePose('crouch', 0, 0.15);
+      easePose('hatTilt', -0.08 * up, 0.15);
+      bob.hop = (u < 0.25 ? Math.sin((u / 0.25) * Math.PI) : 0) * s.h * 0.03;
+    } else if (act === 'hat') {
+      bob.facing = 1;
+      const g = u < 0.18 ? easeOut(u / 0.18) : u > 0.78 ? 1 - easeIn((u - 0.78) / 0.22) : 1;
+      const wiggle = Math.sin(bob.idleT / 110);
+      easePose('walkOn', 0.18, 0.12);
+      bob.pose.headTilt = (0.35 + wiggle * 0.25) * g;
+      easePose('lookUp', 0.2 * g, 0.15);
+      bob.pose.hatTilt = (0.55 + wiggle * 0.7) * g;
+      easePose('lean', 0.05 * g, 0.15);
+      easePose('crouch', 0, 0.15);
+      bob.hop = Math.abs(Math.sin(u * Math.PI * 2)) * s.h * 0.02 * g;
+    } else if (act === 'tap') {
+      bob.facing = 1;
+      const g = u < 0.14 ? easeOut(u / 0.14) : u > 0.82 ? 1 - easeIn((u - 0.82) / 0.18) : 1;
+      const tap = Math.max(0, Math.sin(bob.idleT / 85));
+      easePose('walkOn', 0.18, 0.12);
+      bob.pose.headTilt = (-0.55 - tap * 0.35) * g;
+      easePose('lookUp', 0.18 * g, 0.15);
+      easePose('lean', 0.08 * g, 0.15);
+      easePose('crouch', 0, 0.15);
+      easePose('hatTilt', 0.08 * tap * g, 0.2);
+      bob.hop = tap * s.h * 0.012 * g;
+    } else if (act === 'tidy') {
+      const n = bob.idleNudge || { targetX: home, home, p: null };
+      if (u < 0.34) {
+        moveBobTowards(n.targetX, dt, 0.95);
+        easePose('crouch', 0, 0.15);
+        easePose('lookUp', 0, 0.15);
+        easePose('hatTilt', 0, 0.15);
+        bob.hop = lerp(bob.hop, 0, 0.2);
+      } else if (u < 0.72) {
+        if (Math.abs(bob.x - n.targetX) > 3) moveBobTowards(n.targetX, dt, 0.8);
+        else { easePose('walkOn', 0, 0.25); easePose('lean', 0.06, 0.15); }
+        const c = easeOut(clamp((u - 0.34) / 0.16, 0, 1));
+        easePose('crouch', c, 0.25);
+        easePose('headTilt', 0.35 * c, 0.15);
+        easePose('lookUp', 0.08 * c, 0.15);
+        bob.hop = lerp(bob.hop, 0, 0.25);
+        if (n.p) {
+          const wig = Math.sin((u - 0.34) / 0.38 * Math.PI * 3.2) * c;
+          n.p.wobbleX = wig * 8;
+          n.p.wobbleR = wig * 0.08;
+        }
+      } else {
+        if (n.p) {
+          n.p.wobbleX = lerp(n.p.wobbleX || 0, 0, 0.25);
+          n.p.wobbleR = lerp(n.p.wobbleR || 0, 0, 0.25);
+        }
+        easePose('crouch', 0, 0.2);
+        easePose('headTilt', 0, 0.15);
+        moveBobTowards(n.home, dt, 0.95);
+      }
+    }
+
+    if (u >= 1) {
+      if (act === 'tidy') clearIdleNudge();
+      endIdleAct();
+      bob.x = Math.abs(bob.x - home) <= 8 ? home : bob.x;
+      bob.facing = 1;
+    }
+  }
+
   function updateAnim(dt) {
     if (!scene) return;
     const spd = speedMul();
@@ -356,33 +550,16 @@
 
     if (!current) {
       startNext();
-      if (!current) {
-        bob.phase = 'idle';
-        bob.hop = lerp(bob.hop, 0, 0.2);
-        bob.bounce = 0;
-        bob.pose.breathe = 0.5 + 0.5 * Math.sin(now / 640);
-        easePose('walkOn', 0, 0.15);
-        easePose('lookUp', 0, 0.12);
-        easePose('headTilt', Math.sin(now / 2200) * 0.12, 0.06);
-        easePose('squash', 1 + bob.pose.breathe * 0.025, 0.12);
-        easePose('crouch', 0, 0.15);
-        easePose('reach', 0, 0.15);
-        easePose('lean', Math.sin(now / 1300) * 0.04, 0.08);
-        const home = bobHomeX();
-        if (Math.abs(bob.x - home) > 3) {
-          moveBobTowards(home, dt, 0.85);
-          easePose('headTilt', 0, 0.15);
-        } else {
-          bob.x = home;
-          bob.facing = 1;
-        }
-      }
+      if (!current) tickIdle(dt, now);
       return;
     }
 
     const c = current, p = c.present;
     c.t += dt * spd;
     bob.pose.breathe = 0;
+    // Keep a little bounce even mid-catch so he never freezes, but stay out of the way of the hop.
+    bob.pose.idleBounce = Math.abs(Math.sin(now / 300)) * bobSize().h * 0.010;
+    easePose('hatTilt', 0, 0.2);
 
     if (c.phase === 'fall') {
       // Gift falls; Bob looks up and shuffles underneath it, then hops to meet it.
@@ -889,8 +1066,8 @@
     const w = p.w * p.scale, h = p.h * p.scale;
     ctx.save();
     ctx.globalAlpha *= p.alpha;
-    ctx.translate(p.x, p.y);
-    ctx.rotate(p.rot || 0);
+    ctx.translate(p.x + (p.wobbleX || 0), p.y + (p.wobbleY || 0));
+    ctx.rotate((p.rot || 0) + (p.wobbleR || 0));
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,0.22)';
     ctx.beginPath(); ctx.ellipse(0, h * 0.48, w * 0.48, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
@@ -948,7 +1125,7 @@
     const pomWiggle = (bob.pose && bob.pose.pom) || 0;
     ctx.save();
     ctx.translate(0, bandY);
-    ctx.rotate(-0.12 + pomWiggle * 0.08);
+    ctx.rotate(-0.12 + pomWiggle * 0.08 + ((bob.pose && bob.pose.hatTilt) || 0));
     const red = ctx.createLinearGradient(-bandW * 0.3, -bandH * 2.4, bandW * 0.5, bandH);
     red.addColorStop(0, '#e44545'); red.addColorStop(0.5, '#c41e1e'); red.addColorStop(1, '#8f1212');
     ctx.beginPath();
@@ -990,7 +1167,7 @@
     const s = bobSize();
     const P = bob.pose || {};
     const squash = P.squash || 1;
-    const yOff = (bob.hop || 0) + (bob.bounce || 0) + (P.gaitHop || 0);
+    const yOff = (bob.hop || 0) + (bob.bounce || 0) + (P.gaitHop || 0) + (P.idleBounce || 0);
     ctx.save();
     const shW = s.w * (0.28 + 0.1 * (P.crouch || 0));
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -1049,7 +1226,7 @@
     // torso attached at the (possibly lowered) hip, slight lean-back when looking up
     ctx.save();
     ctx.translate(0, hipY);
-    ctx.rotate((P.lookUp || 0) * -0.07);
+    ctx.rotate((P.lookUp || 0) * -0.12);
     ctx.translate(0, -hipY0 + breathe);
     part(0, 200, 432, 300, -s.w / 2, -s.h * (1 - 200 / 708));
     ctx.restore();
@@ -1059,7 +1236,7 @@
     // head + hat, pivoted at the neck so the hat stays on through every pose
     ctx.save();
     ctx.translate(0, neckY + breathe);
-    ctx.rotate((P.headTilt || 0) * 0.32 + (P.lookUp || 0) * -0.2);
+    ctx.rotate((P.headTilt || 0) * 0.40 + (P.lookUp || 0) * -0.32);
     ctx.translate(0, -neckY0);
     part(0, 0, 432, 214, -s.w / 2, -s.h);
     drawSantaHat(s);
@@ -1187,7 +1364,7 @@
       if (!(q.get('n') && k >= +q.get('n'))) setTimeout(tick, rate);
     };
     setTimeout(tick, 280);
-    window.__xmasTree = { demo: true, queue, placed, bob, get current() { return current; } };
+    window.__xmasTree = { demo: true, queue, placed, bob, get current() { return current; }, get idle() { return bob.idleName; }, homeX: bobHomeX, forceIdle };
     return;
   }
 
@@ -1239,7 +1416,7 @@
     running = false; sseOk = false; setTimeout(run, 3000);
   }
   setInterval(() => { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
-  window.__xmasTree = { demo: false, queue, placed, bob, get current() { return current; }, get sseOk() { return sseOk; }, get sseErr() { return sseErr; }, get room() { return ROOM; } };
+  window.__xmasTree = { demo: false, queue, placed, bob, get current() { return current; }, get idle() { return bob.idleName; }, homeX: bobHomeX, forceIdle, get sseOk() { return sseOk; }, get sseErr() { return sseErr; }, get room() { return ROOM; } };
   boot().then(() => { save(); setInterval(watch, 5000); watch(); });
   run();
 })();
