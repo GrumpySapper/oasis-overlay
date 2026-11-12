@@ -170,9 +170,9 @@
     const rows = [];
     let left = vis;
     let row = 0;
-    const maxFront = 7;
+    const maxFront = 12;
     while (left > 0) {
-      const cap = Math.max(3, maxFront - row);
+      const cap = Math.max(6, maxFront - row);
       const take = Math.min(cap, left);
       rows.unshift(take); // unshift so index 0 is back
       left -= take; row++;
@@ -191,17 +191,17 @@
       const count = rows[ri];
       const backness = rows.length === 1 ? 0 : 1 - ri / Math.max(1, rows.length - 1);
       const scale = lerp(1, 0.76, backness) * compress;
-      const spread = scene.treeW * lerp(0.86, 0.48, backness) * compress;
+      const spread = scene.treeW * lerp(1.95, 1.55, backness) * compress;
       const rowY = y;
       laid.unshift({ count, ri, scale, spread, y: rowY });
-      y -= rowHs[ri] * 1.08;
+      y -= rowHs[ri] * 0.62;
     }
     laid.forEach(row => {
       for (let i = 0; i < row.count; i++) {
         const u = row.count === 1 ? 0.5 : i / (row.count - 1);
         const x = scene.cx + (u - 0.5) * row.spread;
         const jitter = ((idx * 17) % 7 - 3) * 0.6;
-        slots.push({ i: idx, x: x + jitter, y: row.y, scale: row.scale, z: row.ri });
+        const mX = Math.min(W, H) * 0.05; slots.push({ i: idx, x: clamp(x + jitter, mX, W - mX), y: row.y, scale: row.scale, z: row.ri });
         idx++;
       }
     });
