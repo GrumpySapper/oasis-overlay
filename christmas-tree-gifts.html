@@ -3,6 +3,7 @@
 <title>Oasis Radio Christmas Gift Tree</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="data:,">
+<!-- oasis-overlay christmas-tree-gifts v4 -->
 <!-- Oasis Radio Christmas Gift Tree. TikTok LIVE Studio browser source, 1080x1920 (or 720x1280). Transparent background.
      Gifts fall as wrapped presents; Bob the Bot catches each one and stacks it under the tree.
      ?demo=1 or ?test=1 simulates gifts (preview, no server needed).  ?channel=test listens to the test SSE channel.
@@ -107,7 +108,8 @@
     }
   }
 
-  const bob = { x: 0, y: 0, facing: 1, hop: 0, bounce: 0, reach: 0, ready: false, phase: 'idle' };
+  const bob = { x: 0, y: 0, facing: 1, hop: 0, bounce: 0, reach: 0, ready: false, phase: 'idle', walkT: 0, pomT: 9999, pomNext: 1800,
+    pose: { walkOn: 0, lookUp: 0, headTilt: 0, squash: 1, crouch: 0, reach: 0, lean: 0, pom: 0, breathe: 0, gaitHop: 0 } };
   const sparkles = [];
   let treeBake = null, treeBakeKey = '', treeLights = [], treeStar = null, catchFlash = 0;
   function bobSize() {
@@ -117,9 +119,11 @@
   }
   function bobHands(b) {
     const s = bobSize();
-    const yBase = b.y - (bob.hop || 0) - (bob.bounce || 0);
-    // Present sits at chest / existing hands — no extra drawn arms.
-    return { x: b.x + bob.facing * s.w * 0.06, y: yBase - s.h * 0.48 };
+    const P = b.pose || {};
+    const yBase = b.y - (b.hop || 0) - (b.bounce || 0) - (P.gaitHop || 0);
+    const hold = lerp(0.50, 0.57, P.reach || 0);
+    const down = (P.crouch || 0) * s.h * 0.12;
+    return { x: b.x + b.facing * s.w * 0.04, y: yBase - s.h * hold + down };
   }
   function bobHomeX() {
     return Math.min(W * 0.16, Math.max(W * 0.12, scene.left - bobSize().w * 0.55));
@@ -261,7 +265,7 @@
     bob.phase = 'run';
   }
 
-  function finishPlace() {
+  function settleGift() {
     const p = current.present;
     const slot = current.slot || nextSlotPreview();
     p.x = slot.x; p.y = slot.y; p.scale = slot.scale; p.rot = (Math.random() - 0.5) * 0.12;
@@ -269,14 +273,54 @@
     placed.push(p);
     if (placed.length > MAX) {
       const extra = placed.length - MAX;
-      // Oldest are compacted out of the visible pile (kept only in memory briefly, then dropped).
       placed.splice(0, extra);
     }
     reflowSlots();
-    current = null;
-    bob.phase = 'idle';
-    startNext();
     save();
+  }
+  function finishPlace() {
+    settleGift();
+    // Streaks stay snappy: if more gifts are waiting, start the next catch straight away.
+    // After the last gift in a burst, cheer then walk home so the loop reads clearly.
+    if (queue.length) {
+      current = null;
+      bob.phase = 'run';
+      startNext();
+    } else {
+      current = { phase: 'cheer', t: 0, present: null };
+      bob.phase = 'cheer';
+    }
+  }
+
+  function easePose(key, target, k) {
+    bob.pose[key] = lerp(bob.pose[key] || 0, target, k);
+  }
+  function moveBobTowards(targetX, dt, pace) {
+    const paceN = pace || 1;
+    const dist = targetX - bob.x;
+    const vmax = paceN * 0.58 * dt;
+    if (Math.abs(dist) <= 3) {
+      bob.x = targetX;
+      easePose('walkOn', 0, 0.2);
+      easePose('lean', 0, 0.15);
+      return true;
+    }
+    bob.facing = dist >= 0 ? 1 : -1;
+    bob.x += Math.sign(dist) * Math.min(Math.abs(dist), vmax);
+    bob.walkT += dt * 0.013 * paceN;
+    easePose('walkOn', 1, 0.3);
+    bob.pose.lean = bob.facing * (0.10 + 0.04 * paceN) + Math.sin(bob.walkT) * 0.035;
+    return false;
+  }
+  function gaitHopNow() {
+    const P = bob.pose;
+    return Math.abs(Math.sin(bob.walkT)) * Math.min(18, (bobSize().h || 80) * 0.032) * (P.walkOn || 0);
+  }
+  function tickPom(dt) {
+    bob.pomT += dt;
+    if (bob.pomT >= bob.pomNext) { bob.pomT = 0; bob.pomNext = 3200 + Math.random() * 4200; }
+    const t = bob.pomT;
+    bob.pose.pom = (t < 700) ? Math.sin(t / 700 * Math.PI * 3.2) * Math.exp(-t / 420) : 0;
   }
 
   function spawnCatchBurst(x, y) {
@@ -306,17 +350,28 @@
     if (!scene) return;
     const spd = speedMul();
     updateSparkles(dt);
+    tickPom(dt);
+    const now = performance.now();
+    bob.pose.gaitHop = gaitHopNow();
+
     if (!current) {
       startNext();
       if (!current) {
         bob.phase = 'idle';
         bob.hop = lerp(bob.hop, 0, 0.2);
-        bob.bounce = Math.sin(performance.now() / 420) * 3;
-        bob.reach = lerp(bob.reach || 0, 0, 0.2);
+        bob.bounce = 0;
+        bob.pose.breathe = 0.5 + 0.5 * Math.sin(now / 640);
+        easePose('walkOn', 0, 0.15);
+        easePose('lookUp', 0, 0.12);
+        easePose('headTilt', Math.sin(now / 2200) * 0.12, 0.06);
+        easePose('squash', 1 + bob.pose.breathe * 0.025, 0.12);
+        easePose('crouch', 0, 0.15);
+        easePose('reach', 0, 0.15);
+        easePose('lean', Math.sin(now / 1300) * 0.04, 0.08);
         const home = bobHomeX();
-        if (Math.abs(bob.x - home) > 2) {
-          bob.facing = home >= bob.x ? 1 : -1;
-          bob.x = lerp(bob.x, home, 0.07);
+        if (Math.abs(bob.x - home) > 3) {
+          moveBobTowards(home, dt, 0.85);
+          easePose('headTilt', 0, 0.15);
         } else {
           bob.x = home;
           bob.facing = 1;
@@ -324,34 +379,43 @@
       }
       return;
     }
+
     const c = current, p = c.present;
     c.t += dt * spd;
+    bob.pose.breathe = 0;
+
     if (c.phase === 'fall') {
-      // Gift falls from the top; Bob gets underneath it first, arms rising to meet it.
-      const dur = 820;
+      // Gift falls; Bob looks up and shuffles underneath it, then hops to meet it.
+      const dur = 920;
       const u = clamp(c.t / dur, 0, 1);
       p.x = lerp(c.fallX0, c.catchX, u);
       p.y = lerp(c.fallY0, c.catchY, easeIn(u));
       p.rot += c.spin * dt * 0.003;
-      const bu = easeInOut(clamp(c.t / (dur * 0.62), 0, 1));
-      bob.x = lerp(c.bobX0, c.catchX, bu);
-      bob.reach = 0;
-      // Late jump to meet the present in mid-air.
-      const jmp = clamp((u - 0.58) / 0.42, 0, 1);
-      bob.hop = Math.sin(jmp * Math.PI * 0.85) * Math.min(46, H * 0.028);
+      moveBobTowards(c.catchX, dt, 1.05);
+      easePose('lookUp', easeOut(clamp((u - 0.1) / 0.5, 0, 1)), 0.2);
+      easePose('reach', easeOut(clamp((u - 0.55) / 0.4, 0, 1)), 0.2);
+      easePose('headTilt', 0, 0.2);
+      easePose('crouch', 0, 0.2);
+      easePose('squash', 1, 0.15);
+      const jmp = clamp((u - 0.62) / 0.38, 0, 1);
+      bob.hop = Math.sin(jmp * Math.PI * 0.9) * Math.min(42, H * 0.026);
       bob.bounce = 0;
-      bob.facing = (c.catchX - c.bobX0) >= 0 ? 1 : -1;
       if (u >= 1) { c.phase = 'catch'; c.t = 0; bob.phase = 'catch'; spawnCatchBurst(c.catchX, c.catchY); }
     } else if (c.phase === 'catch') {
-      const dur = 260;
+      const dur = 340;
       const u = clamp(c.t / dur, 0, 1);
-      bob.reach = 0;
-      // Catch bounce: a little squash then pop as the gift lands in his hands.
-      bob.bounce = -14 * Math.sin(u * Math.PI);
-      bob.hop = lerp(bob.hop, Math.min(28, H * 0.016), 0.2);
+      easePose('lookUp', 1 - easeIn(u) * 0.5, 0.3);
+      easePose('reach', 1, 0.35);
+      easePose('walkOn', 0, 0.25);
+      easePose('lean', 0, 0.2);
+      // Squash on impact, then a little pop.
+      const sq = u < 0.45 ? lerp(1, 0.84, easeOut(u / 0.45)) : lerp(0.84, 1.06, easeOut((u - 0.45) / 0.3));
+      bob.pose.squash = u < 0.75 ? sq : lerp(sq, 1, (u - 0.75) / 0.25);
+      bob.bounce = -16 * Math.sin(u * Math.PI);
+      bob.hop = lerp(bob.hop, Math.min(22, H * 0.012), 0.2);
       const hands = bobHands(bob);
-      p.x = lerp(c.catchX, hands.x, easeOut(Math.min(1, u * 1.8)));
-      p.y = lerp(c.catchY, hands.y, easeOut(Math.min(1, u * 1.8)));
+      p.x = lerp(c.catchX, hands.x, easeOut(Math.min(1, u * 1.6)));
+      p.y = lerp(c.catchY, hands.y, easeOut(Math.min(1, u * 1.6)));
       p.rot = lerp(p.rot, 0, 0.3);
       if (u >= 1) {
         c.phase = 'carry'; c.t = 0; bob.phase = 'carry';
@@ -360,33 +424,73 @@
         bob.facing = c.slot.x >= bob.x ? 1 : -1;
       }
     } else if (c.phase === 'carry') {
-      const dur = 680;
+      const dur = 880;
       const u = clamp(c.t / dur, 0, 1);
-      const e = easeInOut(u);
-      // Keep the present in a chest hold while sliding to the tree.
-      bob.reach = 0;
       const s = bobSize();
-      const destX = c.slot.x - bob.facing * s.w * 0.06;
-      bob.x = lerp(c.bobX0, destX, e);
-      bob.hop = Math.sin(e * Math.PI) * Math.min(80, H * 0.042);
+      const destX = c.slot.x - bob.facing * s.w * 0.08;
+      moveBobTowards(destX, dt, 1.2);
+      easePose('reach', 1, 0.2);           // gift held up while jogging
+      easePose('lookUp', 0, 0.12);
+      easePose('squash', 1, 0.15);
+      easePose('crouch', 0, 0.2);
+      bob.hop = lerp(bob.hop, 0, 0.2);
       bob.bounce = lerp(bob.bounce, 0, 0.25);
       const hands = bobHands(bob);
       p.x = hands.x;
-      p.y = hands.y - Math.sin(e * Math.PI) * 6;
-      p.rot = Math.sin(e * Math.PI * 2) * 0.08;
-      if (u >= 1) { c.phase = 'place'; c.t = 0; bob.phase = 'place'; c.placeX0 = p.x; c.placeY0 = p.y; }
+      p.y = hands.y - Math.sin(bob.walkT) * 4;
+      p.rot = Math.sin(bob.walkT) * 0.08;
+      if (u >= 1 || Math.abs(bob.x - destX) <= 4 && u > 0.55) {
+        c.phase = 'place'; c.t = 0; bob.phase = 'place'; c.placeX0 = p.x; c.placeY0 = p.y;
+        c.slot = c.slot || nextSlotPreview();
+      }
     } else if (c.phase === 'place') {
-      const dur = 240;
+      const dur = 420;
       const u = clamp(c.t / dur, 0, 1);
-      const e = easeOutBack(u);
-      bob.reach = lerp(bob.reach, 0, 0.3);
-      p.x = lerp(c.placeX0, c.slot.x, e);
-      p.y = lerp(c.placeY0, c.slot.y, e);
-      p.scale = lerp(1, c.slot.scale, e);
+      easePose('walkOn', 0, 0.25);
+      easePose('lean', 0, 0.2);
+      easePose('lookUp', 0, 0.2);
+      // Bend down, then the gift slides into the pile.
+      easePose('crouch', u < 0.45 ? easeOut(u / 0.45) : 1, 0.35);
+      easePose('reach', 1 - easeIn(clamp((u - 0.2) / 0.5, 0, 1)), 0.25);
+      easePose('squash', 1 - 0.06 * Math.sin(Math.min(1, u * 1.2) * Math.PI), 0.25);
+      bob.hop = lerp(bob.hop, 0, 0.3);
+      bob.bounce = lerp(bob.bounce, 0, 0.3);
+      const slide = easeInOut(clamp((u - 0.2) / 0.75, 0, 1));
+      p.x = lerp(c.placeX0, c.slot.x, slide);
+      p.y = lerp(c.placeY0, c.slot.y, slide);
+      p.scale = lerp(1, c.slot.scale, slide);
       p.rot = lerp(p.rot, 0, 0.3);
-      bob.hop = lerp(bob.hop, 0, 0.25);
-      bob.bounce = lerp(bob.bounce, 0, 0.25);
       if (u >= 1) finishPlace();
+    } else if (c.phase === 'cheer') {
+      const dur = 520;
+      const u = clamp(c.t / dur, 0, 1);
+      easePose('crouch', 0, 0.18);
+      easePose('reach', 0, 0.2);
+      easePose('walkOn', 0, 0.2);
+      easePose('lookUp', 0, 0.2);
+      easePose('squash', 1, 0.2);
+      // Head tilt / little nod, hat pom already wiggling.
+      bob.pose.headTilt = Math.sin(u * Math.PI) * 0.85;
+      bob.hop = Math.sin(u * Math.PI) * 8;
+      bob.bounce = 0;
+      if (u >= 1) {
+        c.phase = 'home'; c.t = 0; bob.phase = 'home';
+        bob.pose.headTilt = 0;
+      }
+    } else if (c.phase === 'home') {
+      const home = bobHomeX();
+      const arrived = moveBobTowards(home, dt, 0.9);
+      easePose('headTilt', 0, 0.2);
+      easePose('reach', 0, 0.2);
+      easePose('crouch', 0, 0.2);
+      easePose('lookUp', 0, 0.2);
+      bob.hop = lerp(bob.hop, 0, 0.2);
+      if (arrived || c.t > 1800) {
+        current = null;
+        bob.phase = 'idle';
+        bob.x = arrived ? home : bob.x;
+        startNext();
+      }
     }
   }
 
@@ -837,15 +941,14 @@
 
   function drawSantaHat(s) {
     // Snug hat on the crown, above the headphones and visor.
-    // Local space: origin at Bob's feet, sprite from y=-s.h to 0.
-    // Head top is ~-0.935 s.h; visor starts ~-0.82 s.h. Fur must stay above the eyes.
+    // Drawn in full-body local space so it stays attached when the head tilts.
     const bandY = -s.h * 0.905;
-    const bandW = s.w * 0.32;          // roughly the silver head width, not the headphone cups
+    const bandW = s.w * 0.32;
     const bandH = Math.max(8, s.h * 0.036);
+    const pomWiggle = (bob.pose && bob.pose.pom) || 0;
     ctx.save();
     ctx.translate(0, bandY);
-    ctx.rotate(-0.12);
-    // Short floppy red cap — a modest peak, then the tip droops to the side.
+    ctx.rotate(-0.12 + pomWiggle * 0.08);
     const red = ctx.createLinearGradient(-bandW * 0.3, -bandH * 2.4, bandW * 0.5, bandH);
     red.addColorStop(0, '#e44545'); red.addColorStop(0.5, '#c41e1e'); red.addColorStop(1, '#8f1212');
     ctx.beginPath();
@@ -856,13 +959,12 @@
     ctx.closePath();
     ctx.fillStyle = red; ctx.fill();
     ctx.strokeStyle = 'rgba(80,0,0,0.22)'; ctx.lineWidth = 1; ctx.stroke();
-    // soft fold highlight
     ctx.beginPath();
     ctx.moveTo(-bandW * 0.12, -bandH * 0.35);
     ctx.quadraticCurveTo(bandW * 0.06, -bandH * 1.5, bandW * 0.2, -bandH * 1.85);
     ctx.strokeStyle = 'rgba(255,210,210,0.4)'; ctx.lineWidth = 1.5; ctx.stroke();
-    // pom-pom on the short drooping tip
-    const px = bandW * 0.66, py = bandH * 0.12, pr = bandH * 0.55;
+    // pom-pom, with a little extra wiggle on the tip
+    const px = bandW * 0.66 + pomWiggle * bandW * 0.1, py = bandH * 0.12 + Math.abs(pomWiggle) * bandH * 0.12, pr = bandH * 0.55;
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath(); ctx.arc(px + 1, py + 1.6, pr, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#f4f1ea';
@@ -871,7 +973,6 @@
     ctx.beginPath(); ctx.arc(px - pr * 0.3, py - pr * 0.3, pr * 0.42, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#e4e0d8';
     ctx.beginPath(); ctx.arc(px + pr * 0.22, py + pr * 0.18, pr * 0.28, 0, Math.PI * 2); ctx.fill();
-    // white fur band at forehead / crown — compact, does not cover the visor
     ctx.fillStyle = '#f4f1ea';
     rr(-bandW * 0.52, -bandH * 0.42, bandW * 1.04, bandH * 0.95, bandH * 0.45); ctx.fill();
     const puffs = 6;
@@ -885,25 +986,85 @@
     ctx.restore();
   }
 
-    function drawBob() {
+  function drawBob() {
     const s = bobSize();
-    const x = bob.x, y = bob.y - (bob.hop || 0) - (bob.bounce || 0);
+    const P = bob.pose || {};
+    const squash = P.squash || 1;
+    const yOff = (bob.hop || 0) + (bob.bounce || 0) + (P.gaitHop || 0);
     ctx.save();
-    // shadow
+    const shW = s.w * (0.28 + 0.1 * (P.crouch || 0));
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.beginPath(); ctx.ellipse(bob.x, scene.ground + 2, s.w * 0.28, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.translate(x, y);
-    const lean = ((bob.hop || 0) / Math.max(1, H)) * 1.2 * (bob.facing >= 0 ? 1 : -1);
-    ctx.rotate(lean);
+    ctx.beginPath(); ctx.ellipse(bob.x, scene.ground + 2, shW, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.translate(bob.x, scene.ground - yOff);
+    ctx.rotate(P.lean || 0);
     ctx.scale(bob.facing, 1);
-    if (bobImg.complete && bobImg.naturalWidth) {
-      ctx.drawImage(bobImg, -s.w / 2, -s.h, s.w, s.h);
-    } else {
+    ctx.scale(1 + (1 - squash) * 0.45, squash);
+
+    if (!(bobImg.complete && bobImg.naturalWidth)) {
       ctx.fillStyle = '#222';
       ctx.beginPath(); ctx.arc(0, -s.h * 0.78, s.w * 0.22, 0, Math.PI * 2); ctx.fill();
       ctx.fillRect(-s.w * 0.22, -s.h * 0.6, s.w * 0.44, s.h * 0.55);
+      drawSantaHat(s);
+      ctx.restore();
+      return;
     }
+
+    const iw = bobImg.naturalWidth, ih = bobImg.naturalHeight;
+    const hipY0 = -s.h * (1 - 500 / 708);
+    const hipY = hipY0 * (1 - (P.crouch || 0) * 0.38);
+    const neckY0 = -s.h * (1 - 208 / 708);
+    const neckY = neckY0 + (hipY - hipY0);
+    const breathe = (P.breathe || 0) * s.h * 0.01;
+    const cycle = bob.walkT || 0;
+    const amp = 0.36 * (P.walkOn || 0) * (1 - 0.75 * (P.crouch || 0));
+    const lRot = Math.sin(cycle) * amp;
+    const rRot = Math.sin(cycle + Math.PI) * amp;
+    const stepLift = s.h * 0.036 * (P.walkOn || 0) * (1 - (P.crouch || 0));
+    const lLift = Math.max(0, Math.cos(cycle)) * stepLift;
+    const rLift = Math.max(0, -Math.cos(cycle)) * stepLift;
+    const legScaleY = Math.abs(hipY / hipY0);
+
+    function part(sx, sy, sw, sh, dx, dy) {
+      const dw = s.w * (sw / iw), dh = s.h * (sh / ih);
+      ctx.drawImage(bobImg, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+    function drawLeg(side) {
+      const sx = side < 0 ? 0 : 216;
+      const rot = side < 0 ? lRot : rRot;
+      const lift = side < 0 ? lLift : rLift;
+      ctx.save();
+      ctx.translate(0, hipY);
+      ctx.rotate(rot + (P.crouch || 0) * 0.12 * (side < 0 ? -1 : 1));
+      ctx.scale(1, legScaleY);
+      ctx.translate(0, -hipY0 - lift / Math.max(0.2, legScaleY));
+      const dx = -s.w / 2 + (side < 0 ? 0 : s.w * (216 / 432));
+      const dy = -s.h * (1 - 488 / 708);
+      part(sx, 488, 216, 220, dx, dy);
+      ctx.restore();
+    }
+
+    if (lRot <= rRot) drawLeg(-1); else drawLeg(1);
+
+    // torso attached at the (possibly lowered) hip, slight lean-back when looking up
+    ctx.save();
+    ctx.translate(0, hipY);
+    ctx.rotate((P.lookUp || 0) * -0.07);
+    ctx.translate(0, -hipY0 + breathe);
+    part(0, 200, 432, 300, -s.w / 2, -s.h * (1 - 200 / 708));
+    ctx.restore();
+
+    if (lRot <= rRot) drawLeg(1); else drawLeg(-1);
+
+    // head + hat, pivoted at the neck so the hat stays on through every pose
+    ctx.save();
+    ctx.translate(0, neckY + breathe);
+    ctx.rotate((P.headTilt || 0) * 0.32 + (P.lookUp || 0) * -0.2);
+    ctx.translate(0, -neckY0);
+    part(0, 0, 432, 214, -s.w / 2, -s.h);
     drawSantaHat(s);
+    ctx.restore();
+
     ctx.restore();
   }
 
@@ -958,7 +1119,7 @@
       });
       // In-flight present is drawn after Bob so the mid-air catch and carry stay visible.
       drawBob();
-      if (current) drawPresent(current.present, 1);
+      if (current && current.present && !current.present.settled) drawPresent(current.present, 1);
       drawSparkles();
       drawFloatNames(Date.now());
     }
