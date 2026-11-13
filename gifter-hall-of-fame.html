@@ -49,4 +49,5 @@ load();setInterval(load,REF*1000);
 setInterval(()=>{view=(view+1)%VIEWS.length;render();},20000);
 if(MODE==='panel')P.classList.remove('hide');
 else{const pop=()=>{P.classList.remove('hide');setTimeout(()=>P.classList.add('hide'),SHOW*1000)};setTimeout(pop,3000);setInterval(pop,EVERY*60000);}
-</script></body></html>
+</script><script src="xmas-theme.js"></script>
+</body></html>

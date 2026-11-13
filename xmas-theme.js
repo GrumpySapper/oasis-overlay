@@ -2,7 +2,15 @@
 // (or this script is loaded with data-force="1", as xmas-snow.html does).
 (function () {
   var s = document.currentScript;
-  var on = new URLSearchParams(location.search).get('theme') === 'xmas' || (s && s.dataset.force === '1');
+  // ONE-STEP CHRISTMAS SWITCH: change 'off' to 'christmas' and every overlay link turns Christmas with no URL changes.
+  // Any link can still opt out with ?theme=off (or keep the old neon snow with ?theme=xmas).
+  var XMAS_DEFAULT = 'off';
+  var th = new URLSearchParams(location.search).get('theme') || XMAS_DEFAULT;
+  if (th === 'christmas' && !(s && s.dataset.force === '1')) {
+    var k = document.createElement('script'); k.src = (s && s.src ? s.src.replace(/xmas-theme\.js.*$/, '') : '') + 'christmas-skin.js?v=1';
+    (document.head || document.documentElement).appendChild(k); return;
+  }
+  var on = th === 'xmas' || (s && s.dataset.force === '1');
   if (!on) return;
   function start() {
     var c = document.createElement('canvas');
