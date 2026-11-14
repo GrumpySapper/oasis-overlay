@@ -7,7 +7,7 @@
   var XMAS_DEFAULT = 'off';
   var th = new URLSearchParams(location.search).get('theme') || XMAS_DEFAULT;
   if (th === 'christmas' && !(s && s.dataset.force === '1')) {
-    var k = document.createElement('script'); k.src = (s && s.src ? s.src.replace(/xmas-theme\.js.*$/, '') : '') + 'christmas-skin.js?v=1';
+    var k = document.createElement('script'); k.src = (s && s.src ? s.src.replace(/xmas-theme\.js.*$/, '') : '') + 'christmas-skin.js?v=2';
     (document.head || document.documentElement).appendChild(k); return;
   }
   var on = th === 'xmas' || (s && s.dataset.force === '1');

@@ -6,6 +6,8 @@
 (function () {
   if (window.__oasisXmasSkin) return; window.__oasisXmasSkin = 1;
   var q = new URLSearchParams(location.search);
+  var me = document.currentScript, BASE = (me && me.src) ? me.src.replace(/christmas-skin\.js.*$/, '') : '';
+  function X(n) { return BASE + 'xmas/' + n + '.svg?v=2'; }
   var page = (location.pathname.split('/').pop() || 'overlay.html').replace(/\.html?$/, '') || 'overlay';
   var RED = '#c8102e', GREEN = '#0b6b3a', GOLD = '#ffd54a';
   var HOLLY = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><path d="M60 46C45 20 22 12 4 18c8 6 6 14 0 18 10 2 12 10 8 16 14-6 30-4 48-6z" fill="#0f7a3d" stroke="#064022" stroke-width="2"/><path d="M60 46c15-26 38-34 56-28-8 6-6 14 0 18-10 2-12 10-8 16-14-6-30-4-48-6z" fill="#13904a" stroke="#064022" stroke-width="2"/><path d="M60 46C46 33 22 26 8 28M60 46c14-13 38-20 52-18" stroke="#064022" stroke-width="1.5" fill="none"/><circle cx="52" cy="50" r="9" fill="#d10f2f"/><circle cx="68" cy="50" r="9" fill="#e0182f"/><circle cx="60" cy="38" r="9" fill="#c20a26"/><circle cx="49" cy="47" r="2.5" fill="#fff" opacity=".7"/><circle cx="65" cy="47" r="2.5" fill="#fff" opacity=".7"/><circle cx="57" cy="35" r="2.5" fill="#fff" opacity=".7"/></svg>');
@@ -15,13 +17,14 @@
   var css = [
     "@import url('https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&display=swap');",
     ".xholly{position:absolute;width:70px;height:47px;background:url(\"" + HOLLY + "\") no-repeat center/contain;pointer-events:none;z-index:3}",
+    "#title .xbob,#banner .xbob{-webkit-text-fill-color:#fff;color:#fff;background:none;filter:none}",
     ".xbob{position:relative;display:inline-block}.xbob::before{content:'';position:absolute;left:-12%;top:-52%;width:95%;height:78%;background:url(\"" + HAT + "\") no-repeat center/contain;transform:rotate(-16deg);pointer-events:none}",
     "#xlights{position:fixed;left:0;right:0;top:0;height:64px;pointer-events:none;z-index:2147482990}",
     "#xlights svg{position:absolute;inset:0;width:100%;height:100%}",
     "#xlights i{position:absolute;width:11px;height:17px;margin-left:-5.5px;border-radius:50% 50% 45% 45%;animation:xtw 2.4s ease-in-out infinite}",
     "#xlights i::before{content:'';position:absolute;left:2px;top:-5px;width:7px;height:6px;background:#3d4a3f;border-radius:2px}",
     "@keyframes xtw{0%,100%{opacity:1}50%{opacity:.25}}",
-    "#xframe{position:fixed;inset:0;pointer-events:none;z-index:2147482980;border:9px solid transparent;border-image:" + CANE + " 9}",
+    "#xframe{position:fixed;inset:0;pointer-events:none;z-index:2147482980;border:var(--fw,9px) solid transparent;border-image:" + CANE + " 9}",
     "#xsnow{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147482970}"
   ];
   var P = {
@@ -89,12 +92,14 @@
   // which decorations each page gets (overlay is the always-on full-screen layer, so it carries the snow + lights;
   // nowplaying sits on top of it, so it only gets its card restyle and no second snowfall)
   var DECO = {
-    overlay: { snow: 46, lights: 1 }, nowplaying: {}, 'gifter-hall-of-fame': {},
-    'song-vote': { snow: 40 }, wheels: { snow: 40, lights: 1 }, 'gift-jar': { snow: 30, lights: 1 },
-    'marble-run': { snow: 36, lights: 1, frame: 1 }, 'marble-race': { snow: 36, lights: 1, frame: 1 },
-    'pod-race': { snow: 36, lights: 1, frame: 1 }, 'duck-race': { snow: 36, lights: 1, frame: 1 },
-    'camel-race': { snow: 36, lights: 1, frame: 1 }, 'camel-race-2d': { snow: 36, lights: 1, frame: 1 }
-  }[page] || { snow: 36, lights: 1 };
+    overlay: { snow: 24, lights: 1, frame: 1, drift: 1, snowman: 1 }, nowplaying: {}, 'gifter-hall-of-fame': {},
+    'song-vote': { snow: 16 }, wheels: { snow: 20, lights: 1, drift: 1 }, 'gift-jar': { snow: 14, lights: 1 },
+    'marble-run': { snow: 16, lights: 1, frame: 1 }, 'marble-race': { snow: 16, lights: 1, frame: 1 },
+    'pod-race': { snow: 16, lights: 1, frame: 1 }, 'duck-race': { snow: 16, lights: 1, frame: 1 },
+    'camel-race': { snow: 16, lights: 1, frame: 1 }, 'camel-race-2d': { snow: 16, lights: 1, frame: 1 }
+  }[page] || (/^(bob-|donate)/.test(page) ? {} : { snow: 16, lights: 1 });
+  if (q.get('xmasFrame') === '0') DECO.frame = 0;
+  if (q.get('xmasSnowman') === '0') DECO.snowman = 0;
   if (q.get('xmasSnow') === '0') DECO.snow = 0; else if (q.get('xmasN')) DECO.snow = Math.max(0, Math.min(120, +q.get('xmasN') || 0));
   if (q.get('xmasLights') === '0') DECO.lights = 0;
 
@@ -109,16 +114,16 @@
     var spr = document.createElement('canvas'); spr.width = spr.height = 32; var s = spr.getContext('2d');
     var g = s.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(240,248,255,.85)'); g.addColorStop(1, 'rgba(220,240,255,0)');
     s.fillStyle = g; s.fillRect(0, 0, 32, 32);
-    var F = []; for (var i = 0; i < n; i++) F.push({ x: Math.random(), y: Math.random(), r: 3 + Math.random() * 7, v: .35 + Math.random() * .8, w: Math.random() * 6, a: .55 + Math.random() * .45 });
+    var F = []; for (var i = 0; i < n; i++) F.push({ x: Math.random(), y: Math.random(), r: 1.6 + Math.random() * 3.2, v: .12 + Math.random() * .3, w: Math.random() * 6, a: .28 + Math.random() * .4 });
     var last = 0;
     function tick(ms) {
       requestAnimationFrame(tick);
-      if (ms - last < 33) return; var dt = Math.min(3, (ms - last) / 16.7); last = ms;   // ~30fps cap
+      if (ms - last < 41) return; var dt = Math.min(3, (ms - last) / 16.7); last = ms;   // ~24fps cap
       x.clearRect(0, 0, W, H);
       for (var i = 0; i < F.length; i++) {
-        var f = F[i]; f.y += f.v * dt * 1.6 / H; f.w += .02 * dt;
+        var f = F[i]; f.y += f.v * dt * 1.6 / H; f.w += .012 * dt;
         if (f.y > 1.03) { f.y = -.03; f.x = Math.random(); }
-        x.globalAlpha = f.a; x.drawImage(spr, f.x * W + Math.sin(f.w) * 14 - f.r, f.y * H - f.r, f.r * 2, f.r * 2);
+        x.globalAlpha = f.a; x.drawImage(spr, f.x * W + Math.sin(f.w) * 9 - f.r, f.y * H - f.r, f.r * 2, f.r * 2);
       }
     }
     requestAnimationFrame(tick);
@@ -163,14 +168,122 @@
     var mini = document.querySelector('#showtitle .wrap'); if (mini) holly(mini);
   }
 
+
+  // ---------- v2: edge decorations (static SVGs, only the snowman arm + bauble sway animate) ----------
+  css.push(
+    ".xd{position:fixed;pointer-events:none;background:no-repeat center/contain;z-index:2147482975}",
+    ".xd.cane{width:var(--w,46px);height:calc(var(--w,46px)*2.67)}",
+    ".xd.baub{width:var(--w,34px);height:calc(var(--w,34px)*1.27);transform-origin:50% -60px;animation:xsway 5s ease-in-out infinite}",
+    ".xd.baub::before{content:'';position:absolute;left:50%;bottom:92%;width:1.5px;height:var(--s,40px);background:#3d4a3f;opacity:.8}",
+    "@keyframes xsway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}",
+    ".xd.star{animation:xstar 3s ease-in-out infinite}@keyframes xstar{0%,100%{opacity:.55}50%{opacity:1}}",
+    "#xdrift{position:fixed;left:0;right:0;bottom:0;height:var(--dh,3.4vh);pointer-events:none;z-index:2147482972}",
+    "#xsnowman{position:fixed;right:1.2vw;bottom:.6vh;height:22vh;aspect-ratio:220/270;pointer-events:none;z-index:2147482976;background:url(\"" + X('snowman') + "\") no-repeat center/contain;animation:xsmbob 3.2s ease-in-out infinite;transform-origin:50% 100%}",
+    "@keyframes xsmbob{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-1.2%) rotate(-1.5deg)}75%{transform:translateY(-.6%) rotate(1.5deg)}}",
+    ".xcandy{height:5px;border-radius:3px;background:repeating-linear-gradient(135deg,#fff 0 7px," + RED + " 7px 14px)}"
+  );
+  function D(file, cls, st) { var e = document.createElement('div'); e.className = 'xd ' + (cls || ''); e.style.cssText = 'background-image:url("' + X(file) + '");' + (st || ''); document.body.appendChild(e); return e; }
+  function edgeSet(kind) {
+    var big = kind === 'wide';   // 1920x1080 layers vs 720x1280 portrait layers
+    var cw = big ? 'min(2.6vw,4.4vh)' : '6.2vw';
+    // crossed candy canes in the top corners, under the lights
+    D('candy-cane', 'cane', '--w:' + cw + ';left:1.2%;top:' + (big ? '5vh' : '4.6vh') + ';transform:rotate(-14deg)');
+    D('candy-cane', 'cane', '--w:' + cw + ';left:3.4%;top:' + (big ? '5.4vh' : '5vh') + ';transform:scaleX(-1) rotate(-14deg)');
+    D('candy-cane', 'cane', '--w:' + cw + ';right:1.2%;top:' + (big ? '5vh' : '4.6vh') + ';transform:scaleX(-1) rotate(-14deg)');
+    D('candy-cane', 'cane', '--w:' + cw + ';right:3.4%;top:' + (big ? '5.4vh' : '5vh') + ';transform:rotate(-14deg)');
+    D('holly', '', 'width:' + (big ? '5.4vw' : '15vw') + ';aspect-ratio:3/2;left:.6%;top:' + (big ? '4.2vh' : '3.8vh'));
+    D('holly', '', 'width:' + (big ? '5.4vw' : '15vw') + ';aspect-ratio:3/2;right:.6%;top:' + (big ? '4.2vh' : '3.8vh') + ';transform:scaleX(-1)');
+    // baubles hanging off the light string
+    var B = big ? [['red', 8, 34], ['gold', 13, 18], ['green', 87, 18], ['red', 92, 34]] : [['red', 14, 26], ['gold', 86, 26]];
+    B.forEach(function (b, i) { D('bauble-' + b[0], 'baub', '--w:' + (big ? '1.7vw' : '5vw') + ';--s:' + b[2] + 'px;left:' + b[1] + '%;top:' + (b[2] + (big ? 22 : 20)) + 'px;animation-delay:' + (-i * 1.3) + 's'); });
+    // twinkly stars
+    (big ? [[18, 9], [82, 9], [6, 30], [94, 30]] : [[22, 7], [78, 7]]).forEach(function (p, i) { D('star', 'star', 'width:' + (big ? '1.4vw' : '4vw') + ';aspect-ratio:1;left:' + p[0] + '%;top:' + p[1] + 'vh;animation-delay:' + (-i * .8) + 's'); });
+  }
+  function bottomSet(kind) {
+    var big = kind === 'wide';
+    if (big) {   // left edge, above where Now Playing sits; bottom-right belongs to the snowman
+      D('candy-cane', 'cane', '--w:min(2.4vw,4.2vh);left:.8vw;bottom:15vh;transform:rotate(8deg)');
+      D('gingerbread', '', 'width:3.2vw;aspect-ratio:.8;left:2.6vw;bottom:15.4vh;transform:rotate(-6deg)');
+      D('present', '', 'width:3vw;aspect-ratio:1;right:' + (DECO.snowman ? '11.6vw' : '1.4vw') + ';bottom:1.2vh');
+      D('present-green', '', 'width:2.3vw;aspect-ratio:1;right:' + (DECO.snowman ? '14.4vw' : '4.2vw') + ';bottom:1.2vh;transform:rotate(-4deg)');
+      if (!DECO.snowman) D('candy-cane', 'cane', '--w:min(2.4vw,4.2vh);right:.8vw;bottom:15vh;transform:scaleX(-1) rotate(8deg)');
+    } else {
+      D('candy-cane', 'cane', '--w:6vw;left:2.2%;bottom:1.6%;transform:rotate(6deg)');
+      D('candy-cane', 'cane', '--w:6vw;right:2.2%;bottom:1.6%;transform:scaleX(-1) rotate(6deg)');
+      D('present', '', 'width:9vw;aspect-ratio:1;left:9%;bottom:1.2%');
+      D('gingerbread', '', 'width:8vw;aspect-ratio:.8;right:9%;bottom:1.2%');
+    }
+  }
+  function drift(h) {
+    var d = document.createElement('div'); d.id = 'xdrift'; if (h) d.style.setProperty('--dh', h);
+    d.innerHTML = '<svg viewBox="0 0 1000 40" preserveAspectRatio="none" width="100%" height="100%"><defs><linearGradient id="xdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfe3f3"/></linearGradient></defs>' +
+      '<path d="M0 22 C60 10 110 26 170 18 S290 6 350 16 470 28 540 17 660 6 720 15 840 27 900 16 970 10 1000 14 V40 H0Z" fill="url(#xdg)" opacity=".92"/>' +
+      '<path d="M0 30 C80 22 150 34 230 27 S380 20 460 29 600 36 680 28 830 20 1000 26 V40 H0Z" fill="#e9f3fb" opacity=".9"/></svg>';
+    document.body.appendChild(d);
+  }
+
+  // ---------- v2: Santa hat on every Bob ----------
+  // Pre-baked Santa-hat copies of every Bob image/video (hat tracked to his head frame by frame).
+  // The four bike assets got 25% transparent headroom on top so the hat isn't cut off; their pages get 25% taller boxes to match.
+  var BOBRX = /^(.*?)(images\/donate\/bob-(?:still|walk|walkleft|wave|pull)|images\/bob-ride-right|images\/bob-ride|images\/bob-daredevil|videos\/bob-(?:raver|glamrock)-loop)\.(webm|webp|png)(\?.*)?$/;
+  function hatSrc(el) {
+    var a = el.getAttribute && el.getAttribute('src'); if (!a || a.indexOf('-xmas.') >= 0) return;
+    var m = a.match(BOBRX); if (!m) return;
+    var v = m[1] + m[2] + '-xmas.' + m[3] + (m[4] || '');
+    var wasPlaying = el.tagName === 'VIDEO' && !el.paused;
+    el.setAttribute('src', v);
+    if (el.tagName === 'VIDEO' && (wasPlaying || el.autoplay)) { try { el.load(); var pr = el.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {} }
+  }
+  function hatAll(root) { (root.querySelectorAll ? root.querySelectorAll('img,video,source') : []).forEach(hatSrc); if (root.tagName) hatSrc(root); }
+  function hatWatch() {
+    hatAll(document);
+    new MutationObserver(function (ms) { ms.forEach(function (m) {
+      if (m.type === 'attributes') hatSrc(m.target); else Array.prototype.forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1) hatAll(n); });
+    }); }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+    // 🤖 emoji in plain page text (e.g. the wheels title) gets a hat too
+    ['title', 'banner'].forEach(function (id) { var e = document.getElementById(id); if (e && e.innerHTML.indexOf('🤖') >= 0 && e.innerHTML.indexOf('xbob') < 0) e.innerHTML = hatBob(e.innerHTML); });
+  }
+  P['bob-ride'] = ["#ride{height:calc(var(--h)*1.25)}"];
+  P['bob-ride-still'] = [".rider{height:calc(var(--h)*1.25)}"];
+
+  function C(parent, file, st) { if (!parent) return; var e = document.createElement('div'); e.className = 'xc'; e.style.cssText = 'position:absolute;pointer-events:none;background:url("' + X(file) + '") no-repeat center/contain;z-index:6;' + st; parent.appendChild(e); return e; }
+  P.overlay.push(".reply .hd,.gift .hd{padding-bottom:5px;margin-bottom:6px;background:repeating-linear-gradient(135deg,#fff 0 7px,#c8102e 7px 14px) bottom/100% 3px no-repeat}",
+    ".gift.heartme .hd{display:none}");
+  P['song-vote'].push("#head::after{content:'';display:block;height:7px;margin:14px 70px 0;border-radius:4px;background:repeating-linear-gradient(135deg,#fff 0 7px,#c8102e 7px 14px);box-shadow:0 0 10px rgba(255,255,255,.35)}",
+    "#feedHead{border-top:5px solid transparent;border-image:repeating-linear-gradient(135deg,#fff 0 7px,#c8102e 7px 14px) 5;padding-top:6px}");
+  P['gifter-hall-of-fame'].push(".sub::after{content:'';display:block;height:5px;margin:8px 30px 0;border-radius:3px;background:repeating-linear-gradient(135deg,#fff 0 7px,#c8102e 7px 14px)}",
+    ".row{border-bottom:none;background:repeating-linear-gradient(135deg,#fff 0 7px,#c8102e 7px 14px) bottom/100% 2px no-repeat;background-blend-mode:normal}.row:last-child{background:none}");
+  P.nowplaying.push("#np .box{border-left:none;overflow:visible}#np .box::before{content:'';position:absolute;left:0;top:0;bottom:0;width:9px;border-radius:16px 0 0 16px;background:repeating-linear-gradient(160deg,#fff 0 7px,#c8102e 7px 14px)}");
+  function panelDeco() {
+    if (page === 'song-vote') { var pn = document.getElementById('panel');
+      C(pn, 'candy-cane', 'width:34px;height:91px;left:-12px;top:60px;transform:rotate(-10deg)');
+      C(pn, 'candy-cane', 'width:34px;height:91px;right:-12px;top:60px;transform:scaleX(-1) rotate(-10deg)');
+      C(pn, 'bauble-red', 'width:30px;height:38px;left:54px;top:-2px');
+      C(pn, 'bauble-gold', 'width:30px;height:38px;right:54px;top:-2px');
+      C(pn, 'present', 'width:54px;height:54px;left:-10px;bottom:-14px;transform:rotate(-6deg)');
+      C(pn, 'gingerbread', 'width:50px;height:62px;right:-8px;bottom:-14px;transform:rotate(6deg)');
+      C(pn, 'star', 'width:30px;height:30px;left:50%;margin-left:-15px;top:-17px'); }
+    if (page === 'gifter-hall-of-fame') { var hp = document.getElementById('p');
+      C(hp, 'candy-cane', 'width:26px;height:70px;right:-10px;top:-18px;transform:scaleX(-1) rotate(-12deg)');
+      C(hp, 'bauble-gold', 'width:26px;height:33px;right:28px;top:-10px');
+      C(hp, 'star', 'width:30px;height:30px;left:50%;margin-left:-15px;top:-17px');
+      C(hp, 'present', 'width:44px;height:44px;right:-12px;bottom:-12px;transform:rotate(6deg)'); }
+    if (page === 'nowplaying') { var tryNp2 = function () { var b = document.querySelector('#np .box'); if (!b) return setTimeout(tryNp2, 500);
+      C(b, 'candy-cane', 'width:18px;height:48px;right:-8px;bottom:-6px;transform:rotate(12deg)');
+      C(b, 'bauble-red', 'width:20px;height:25px;right:30px;top:-12px'); }; tryNp2(); }
+  }
   function start() {
     var st = document.createElement('style'); st.id = 'xmas-skin-css'; st.textContent = css.concat(P[page] || []).join('\n'); document.head.appendChild(st);
     document.documentElement.classList.add('xmas');
     if (DECO.snow) snow(DECO.snow);
     if (DECO.lights) lights();
-    if (DECO.frame) { var f = document.createElement('div'); f.id = 'xframe'; document.body.appendChild(f);
-      ['left:6px;bottom:6px', 'right:6px;bottom:6px;transform:scaleX(-1)'].forEach(function (p) { var h = document.createElement('div'); h.className = 'xholly'; h.style.cssText = 'position:fixed;z-index:2147482985;width:96px;height:64px;' + p; document.body.appendChild(h); }); }
+    if (DECO.frame) { var f = document.createElement('div'); f.id = 'xframe'; if (page === 'overlay') f.style.setProperty('--fw', '6px'); document.body.appendChild(f); }
     if (page === 'overlay') overlayCards();
+    hatWatch(); panelDeco();
+    if (DECO.lights) { if (page === 'overlay' || page === 'wheels') { edgeSet('wide'); } else if (DECO.frame || page === 'gift-jar') { edgeSet('tall'); } }
+    if (page === 'overlay' || page === 'wheels') bottomSet('wide'); else if (DECO.frame || page === 'gift-jar') bottomSet('tall');
+    if (DECO.drift) drift(page === 'wheels' ? '4.5vh' : null);
+    if (DECO.snowman) { var sm = document.createElement('div'); sm.id = 'xsnowman'; document.body.appendChild(sm); }
     if (page === 'nowplaying') { var tryNp = function () { var b = document.querySelector('#np .box'); if (b) holly(b); else setTimeout(tryNp, 500); }; tryNp(); }
     if (page === 'song-vote') holly(document.getElementById('panel'));
     if (page === 'gifter-hall-of-fame') holly(document.getElementById('p'));
