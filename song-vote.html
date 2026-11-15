@@ -262,7 +262,7 @@
   }
 
   // ---------- live data (same stable box link as the other overlays) ----------
-  let BOX = 'https://castle-blink-prime-sons.trycloudflare.com'; const H_ = { 'ngrok-skip-browser-warning': '1' };
+  let BOX = 'https://bob.oasisradio.live'; const H_ = { 'ngrok-skip-browser-warning': '1' };
   const bq = q.get('box'); if (bq && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq)) BOX = bq; // local testing only
   const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
   const load = () => fetch(BOX + '/api/vote/state', { headers: H_, cache: 'no-store' }).then(r => r.json()).then(s => apply(s, 'init')).catch(() => {});

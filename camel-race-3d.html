@@ -62,7 +62,7 @@ await fontWait;
   const dir = mulberry(4242); // camera director randomness (visual only)
 
   // ---------- avatars ----------
-  const BOX = 'https://castle-blink-prime-sons.trycloudflare.com', H_ = { 'ngrok-skip-browser-warning': '1' };
+  const BOX = 'https://bob.oasisradio.live', H_ = { 'ngrok-skip-browser-warning': '1' };
   const avatars = new Map();
   // profile pictures: TikTok's CDN with CORS first, then the box server's /api/marble/avatar proxy (fetch + blob). If both fail: initials.
   function loadAvatar(url, cb) {

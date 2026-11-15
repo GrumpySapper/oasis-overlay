@@ -96,7 +96,7 @@
 </script>
 <script>/* Oasis overlay data bus: stable box link via ngrok (header skips the ngrok warning page) + ntfy.sh relay for Now Playing. */
 window.OasisBus = (function () {
-  const BOX = 'https://castle-blink-prime-sons.trycloudflare.com', TOPIC = 'oasisradio-np-67c6ab132bb28b1d2d0df0be', H = { 'ngrok-skip-browser-warning': '1' };
+  const BOX = 'https://bob.oasisradio.live', TOPIC = 'oasisradio-np-67c6ab132bb28b1d2d0df0be', H = { 'ngrok-skip-browser-warning': '1' };
   function api(path) { return fetch(BOX + path, { headers: H, cache: 'no-store' }).then(r => r.json()); }
   // SSE over fetch (EventSource can't send the header). Auto-reconnects forever; watchdog kills stalled streams.
   function boxStream(path, onEvent, onState) {

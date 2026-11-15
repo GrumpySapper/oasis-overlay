@@ -241,7 +241,7 @@
     return;
   }
   // ---- each new Live starts empty (room id from the welcomer) + remote empty via /api/jar/reset ----
-  const BOX0 = 'https://castle-blink-prime-sons.trycloudflare.com', HH = { 'ngrok-skip-browser-warning': '1' };
+  const BOX0 = 'https://bob.oasisradio.live', HH = { 'ngrok-skip-browser-warning': '1' };
   const CID = Math.random().toString(36).slice(2, 10);
   async function getJSON(u) { const r = await fetch(BOX0 + u, { headers: HH, cache: 'no-store' }); return r.json(); }
   async function boot() {
@@ -262,7 +262,7 @@
   boot().then(() => { save(); setInterval(watch, 5000); watch(); });
 
   // ---- live data: same stable box link as overlay.html (ngrok -> cors proxy -> tiktok-welcomer SSE) ----
-  const BOX = 'https://castle-blink-prime-sons.trycloudflare.com', H_ = { 'ngrok-skip-browser-warning': '1' };
+  const BOX = 'https://bob.oasisradio.live', H_ = { 'ngrok-skip-browser-warning': '1' };
   const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
   let ctrl = null, lastData = Date.now(), running = false;
   async function run() {

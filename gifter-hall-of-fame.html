@@ -33,7 +33,7 @@ h1{margin:0 0 4px;font:400 38px Monoton,sans-serif;text-align:center;color:#ffe1
 <script>
 const q=new URLSearchParams(location.search),MODE=q.get('mode')==='popup'?'popup':'panel',EVERY=Math.max(1,+q.get('every')||15),SHOW=Math.max(10,+q.get('show')||40),
 N=Math.min(20,Math.max(3,+q.get('n')||10)),REF=Math.max(10,+q.get('refresh')||30),UNIT=q.get('unit')==='diamonds'?'💎':'🪙';
-const BOX='https://castle-blink-prime-sons.trycloudflare.com',H_={'ngrok-skip-browser-warning':'1'};
+const BOX='https://bob.oasisradio.live',H_={'ngrok-skip-browser-warning':'1'};
 const P=document.getElementById('p');if(q.get('pos')==='left')P.classList.add('left');
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmt=n=>n>=1e4?(n/1e3).toFixed(n>=1e5?0:1)+'k':n.toLocaleString('en-GB');

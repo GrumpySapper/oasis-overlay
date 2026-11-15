@@ -1371,7 +1371,7 @@
 
   // ---- live data: same stable box link as gift-jar.html (ngrok -> cors proxy -> tiktok-welcomer SSE)
   // GET /api/status and GET /api/jar/state only (no reset). Empty our pile on a new room id or jar seq change. ----
-  const BOX = 'https://castle-blink-prime-sons.trycloudflare.com', H_ = { 'ngrok-skip-browser-warning': '1' };
+  const BOX = 'https://bob.oasisradio.live', H_ = { 'ngrok-skip-browser-warning': '1' };
   const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
   async function getJSON(u) { const r = await fetch(BOX + u, { headers: H_, cache: 'no-store' }); return r.json(); }
   async function boot() {
