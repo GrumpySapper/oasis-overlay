@@ -1,12 +1,20 @@
 {
   "clips": [
-    { "file": "thanks-heartme.mp3", "tier": "heartme" },
-    { "file": "thanks-small.mp3", "tier": "small" },
-    { "file": "thanks-medium.mp3", "tier": "medium" },
-    { "file": "thanks-request.mp3", "tier": "request" },
-    { "file": "thanks-big.mp3", "tier": "big" },
-    { "file": "thanks-big-b.mp3", "tier": "big" },
-    { "file": "thanks-huge.mp3", "tier": "huge" },
-    { "file": "thanks-legend.mp3", "tier": "legend" }
+    { "file": "thanks-heartme-1.mp3", "tier": "heartme" },
+    { "file": "thanks-heartme-2.mp3", "tier": "heartme" },
+    { "file": "thanks-small-1.mp3", "tier": "small" },
+    { "file": "thanks-small-2.mp3", "tier": "small" },
+    { "file": "thanks-medium-1.mp3", "tier": "medium" },
+    { "file": "thanks-medium-2.mp3", "tier": "medium" },
+    { "file": "thanks-medium-3.mp3", "tier": "medium" },
+    { "file": "thanks-request-1.mp3", "tier": "request" },
+    { "file": "thanks-request-2.mp3", "tier": "request" },
+    { "file": "thanks-big-1.mp3", "tier": "big" },
+    { "file": "thanks-big-2.mp3", "tier": "big" },
+    { "file": "thanks-big-3.mp3", "tier": "big" },
+    { "file": "thanks-huge-1.mp3", "tier": "huge" },
+    { "file": "thanks-huge-2.mp3", "tier": "huge" },
+    { "file": "thanks-legend-1.mp3", "tier": "legend" },
+    { "file": "thanks-legend-2.mp3", "tier": "legend" }
   ]
 }

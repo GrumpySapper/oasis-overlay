@@ -29,6 +29,7 @@
   button:hover{background:#a4001c}
   button:focus{outline:3px solid var(--gold);outline-offset:2px}
   button.alt{background:#0b5a30}
+  button.ghost{background:transparent;border-color:var(--gold);color:var(--gold)}
   button[disabled]{opacity:.55;cursor:default}
   .vol{display:flex;align-items:center;gap:10px;margin:8px 0 14px;color:#cfe}
   input[type=range]{width:180px}
@@ -38,7 +39,11 @@
   .tier h3{margin:0 0 6px;color:var(--gold);font-size:16px}
   .tier p{margin:0 0 10px;font-size:13px;color:#d9f5d9}
   .tier .row{margin:0}
-  ul.ideas{padding-left:1.2em}
+  .lines{display:flex;flex-direction:column;gap:8px}
+  .line{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:rgba(0,0,0,.28);border:2px solid rgba(255,213,74,.4);border-radius:12px;padding:10px 12px}
+  .line .txt{flex:1 1 240px;font-size:14px}
+  .line .tier-tag{display:inline-block;font-size:11px;font-weight:700;color:#062a17;background:var(--gold);border-radius:999px;padding:2px 8px;margin-right:8px;vertical-align:middle}
+  .line button{padding:8px 12px;font-size:13px}
   footer{margin-top:28px;font-size:13px;color:#b7d7b7}
 </style>
 </head>
@@ -50,10 +55,10 @@
     <img src="images/bob-daredevil-xmas.webp" alt="Bob in a Santa hat">
     <div>
       <h1>Christmas gift thanks</h1>
-      <p class="sub">Preview only. Press a button to hear the jingle bells and Santa ho ho hos that would replace the spoken thank-you voiceovers. Nothing on the live overlay has been changed.</p>
+      <p class="sub">Preview only. Each gift plays jingle bells, then a spoken Santa-style thank-you. Nothing on the live overlay has been changed.</p>
     </div>
   </header>
-  <p class="note"><strong>How to listen:</strong> click a tier below (or Play all). If your browser blocks sound, click once anywhere on the page first. In LIVE Studio, add <code>overlay-xmas-preview.html</code> as a test browser source, tick “Interact”, and click the page once so audio can start.</p>
+  <p class="note"><strong>How to listen:</strong> click a line or a gift tier below (or Play all). If your browser blocks sound, click once anywhere on the page first. In LIVE Studio, add <code>overlay-xmas-preview.html</code> as a test browser source, tick “Interact”, and click the page once so audio can start.</p>
   <div class="vol">
     <label for="vol">Volume</label>
     <input id="vol" type="range" min="0.05" max="1" step="0.05" value="0.7">
@@ -61,9 +66,14 @@
     <span id="now"></span>
   </div>
   <div class="row">
-    <button type="button" id="playall" class="alt">Play all tiers</button>
+    <button type="button" id="playall" class="alt">Play all 16 lines</button>
+    <button type="button" id="playtiers" class="alt">Play one per tier</button>
     <button type="button" id="stop">Stop</button>
   </div>
+  <h2>The thank-you lines</h2>
+  <p>Sixteen short messages. Bigger gifts get a longer jingle and a slightly warmer, deeper Santa. On the overlay they rotate so the same line is not played twice in a row.</p>
+  <div class="lines" id="lines"></div>
+  <h2>By gift size</h2>
   <div class="tiers" id="tiers"></div>
   <h2>Hear it on the overlay</h2>
   <p>Same sounds, with the real gift cards (local demo, not on air unless you point a Studio layer at this preview URL):</p>
@@ -73,23 +83,41 @@
     · <a href="overlay-xmas-preview.html?theme=christmas">Preview overlay (waits for real gifts)</a>
   </p>
   <h2>What you’ll hear</h2>
-  <p>Each gift plays a sleigh-bell jingle, then a Santa ho ho ho. Bigger gifts get a longer public-domain “Jingle Bells” motif and more hos (Heart Me: one soft ho; small: one; medium/request: two; big: three; huge: four; legend: five). Bursts are throttled: one thank-you per gifter if they combo, a short gap between clips, and a cap of six waiting so a rush of roses doesn’t become a pile-up. Peaks sit around −3 dBFS so they shouldn’t shout over the music; there is a volume slider here and <code>?vol=0.1–1</code> / <code>?sound=0</code> on the overlay preview.</p>
+  <p>Each gift plays a sleigh-bell jingle, then a spoken thank-you in a generated Santa-style voice. Heart Me and small gifts are short; medium and requests a little longer; big, huge and legend gifts are warmer and bigger. Bursts are throttled: one thank-you per gifter if they combo, a short gap between clips, and a cap of six waiting so a rush of roses doesn’t become a pile-up. Peaks sit around −3 dBFS so they shouldn’t shout over the music; there is a volume slider here and <code>?vol=0.1–1</code> / <code>?sound=0</code> on the overlay preview.</p>
   <h2>Audio sources</h2>
-  <p>All clips are original synthesis, <a href="sounds/xmas-thanks/SOURCES.md">CC0 1.0</a>. The bell motifs quote the public-domain melody of “Jingle Bells” (James Lord Pierpont, 1857). The hos are a generated Santa voice, not a recorded actor. Details in <a href="sounds/xmas-thanks/SOURCES.md">SOURCES.md</a>.</p>
+  <p>All clips are original synthesis, <a href="sounds/xmas-thanks/SOURCES.md">CC0 1.0</a>. The bell motifs quote the public-domain melody of “Jingle Bells” (James Lord Pierpont, 1857). The thank-yous are generated with eSpeak NG’s formant engine and a custom Santa voice variant, then lightly processed — not a recorded actor. Details in <a href="sounds/xmas-thanks/SOURCES.md">SOURCES.md</a>.</p>
   <h2>Going live later (not done)</h2>
   <p>The live page is still <code>overlay.html</code> with the existing Grumpy / ghost-host voice clips in <code>sounds/thanks/</code>. To switch after you approve: either point the LIVE Studio overlay layer at <code>overlay-xmas-preview.html</code>, or copy this behaviour into <code>overlay.html</code> (best as a flag such as <code>?xmasThanks=1</code> or folded into <code>?theme=christmas</code>). Bump <code>?v=</code> on the Studio URL so GitHub Pages’ 10-minute cache doesn’t serve the old page. Do it off-air. No server restart and no gift / race / vote / hall-of-fame state needs to change.</p>
   <footer>Oasis Radio · @oasisradiolive · preview files only</footer>
 </div>
 <script>
-const V = '20261116';
+const V = '20261116c';
+const LINES = [
+  { id:'heartme-1', tier:'Heart Me', text:'Thank you!', jingle:'jingle-heartme.mp3' },
+  { id:'heartme-2', tier:'Heart Me', text:'Ho ho ho, thank you!', jingle:'jingle-heartme.mp3' },
+  { id:'small-1',   tier:'Small', text:'Thank you for the gift!', jingle:'jingle-small.mp3' },
+  { id:'small-2',   tier:'Small', text:'Thanks a lot, merry Christmas!', jingle:'jingle-small.mp3' },
+  { id:'medium-1',  tier:'Medium', text:'Ho ho ho, thank you for the gift!', jingle:'jingle-medium.mp3' },
+  { id:'medium-2',  tier:'Medium', text:'Thank you! You\'re on the nice list!', jingle:'jingle-medium.mp3' },
+  { id:'medium-3',  tier:'Medium', text:'Merry Christmas, and thank you!', jingle:'jingle-medium.mp3' },
+  { id:'request-1', tier:'Request', text:'Thank you for the request!', jingle:'jingle-medium.mp3' },
+  { id:'request-2', tier:'Request', text:'Ho ho ho, thank you, merry Christmas!', jingle:'jingle-medium.mp3' },
+  { id:'big-1',     tier:'Big', text:'Ho ho ho, thank you for that wonderful gift!', jingle:'jingle-big.mp3' },
+  { id:'big-2',     tier:'Big', text:'Thank you! You\'ve been very generous!', jingle:'jingle-big.mp3' },
+  { id:'big-3',     tier:'Big', text:'Merry Christmas and thank you from Oasis Radio!', jingle:'jingle-big.mp3' },
+  { id:'huge-1',    tier:'Huge', text:'Ho ho ho! Thank you for that huge gift!', jingle:'jingle-huge.mp3' },
+  { id:'huge-2',    tier:'Huge', text:'What a Christmas treat! Thank you so much!', jingle:'jingle-huge.mp3' },
+  { id:'legend-1',  tier:'Legend', text:'Ho ho ho! Thank you, you legend! Merry Christmas!', jingle:'jingle-legend.mp3' },
+  { id:'legend-2',  tier:'Legend', text:'Ho ho ho, what a generous gift! You\'re top of the nice list!', jingle:'jingle-legend.mp3' }
+];
 const TIERS = [
-  { id:'heartme', title:'Heart Me', file:'thanks-heartme.mp3', bits:['jingle-heartme.mp3','ho-1b.mp3'], blurb:'Short sleigh shake and a ding, then one soft ho. About 1.8 seconds.' },
-  { id:'small', title:'Small gift', file:'thanks-small.mp3', bits:['jingle-small.mp3','ho-1.mp3'], blurb:'Short jingle and one ho. About 2.1 seconds.' },
-  { id:'medium', title:'Medium gift', file:'thanks-medium.mp3', bits:['jingle-medium.mp3','ho-2.mp3'], blurb:'Opening “Jingle Bells” motif and two hos. About 3.2 seconds.' },
-  { id:'request', title:'Song request', file:'thanks-request.mp3', bits:['jingle-medium.mp3','ho-2b.mp3'], blurb:'Same shape as medium, with two slightly deeper hos.' },
-  { id:'big', title:'Big gift', file:'thanks-big.mp3', bits:['jingle-big.mp3','ho-3.mp3'], blurb:'Longer motif and three hos. About 4.6 seconds. A second variant plays if the same tier repeats.' },
-  { id:'huge', title:'Huge gift', file:'thanks-huge.mp3', bits:['jingle-huge.mp3','ho-4.mp3'], blurb:'Extended motif and four hos. About 6 seconds.' },
-  { id:'legend', title:'Legend gift', file:'thanks-legend.mp3', bits:['jingle-legend.mp3','ho-5.mp3'], blurb:'Fullest phrase, a little sparkle, and five hos. About 6.7 seconds.' }
+  { id:'heartme', title:'Heart Me', blurb:'Short sleigh shake and a ding, then a quick thank-you.' },
+  { id:'small', title:'Small gift', blurb:'Short jingle, then a short thank-you.' },
+  { id:'medium', title:'Medium gift', blurb:'Opening “Jingle Bells” motif and a spoken thank-you.' },
+  { id:'request', title:'Song request', blurb:'Same jingle shape as medium, with a request thank-you.' },
+  { id:'big', title:'Big gift', blurb:'Longer motif and a warmer thank-you.' },
+  { id:'huge', title:'Huge gift', blurb:'Extended motif and a deeper, warmer Santa.' },
+  { id:'legend', title:'Legend gift', blurb:'Fullest phrase and the biggest, warmest thank-you.' }
 ];
 const vol = document.getElementById('vol'), voln = document.getElementById('voln'), now = document.getElementById('now');
 let current = null, playGen = 0;
@@ -109,32 +137,16 @@ function play(file, label){
     a.play().catch(() => { now.textContent = 'Click the page once, then try again'; done(); });
   });
 }
-vol.addEventListener('input', () => {
-  voln.textContent = Math.round(vol.value * 100) + '%';
-  if (current) current.volume = +vol.value;
-});
-document.getElementById('stop').addEventListener('click', stop);
-const box = document.getElementById('tiers');
-TIERS.forEach(t => {
-  const el = document.createElement('div'); el.className = 'tier';
-  el.innerHTML = '<h3></h3><p></p><div class="row"><button type="button" class="full">Play</button><button type="button" class="j">Jingle only</button><button type="button" class="h">Ho only</button></div>';
-  el.querySelector('h3').textContent = t.title;
-  el.querySelector('p').textContent = t.blurb;
-  el.querySelector('.full').addEventListener('click', () => play(t.file, t.title));
-  el.querySelector('.j').addEventListener('click', () => play(t.bits[0], t.title + ' (jingle)'));
-  el.querySelector('.h').addEventListener('click', () => play(t.bits[1], t.title + ' (ho)'));
-  box.appendChild(el);
-});
-document.getElementById('playall').addEventListener('click', async () => {
+async function playList(items, doneMsg){
   const token = ++playGen;
-  for (const t of TIERS){
+  for (const it of items){
     if (playGen !== token) return;
     if (current){ try{ current.pause(); current.currentTime = 0; }catch(e){} }
     await new Promise((resolve) => {
-      const a = new Audio(src(t.file));
+      const a = new Audio(src(it.file));
       a.volume = +vol.value;
       current = a;
-      now.textContent = 'Playing: ' + t.title;
+      now.textContent = 'Playing: ' + it.label;
       const done = () => { if (current === a) current = null; resolve(); };
       a.addEventListener('ended', done);
       a.addEventListener('error', done);
@@ -143,9 +155,48 @@ document.getElementById('playall').addEventListener('click', async () => {
     if (playGen !== token) return;
     await new Promise(r => setTimeout(r, 450));
   }
-  if (playGen === token) now.textContent = 'All done';
+  if (playGen === token) now.textContent = doneMsg || 'All done';
+}
+vol.addEventListener('input', () => {
+  voln.textContent = Math.round(vol.value * 100) + '%';
+  if (current) current.volume = +vol.value;
 });
-// subtle snow
+document.getElementById('stop').addEventListener('click', stop);
+const lineBox = document.getElementById('lines');
+LINES.forEach(L => {
+  const el = document.createElement('div'); el.className = 'line';
+  el.innerHTML = '<div class="txt"><span class="tier-tag"></span><span class="msg"></span></div><button type="button" class="full">With jingle</button><button type="button" class="ghost v">Voice only</button>';
+  el.querySelector('.tier-tag').textContent = L.tier;
+  el.querySelector('.msg').textContent = '“' + L.text + '”';
+  el.querySelector('.full').addEventListener('click', () => play('thanks-' + L.id + '.mp3', L.text));
+  el.querySelector('.v').addEventListener('click', () => play('msg-' + L.id + '.mp3', L.text + ' (voice)'));
+  lineBox.appendChild(el);
+});
+const tierBox = document.getElementById('tiers');
+TIERS.forEach(t => {
+  const el = document.createElement('div'); el.className = 'tier';
+  const mine = LINES.filter(L => L.id.startsWith(t.id + '-'));
+  el.innerHTML = '<h3></h3><p></p><div class="row"></div>';
+  el.querySelector('h3').textContent = t.title;
+  el.querySelector('p').textContent = t.blurb;
+  const row = el.querySelector('.row');
+  mine.forEach((L, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = 'Line ' + (i + 1);
+    b.title = L.text;
+    b.addEventListener('click', () => play('thanks-' + L.id + '.mp3', L.text));
+    row.appendChild(b);
+  });
+  tierBox.appendChild(el);
+});
+document.getElementById('playall').addEventListener('click', () => {
+  playList(LINES.map(L => ({ file:'thanks-' + L.id + '.mp3', label:L.text })), 'All 16 done');
+});
+document.getElementById('playtiers').addEventListener('click', () => {
+  const firsts = TIERS.map(t => LINES.find(L => L.id.startsWith(t.id + '-'))).filter(Boolean);
+  playList(firsts.map(L => ({ file:'thanks-' + L.id + '.mp3', label:L.tier + ': ' + L.text })), 'All tiers done');
+});
 const c = document.getElementById('snow'), x = c.getContext('2d');
 function size(){ c.width = innerWidth; c.height = innerHeight; }
 size(); addEventListener('resize', size);

@@ -154,7 +154,7 @@ window.OasisBus = (function () {
   return { BOX, TOPIC, api, boxStream, ntfy };
 })();
 </script>
-<script>/* GiftFX (CHRISTMAS THANKS PREVIEW): jingle-bells + Santa ho-ho-ho clips from sounds/xmas-thanks/ instead of the live Grumpy voiceovers. Live overlay.html is unchanged.
+<script>/* GiftFX (CHRISTMAS THANKS PREVIEW): jingle-bells + spoken Santa thank-you lines from sounds/xmas-thanks/ instead of the live Grumpy voiceovers. Live overlay.html is unchanged.
    ?sound=0 mutes everything, ?vol=0.1-1 volume, ?voice=instead (default: clip only) | after (synth then clip) | off (WebAudio fallback only), ?soundtest=1 plays all tiers on load, ?badge=0 hides the preview badge. */
 window.GiftFX = (function () {
   const q = new URLSearchParams(location.search);
@@ -300,7 +300,7 @@ window.GiftFX = (function () {
       setTimeout(boom, 450 + Math.random() * 400);
     })();
   }
-  if (q.get('soundtest') === '1') setTimeout(() => { sound('small'); setTimeout(() => sound('medium'), 2300); setTimeout(() => sound('big'), 5800); setTimeout(() => sound('huge'), 10800); setTimeout(() => sound('legend'), 17200); }, 800);
+  if (q.get('soundtest') === '1') setTimeout(() => { sound('small'); setTimeout(() => sound('medium'), 4500); setTimeout(() => sound('big'), 10200); setTimeout(() => sound('huge'), 17700); setTimeout(() => sound('legend'), 25800); }, 800);
   return { sound, confetti, fireworks, muted: MUTED, voice: VOICE, clips: () => clips.slice(), state: () => (ctx ? ctx.state : (MUTED ? 'muted' : 'not-started')) };
 })();
 </script>
