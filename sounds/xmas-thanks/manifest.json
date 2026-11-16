@@ -1,0 +1,12 @@
+{
+  "clips": [
+    { "file": "thanks-heartme.mp3", "tier": "heartme" },
+    { "file": "thanks-small.mp3", "tier": "small" },
+    { "file": "thanks-medium.mp3", "tier": "medium" },
+    { "file": "thanks-request.mp3", "tier": "request" },
+    { "file": "thanks-big.mp3", "tier": "big" },
+    { "file": "thanks-big-b.mp3", "tier": "big" },
+    { "file": "thanks-huge.mp3", "tier": "huge" },
+    { "file": "thanks-legend.mp3", "tier": "legend" }
+  ]
+}

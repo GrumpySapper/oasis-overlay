@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Oasis Radio – Christmas gift-thanks preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--red:#8b0016;--gold:#ffd54a;--green:#062a17;--snow:#f4fff8}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;color:#fff;font-family:Montserrat,Arial,sans-serif;background:
+    radial-gradient(ellipse at top,#0b4a28 0%,#062a17 55%,#04180c 100%)}
+  body{padding:22px 18px 48px;overflow-x:hidden}
+  .cane{position:fixed;left:0;right:0;top:0;height:14px;z-index:5;background:repeating-linear-gradient(90deg,#fff 0 14px,var(--red) 14px 28px)}
+  .cane.bottom{top:auto;bottom:0}
+  #snow{position:fixed;inset:0;pointer-events:none;z-index:1}
+  .wrap{position:relative;z-index:2;max-width:820px;margin:0 auto}
+  header{display:flex;gap:16px;align-items:center;margin:18px 0 10px}
+  header img{width:92px;height:92px;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
+  h1{font-family:"Mountains of Christmas",cursive,serif;font-weight:700;color:var(--gold);font-size:clamp(32px,6vw,52px);margin:0;line-height:1.05;text-shadow:0 2px 0 #7a0010,0 4px 12px rgba(0,0,0,.45)}
+  .sub{color:#cfe;margin:8px 0 0;font-size:15px;max-width:54ch}
+  .note{background:rgba(139,0,22,.72);border:2px solid var(--gold);border-radius:14px;padding:12px 16px;margin:16px 0;color:#fff}
+  .note strong{color:var(--gold)}
+  h2{font-family:"Mountains of Christmas",cursive,serif;color:var(--gold);font-size:28px;margin:26px 0 10px}
+  p,li{line-height:1.45;color:#e9ffe9}
+  a{color:var(--gold)}
+  .row{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+  button{font:700 15px/1.2 Montserrat,Arial,sans-serif;color:#fff;background:var(--red);border:3px solid #fff;border-radius:14px;padding:12px 16px;cursor:pointer}
+  button:hover{background:#a4001c}
+  button:focus{outline:3px solid var(--gold);outline-offset:2px}
+  button.alt{background:#0b5a30}
+  button[disabled]{opacity:.55;cursor:default}
+  .vol{display:flex;align-items:center;gap:10px;margin:8px 0 14px;color:#cfe}
+  input[type=range]{width:180px}
+  #now{min-height:1.4em;color:var(--gold);font-weight:700}
+  .tiers{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .tier{background:rgba(0,0,0,.28);border:2px solid rgba(255,213,74,.55);border-radius:14px;padding:12px}
+  .tier h3{margin:0 0 6px;color:var(--gold);font-size:16px}
+  .tier p{margin:0 0 10px;font-size:13px;color:#d9f5d9}
+  .tier .row{margin:0}
+  ul.ideas{padding-left:1.2em}
+  footer{margin-top:28px;font-size:13px;color:#b7d7b7}
+</style>
+</head>
+<body>
+<div class="cane"></div><div class="cane bottom"></div>
+<canvas id="snow"></canvas>
+<div class="wrap">
+  <header>
+    <img src="images/bob-daredevil-xmas.webp" alt="Bob in a Santa hat">
+    <div>
+      <h1>Christmas gift thanks</h1>
+      <p class="sub">Preview only. Press a button to hear the jingle bells and Santa ho ho hos that would replace the spoken thank-you voiceovers. Nothing on the live overlay has been changed.</p>
+    </div>
+  </header>
+  <p class="note"><strong>How to listen:</strong> click a tier below (or Play all). If your browser blocks sound, click once anywhere on the page first. In LIVE Studio, add <code>overlay-xmas-preview.html</code> as a test browser source, tick “Interact”, and click the page once so audio can start.</p>
+  <div class="vol">
+    <label for="vol">Volume</label>
+    <input id="vol" type="range" min="0.05" max="1" step="0.05" value="0.7">
+    <span id="voln">70%</span>
+    <span id="now"></span>
+  </div>
+  <div class="row">
+    <button type="button" id="playall" class="alt">Play all tiers</button>
+    <button type="button" id="stop">Stop</button>
+  </div>
+  <div class="tiers" id="tiers"></div>
+  <h2>Hear it on the overlay</h2>
+  <p>Same sounds, with the real gift cards (local demo, not on air unless you point a Studio layer at this preview URL):</p>
+  <p>
+    <a href="overlay-xmas-preview.html?giftdemo=1&amp;theme=christmas&amp;bg=1">Gift-card demo</a>
+    · <a href="overlay-xmas-preview.html?soundtest=1&amp;bg=1">Sound-only walk through the tiers</a>
+    · <a href="overlay-xmas-preview.html?theme=christmas">Preview overlay (waits for real gifts)</a>
+  </p>
+  <h2>What you’ll hear</h2>
+  <p>Each gift plays a sleigh-bell jingle, then a Santa ho ho ho. Bigger gifts get a longer public-domain “Jingle Bells” motif and more hos (Heart Me: one soft ho; small: one; medium/request: two; big: three; huge: four; legend: five). Bursts are throttled: one thank-you per gifter if they combo, a short gap between clips, and a cap of six waiting so a rush of roses doesn’t become a pile-up. Peaks sit around −3 dBFS so they shouldn’t shout over the music; there is a volume slider here and <code>?vol=0.1–1</code> / <code>?sound=0</code> on the overlay preview.</p>
+  <h2>Audio sources</h2>
+  <p>All clips are original synthesis, <a href="sounds/xmas-thanks/SOURCES.md">CC0 1.0</a>. The bell motifs quote the public-domain melody of “Jingle Bells” (James Lord Pierpont, 1857). The hos are a generated Santa voice, not a recorded actor. Details in <a href="sounds/xmas-thanks/SOURCES.md">SOURCES.md</a>.</p>
+  <h2>Going live later (not done)</h2>
+  <p>The live page is still <code>overlay.html</code> with the existing Grumpy / ghost-host voice clips in <code>sounds/thanks/</code>. To switch after you approve: either point the LIVE Studio overlay layer at <code>overlay-xmas-preview.html</code>, or copy this behaviour into <code>overlay.html</code> (best as a flag such as <code>?xmasThanks=1</code> or folded into <code>?theme=christmas</code>). Bump <code>?v=</code> on the Studio URL so GitHub Pages’ 10-minute cache doesn’t serve the old page. Do it off-air. No server restart and no gift / race / vote / hall-of-fame state needs to change.</p>
+  <footer>Oasis Radio · @oasisradiolive · preview files only</footer>
+</div>
+<script>
+const V = '20261116';
+const TIERS = [
+  { id:'heartme', title:'Heart Me', file:'thanks-heartme.mp3', bits:['jingle-heartme.mp3','ho-1b.mp3'], blurb:'Short sleigh shake and a ding, then one soft ho. About 1.8 seconds.' },
+  { id:'small', title:'Small gift', file:'thanks-small.mp3', bits:['jingle-small.mp3','ho-1.mp3'], blurb:'Short jingle and one ho. About 2.1 seconds.' },
+  { id:'medium', title:'Medium gift', file:'thanks-medium.mp3', bits:['jingle-medium.mp3','ho-2.mp3'], blurb:'Opening “Jingle Bells” motif and two hos. About 3.2 seconds.' },
+  { id:'request', title:'Song request', file:'thanks-request.mp3', bits:['jingle-medium.mp3','ho-2b.mp3'], blurb:'Same shape as medium, with two slightly deeper hos.' },
+  { id:'big', title:'Big gift', file:'thanks-big.mp3', bits:['jingle-big.mp3','ho-3.mp3'], blurb:'Longer motif and three hos. About 4.6 seconds. A second variant plays if the same tier repeats.' },
+  { id:'huge', title:'Huge gift', file:'thanks-huge.mp3', bits:['jingle-huge.mp3','ho-4.mp3'], blurb:'Extended motif and four hos. About 6 seconds.' },
+  { id:'legend', title:'Legend gift', file:'thanks-legend.mp3', bits:['jingle-legend.mp3','ho-5.mp3'], blurb:'Fullest phrase, a little sparkle, and five hos. About 6.7 seconds.' }
+];
+const vol = document.getElementById('vol'), voln = document.getElementById('voln'), now = document.getElementById('now');
+let current = null, playGen = 0;
+function src(file){ return 'sounds/xmas-thanks/' + file + '?v=' + V; }
+function stop(){ playGen++; if (current){ try{ current.pause(); current.currentTime = 0; }catch(e){} current = null; } now.textContent = ''; }
+function play(file, label){
+  return new Promise((resolve) => {
+    stop();
+    const g = playGen;
+    const a = new Audio(src(file));
+    a.volume = +vol.value;
+    current = a;
+    now.textContent = 'Playing: ' + label;
+    const done = () => { if (playGen === g){ if (current === a) current = null; now.textContent = ''; } resolve(); };
+    a.addEventListener('ended', done);
+    a.addEventListener('error', () => { now.textContent = 'Could not load ' + file; done(); });
+    a.play().catch(() => { now.textContent = 'Click the page once, then try again'; done(); });
+  });
+}
+vol.addEventListener('input', () => {
+  voln.textContent = Math.round(vol.value * 100) + '%';
+  if (current) current.volume = +vol.value;
+});
+document.getElementById('stop').addEventListener('click', stop);
+const box = document.getElementById('tiers');
+TIERS.forEach(t => {
+  const el = document.createElement('div'); el.className = 'tier';
+  el.innerHTML = '<h3></h3><p></p><div class="row"><button type="button" class="full">Play</button><button type="button" class="j">Jingle only</button><button type="button" class="h">Ho only</button></div>';
+  el.querySelector('h3').textContent = t.title;
+  el.querySelector('p').textContent = t.blurb;
+  el.querySelector('.full').addEventListener('click', () => play(t.file, t.title));
+  el.querySelector('.j').addEventListener('click', () => play(t.bits[0], t.title + ' (jingle)'));
+  el.querySelector('.h').addEventListener('click', () => play(t.bits[1], t.title + ' (ho)'));
+  box.appendChild(el);
+});
+document.getElementById('playall').addEventListener('click', async () => {
+  const token = ++playGen;
+  for (const t of TIERS){
+    if (playGen !== token) return;
+    if (current){ try{ current.pause(); current.currentTime = 0; }catch(e){} }
+    await new Promise((resolve) => {
+      const a = new Audio(src(t.file));
+      a.volume = +vol.value;
+      current = a;
+      now.textContent = 'Playing: ' + t.title;
+      const done = () => { if (current === a) current = null; resolve(); };
+      a.addEventListener('ended', done);
+      a.addEventListener('error', done);
+      a.play().catch(done);
+    });
+    if (playGen !== token) return;
+    await new Promise(r => setTimeout(r, 450));
+  }
+  if (playGen === token) now.textContent = 'All done';
+});
+// subtle snow
+const c = document.getElementById('snow'), x = c.getContext('2d');
+function size(){ c.width = innerWidth; c.height = innerHeight; }
+size(); addEventListener('resize', size);
+const flakes = Array.from({length: 48}, () => ({x: Math.random(), y: Math.random(), r: 1+Math.random()*2.4, v: 0.25+Math.random()*0.7, w: Math.random()*Math.PI}));
+(function tick(){
+  x.clearRect(0,0,c.width,c.height);
+  x.fillStyle = 'rgba(255,255,255,.85)';
+  for (const f of flakes){
+    f.y += f.v / 180; f.w += 0.02;
+    if (f.y > 1) { f.y = -0.02; f.x = Math.random(); }
+    const px = (f.x + Math.sin(f.w)*0.01) * c.width, py = f.y * c.height;
+    x.beginPath(); x.arc(px, py, f.r, 0, 7); x.fill();
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body></html>
