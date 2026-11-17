@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script src="sse-shim.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Song Hangman – Grumpy's control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Outfit:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --red:#c8102e; --green:#0b6b3a; --gold:#ffd54a; --pink:#ff2bd6; }
+  * { box-sizing:border-box; }
+  body { margin:0 auto; max-width:580px; font-family:'Outfit',system-ui,Segoe UI,sans-serif; background:#06150e; color:#fff;
+    padding:14px 14px 48px; }
+  h1 { font:700 34px/1.1 'Mountains of Christmas',serif; margin:6px 0 4px; color:var(--gold);
+    text-shadow:0 0 10px #c8102e, 0 2px 0 #000; }
+  .sub { color:#cde8d4; font-size:14px; margin-bottom:12px; line-height:1.45; }
+  .card { background:linear-gradient(160deg,#0d2a1c,#3a0d16); border:2px solid #c8102e; border-radius:16px; padding:14px; margin:10px 0;
+    box-shadow:0 0 0 1px rgba(255,213,74,.25) inset; }
+  .phase { font-size:20px; font-weight:800; } .phase b { color:var(--gold); }
+  button { font:inherit; font-weight:800; font-size:18px; border:0; border-radius:12px; padding:16px 10px; width:100%;
+    color:#111; cursor:pointer; touch-action:manipulation; }
+  button:active { transform:scale(.97); } button:disabled { opacity:.4; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  .open { background:#39ff14; } .hint { background:var(--gold); } .reveal { background:#19b5ff; }
+  .skip { background:#ff8a95; } .play { background:#7cffb2; } .ghost { background:#244a38; color:#fff; font-size:15px; padding:12px; }
+  input { font:inherit; font-size:17px; padding:10px; border-radius:10px; border:2px solid #3d6a50; background:#07140e; color:#fff; width:100%; }
+  label { display:block; font-size:13px; color:#cde8d4; margin:8px 0 4px; }
+  .msg { min-height:22px; color:var(--gold); font-weight:700; margin-top:8px; }
+  .small { font-size:13px; color:#b7d0be; line-height:1.45; }
+  .answer { font-size:22px; font-weight:800; color:#fff; margin:6px 0; }
+  .answer span { color:var(--gold); }
+  .letters { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .letters i, .letters b { font-style:normal; min-width:32px; text-align:center; padding:6px 8px; border-radius:8px; font-weight:800; }
+  .letters b { background:#0b6b3a; } .letters i { background:#5a1020; color:#ffd0d6; }
+  .lives { letter-spacing:2px; font-size:20px; }
+  a { color:var(--gold); }
+  code { background:#07140e; padding:1px 5px; border-radius:6px; }
+  #preview .word { display:inline-flex; gap:3px; margin:0 8px 8px 0; }
+  #preview .tile { width:26px; height:32px; border-radius:5px; display:flex; align-items:center; justify-content:center;
+    font:800 16px Outfit; background:#07140e; border:1px solid #3d6a50; }
+  #preview .tile.on { background:var(--red); border-color:var(--gold); }
+  #preview .tile.punct { background:transparent; border:0; width:auto; }
+</style>
+</head>
+<body>
+<h1>🎄 Song Hangman – control</h1>
+<div class="sub">Only for Grumpy. This is a <b>preview</b> – nothing on the live overlay has changed. Viewers will type a letter, or the whole song, in TikTok chat once Bob can pass those messages through.</div>
+
+<div class="card" id="keyCard" hidden>
+  <div style="font-weight:700;margin-bottom:6px">Enter the game key (same key as the vote and marble race – remembered on this phone). Only needed if Bob’s hangman API is running.</div>
+  <input id="key" type="password" autocomplete="off" placeholder="game key">
+  <div class="row"><button class="open" id="saveKey">Save key</button><button class="ghost" id="cancelKey">Cancel</button></div>
+</div>
+
+<div class="card">
+  <div class="phase">Status: <b id="phase">…</b></div>
+  <div class="small" id="linkMode"></div>
+  <div class="answer" id="answer">No puzzle yet</div>
+  <div class="lives" id="lives"></div>
+  <div class="small">Right letters / misses</div>
+  <div class="letters" id="letters"></div>
+  <div id="preview" style="margin-top:10px"></div>
+  <div class="row">
+    <button class="open" id="bNext">▶️ Next puzzle</button>
+    <button class="hint" id="bHint">💡 Reveal a letter</button>
+  </div>
+  <div class="row">
+    <button class="reveal" id="bReveal">👀 Reveal the answer</button>
+    <button class="skip" id="bSkip">⏭ Skip</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">Add a custom song</div>
+  <label for="ctitle">Song title</label>
+  <input id="ctitle" placeholder="Last Christmas">
+  <label for="cartist">Band / artist</label>
+  <input id="cartist" placeholder="Wham!">
+  <div class="row">
+    <button class="ghost" id="bAdd">Add to the list</button>
+    <button class="play" id="bAddPlay">Add &amp; play now</button>
+  </div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">Simulate a chat guess</div>
+  <div class="small">Works with the preview overlay in this same browser (no Bob change needed). Type a letter or a full song title.</div>
+  <label for="sname">Viewer name</label>
+  <input id="sname" value="Holly Hannah">
+  <label for="sguess">What they type</label>
+  <input id="sguess" placeholder="L  or  Last Christmas">
+  <div class="row"><button class="open" id="bGuess">Send guess</button><button class="ghost" id="bDemo">Open demo overlay</button></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">Nice list this session</div>
+  <div class="small" id="lb">No solvers yet</div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">How guessing works</div>
+  <div class="small">
+    The overlay listens for Bob’s existing <code>/events</code> stream, the same way song vote and the wheels do.
+    Today that feed carries gifts, welcomes, votes and race updates — <b>not raw TikTok chat</b> — so live letter guesses cannot be scored until Bob is taught this game.
+    Until then, use <a href="song-hangman.html?demo=1" target="_blank" rel="noopener">demo mode</a> (fake chat) or the simulate box above while both pages are open on this computer.
+    Studio layer: <code>song-hangman.html</code> (add <code>?bg=clear</code> for a transparent background). Control this page. Christmas styling is already on.
+  </div>
+</div>
+
+<div class="card">
+  <div style="font-weight:800">Bob change needed for live chat (do this off-air, later)</div>
+  <div class="small">
+    In the tiktok-welcomer app (port 8787), add a hangman module modelled on the song vote — and do not touch race, vote, gift-jar or hall-of-fame state.
+    Keep a small game state (current title/artist, revealed letters, wrong letters, 7 lives, winner, session leaderboard).
+    While a round is <code>playing</code>, treat a chat message of a single A–Z as a letter guess, and a longer message as a solve attempt (ignore case and punctuation; the song title alone is enough; the band name alone is not).
+    Apply a per-viewer cooldown (about 4 seconds) and a global 1-second throttle so a rush of chat cannot flip the whole board at once. Already-guessed letters are ignored and do not cost a life. A wrong letter costs one life and is added to the used-letters row; at 0 lives reveal the answer as a loss.
+    Host routes, same <code>x-key</code> as the other games: <code>GET /api/hangman/state</code>, <code>POST /api/hangman/next</code>, <code>/reveal-letter</code>, <code>/reveal</code>, <code>/skip</code>, <code>/add</code>.
+    Emit SSE events <code>{ type:'hangman', ev, state }</code> on <code>/events</code> so the overlay can follow them exactly as <code>song-vote.html</code> follows <code>type:'vote'</code>.
+    These preview pages already look for that API and those events; they fall back to local demo / this-browser control if they are not there. No restart and no deploy is needed just to look at this preview.
+  </div>
+</div>
+
+<div class="card"><button class="ghost" id="bKey">Change key</button></div>
+
+<script src="song-hangman-lib.js"></script>
+<script>
+(function () {
+  const H = window.OasisHangman;
+  const $ = function (id) { return document.getElementById(id); };
+  const q = new URLSearchParams(location.search);
+  let BOX = 'https://bob.oasisradio.live';
+  const HDR = { 'ngrok-skip-browser-warning': '1' };
+  const bq = q.get('box');
+  if (bq && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq)) BOX = bq;
+  let KEY = localStorage.getItem('marbleKey') || '';
+  let mode = 'local';
+  let state = H.emptyState();
+  let bc = null;
+  try { bc = new BroadcastChannel(H.CHANNEL); } catch (e) {}
+
+  function msg(s, bad) { $('msg').textContent = s || ''; $('msg').style.color = bad ? '#ff8a95' : ''; }
+  function showKey(v) { $('keyCard').hidden = !v; if (v) $('key').focus(); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]; }); }
+
+  function publish() {
+    try { localStorage.setItem(H.STORE, JSON.stringify(state)); } catch (e) {}
+    try { if (bc) bc.postMessage({ type: 'state', state: state, t: Date.now() }); } catch (e) {}
+  }
+  function adopt(s) { if (!s) return; state = s; render(); }
+
+  const NAMES = { idle: 'Waiting', playing: 'PLAYING', won: 'Won – winner on screen', lost: 'Ho ho no! – out of lives', revealed: 'Answer revealed' };
+
+  function mini(text, revealed, showAll) {
+    return H.tokens(text).map(function (word) {
+      const tiles = word.map(function (tok) {
+        if (tok.kind === 'punct') return '<div class="tile punct">' + esc(tok.ch) + '</div>';
+        const on = showAll || revealed.indexOf(tok.ch) >= 0;
+        return '<div class="tile' + (on ? ' on' : '') + '">' + (on ? esc(tok.ch) : '') + '</div>';
+      }).join('');
+      return '<div class="word">' + tiles + '</div>';
+    }).join('');
+  }
+
+  function render() {
+    const st = state;
+    $('phase').textContent = NAMES[st.phase] || st.phase;
+    $('linkMode').textContent = mode === 'api' ? 'Linked to Bob’s hangman API' : 'Local preview (this browser). Open the overlay on this computer to see it update.';
+    if (!st.title) $('answer').innerHTML = 'No puzzle yet';
+    else $('answer').innerHTML = 'Answer: <span>' + esc(st.title) + '</span> – ' + esc(st.artist);
+    const left = st.livesLeft == null ? 7 : st.livesLeft;
+    $('lives').textContent = 'Lives: ' + '●'.repeat(left) + '○'.repeat(Math.max(0, (st.lives || 7) - left)) + '  (' + left + ' / ' + (st.lives || 7) + ')';
+    const letters = [];
+    (st.revealed || []).forEach(function (ch) { letters.push('<b>' + esc(ch) + '</b>'); });
+    (st.wrong || []).forEach(function (ch) { letters.push('<i>' + esc(ch) + '</i>'); });
+    $('letters').innerHTML = letters.length ? letters.join('') : '<span class="small">None yet</span>';
+    if (st.title) {
+      const showAll = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
+      $('preview').innerHTML = mini(st.title, st.revealed || [], showAll) + '<br>' + mini(st.artist, st.revealed || [], showAll);
+    } else $('preview').innerHTML = '';
+    const playing = st.phase === 'playing';
+    $('bHint').disabled = !playing;
+    $('bReveal').disabled = !playing;
+    $('bSkip').disabled = !playing && st.phase === 'idle';
+    const lb = st.leaderboard || [];
+    $('lb').innerHTML = lb.length ? lb.map(function (r, i) { return (i + 1) + '. ' + esc(r.name) + ' — ' + r.solves; }).join('<br>') : 'No solvers yet';
+  }
+
+  async function api(path, body) {
+    if (!KEY) { showKey(true); msg('Enter the key first', true); return null; }
+    try {
+      const r = await fetch(BOX + '/api/hangman/' + path, {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json', 'x-key': KEY }, HDR),
+        body: JSON.stringify(body || {})
+      });
+      const j = await r.json().catch(function () { return {}; });
+      if (r.status === 403) { msg('Wrong key – enter it again', true); showKey(true); return null; }
+      if (r.status === 404) { return null; }
+      if (j.state) adopt(j.state);
+      if (j.ok === false) msg('⚠️ ' + (j.error || 'not possible right now'), true);
+      else msg('✅ Done');
+      return j;
+    } catch (e) { return null; }
+  }
+
+  function localAction(action, okMsg) {
+    const r = H.applyAction(state, action, Date.now());
+    if (r && r.state) { adopt(r.state); publish(); }
+    if (r && r.ok === false) msg('⚠️ ' + (r.reason || 'not possible'), true);
+    else if (r && r.accepted === false) msg(r.reason === 'cooldown' ? 'Viewer is on a short cooldown' : r.reason === 'already' ? 'Already guessed' : r.reason === 'throttle' ? 'A bit fast – try again' : (r.reason || 'Not accepted'), true);
+    else if (r && r.win) msg('✅ ' + ((r.state.winner && r.state.winner.name) || 'Someone') + ' got it!');
+    else if (r && r.lost) msg('Ho ho no! Out of lives.');
+    else msg(okMsg || '✅ Done');
+    return r;
+  }
+
+  async function call(path, body, localActionObj, okMsg) {
+    if (mode === 'api') {
+      const j = await api(path, body);
+      if (j) return j;
+      msg("Can't reach Bob's hangman API – using local preview", true);
+      mode = 'local';
+    }
+    return localAction(localActionObj, okMsg);
+  }
+
+  $('bNext').onclick = function () { call('next', {}, { type: 'next' }, '✅ New puzzle'); };
+  $('bHint').onclick = function () { call('reveal-letter', {}, { type: 'reveal-letter' }, '✅ Hint letter up'); };
+  $('bReveal').onclick = function () { if (confirm('Reveal the answer on screen?')) call('reveal', {}, { type: 'reveal-answer' }, '✅ Answer revealed'); };
+  $('bSkip').onclick = function () { if (confirm('Skip this song and start the next one?')) call('skip', {}, { type: 'skip' }, '✅ Skipped'); };
+  $('bAdd').onclick = function () {
+    const t = $('ctitle').value.trim(), a = $('cartist').value.trim();
+    if (!t || !a) { msg('Need a title and a band', true); return; }
+    call('add', { title: t, artist: a }, { type: 'add-song', title: t, artist: a, play: false }, '✅ Added to the list');
+  };
+  $('bAddPlay').onclick = function () {
+    const t = $('ctitle').value.trim(), a = $('cartist').value.trim();
+    if (!t || !a) { msg('Need a title and a band', true); return; }
+    call('add', { title: t, artist: a, play: true }, { type: 'add-song', title: t, artist: a, play: true }, '✅ Playing your song');
+  };
+  $('bGuess').onclick = function () {
+    const name = $('sname').value.trim() || 'Viewer';
+    const text = $('sguess').value.trim();
+    if (!text) { msg('Type a letter or a song title', true); return; }
+    if (mode === 'api') { msg('On the live API, viewers guess in TikTok chat rather than here.', true); return; }
+    localAction({ type: 'chat', name: name, text: text });
+    $('sguess').value = '';
+    $('sguess').focus();
+  };
+  $('sguess').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('bGuess').click(); });
+  $('bDemo').onclick = function () { window.open('song-hangman.html?demo=1', '_blank', 'noopener'); };
+
+  $('bKey').onclick = function () { showKey(true); };
+  $('cancelKey').onclick = function () { showKey(false); };
+  $('saveKey').onclick = async function () {
+    const k = $('key').value.trim(); if (!k) return;
+    KEY = k; localStorage.setItem('marbleKey', k); $('key').value = ''; showKey(false); msg('✅ Key saved on this phone');
+  };
+
+  if (bc) bc.onmessage = function (e) {
+    const d = e.data || {};
+    if (d.type === 'state' && d.state) adopt(d.state);
+    else if (d.type === 'sync') publish();
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(H.STORE) || 'null');
+    if (saved && saved.phase) adopt(saved);
+    else render();
+  } catch (e) { render(); }
+  try { if (bc) bc.postMessage({ type: 'sync' }); } catch (e) {}
+
+  async function probe() {
+    try {
+      const r = await fetch(BOX + '/api/hangman/state', { headers: HDR, cache: 'no-store' });
+      if (r.ok) {
+        const s = await r.json();
+        if (s && s.phase) { mode = 'api'; adopt(s); msg('✅ Linked to Bob'); return; }
+      }
+    } catch (e) {}
+    mode = 'local'; render();
+  }
+  probe();
+  setInterval(function () {
+    if (mode !== 'api') return;
+    fetch(BOX + '/api/hangman/state', { headers: HDR, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) { if (s) adopt(s); }).catch(function () {});
+  }, 2000);
+})();
+</script>
+</body>
+</html>

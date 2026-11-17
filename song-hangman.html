@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script src="sse-shim.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oasis Radio · Song Hangman</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@400;700&family=Outfit:wght@500;700;800;900&display=swap" rel="stylesheet">
+<!-- Preview overlay. Portrait 1080x1920, scales to the browser source.
+     ?demo=1 simulated chat guesses   ?bg=clear / ?bg=0 transparent background
+     ?sound=0 mute   ?shot=1 frozen mid-puzzle for a still preview -->
+<style>
+  :root { --red:#c8102e; --green:#0b6b3a; --gold:#ffd54a; --cream:#fff6e0; --ink:#07140e; --ice:#e8f4ff; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { width:100%; height:100%; overflow:hidden; background:transparent; }
+  body { font-family:'Outfit',system-ui,sans-serif; color:#fff; -webkit-font-smoothing:antialiased; }
+  #stage { position:absolute; left:0; top:0; width:1080px; height:1920px; transform-origin:0 0; overflow:hidden; }
+  #bg { position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255,213,74,.18), transparent 48%),
+      linear-gradient(180deg, #052013 0%, #0a3a24 38%, #14331f 62%, #3a0a14 100%); }
+  body.clear #bg { display:none; }
+  #snow { position:absolute; inset:0; pointer-events:none; z-index:8; }
+  #frame { position:absolute; inset:0; pointer-events:none; z-index:9;
+    border:14px solid transparent;
+    border-image:repeating-linear-gradient(135deg,#fff 0 12px,#c8102e 12px 24px) 14;
+    box-shadow:inset 0 0 0 2px rgba(255,213,74,.35); }
+  .cane { position:absolute; width:86px; height:230px; background:url('xmas/candy-cane.svg') no-repeat center/contain; z-index:9; pointer-events:none; }
+  .cane.tl { left:10px; top:28px; transform:rotate(-16deg); }
+  .cane.tr { right:10px; top:28px; transform:scaleX(-1) rotate(-16deg); }
+  .cane.bl { left:14px; bottom:16px; transform:rotate(8deg); }
+  .cane.br { right:14px; bottom:16px; transform:scaleX(-1) rotate(8deg); }
+  #lights { position:absolute; left:0; right:0; top:0; height:70px; pointer-events:none; z-index:10; }
+  #lights i { position:absolute; top:22px; width:14px; height:20px; margin-left:-7px; border-radius:50% 50% 45% 45%;
+    animation:twinkle 2.4s ease-in-out infinite; }
+  #lights i::before { content:''; position:absolute; left:3px; top:-6px; width:8px; height:7px; background:#2a332c; border-radius:2px; }
+  @keyframes twinkle { 0%,100%{opacity:1} 50%{opacity:.28} }
+  #panel { position:absolute; left:48px; right:48px; top:86px; bottom:48px; display:flex; flex-direction:column; align-items:center; }
+  #brand { font:700 42px/1 'Mountains of Christmas',serif; letter-spacing:.08em; color:var(--gold);
+    text-shadow:0 0 10px #c8102e, 0 3px 0 #000; }
+  #title { font:700 108px/0.92 'Mountains of Christmas',serif; text-align:center; margin-top:4px;
+    background:linear-gradient(90deg,#fff,#ffd54a,#ff4d5e,#fff,#ffd54a,#4fd17f);
+    background-size:200% auto; -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 0 12px rgba(255,60,60,.7)) drop-shadow(0 4px 4px rgba(0,0,0,.75)); }
+  #cat { margin-top:10px; padding:8px 22px; border-radius:999px; font:800 26px/1 'Outfit'; letter-spacing:.14em;
+    color:var(--gold); border:2px solid var(--gold); background:rgba(11,107,58,.45); box-shadow:0 0 14px rgba(255,213,74,.35); }
+  #how { margin-top:16px; font:800 34px/1.2 'Outfit'; color:#ffe28a; text-align:center; text-shadow:0 2px 0 #5a1200;
+    max-width:920px; }
+  #how b { color:#fff; background:linear-gradient(180deg,#e0182f,#8b0016); padding:2px 14px; border-radius:12px;
+    box-shadow:0 0 12px rgba(255,60,60,.6); text-shadow:none; }
+  #status { display:flex; align-items:center; justify-content:center; gap:22px; margin:18px 0 8px; width:100%; }
+  #badge { font:800 28px/1 'Outfit'; letter-spacing:.12em; padding:10px 22px; border-radius:16px; }
+  #badge.idle { background:#0b6b3a; color:#eafff0; box-shadow:0 0 14px rgba(40,200,110,.5); }
+  #badge.playing { background:#e0182f; color:#fff; box-shadow:0 0 20px #ff3b4f; animation:pulse 1.2s ease-in-out infinite; }
+  #badge.won { background:var(--gold); color:#3a1600; box-shadow:0 0 22px var(--gold); }
+  #badge.lost, #badge.revealed { background:#1a2740; color:#fff; box-shadow:0 0 16px #9fe0ff; }
+  @keyframes pulse { 50% { transform:scale(1.05); filter:brightness(1.15); } }
+  #lives { display:flex; gap:8px; align-items:center; }
+  #lives span { width:36px; height:36px; display:block; background:url('xmas/bauble-red.svg') no-repeat center/contain; filter:drop-shadow(0 0 6px rgba(255,60,60,.6)); transition:transform .3s, filter .3s, opacity .3s; }
+  #lives span.gone { opacity:.22; filter:grayscale(1); transform:scale(.85); }
+  #board { width:100%; flex:0 0 auto; margin-top:10px; padding:30px 26px 32px;
+    border-radius:28px; position:relative;
+    background:repeating-linear-gradient(135deg,#fff 0 10px,#c8102e 10px 20px);
+    box-shadow:0 0 30px rgba(255,213,74,.25), 0 10px 40px rgba(0,0,0,.45); }
+  #board::before { content:''; position:absolute; inset:8px; border-radius:20px;
+    background:linear-gradient(160deg,#0a2a1c,#3a0d16); z-index:0; }
+  #board > * { position:relative; z-index:1; }
+  .row-label { font:800 20px/1 'Outfit'; letter-spacing:.2em; color:var(--gold); text-align:center; margin:6px 0 10px; text-shadow:0 2px 0 #000; }
+  .words { display:flex; flex-wrap:wrap; justify-content:center; gap:14px 22px; margin-bottom:16px; }
+  .word { display:flex; gap:8px; }
+  .tile { width:var(--tw,70px); height:var(--th,84px); border-radius:14px; display:flex; align-items:center; justify-content:center;
+    font:900 var(--tf,52px)/1 'Outfit'; background:rgba(255,255,255,.08); border:3px solid rgba(255,255,255,.22);
+    color:transparent; text-shadow:none; transform:rotateX(0); transition:transform .35s, background .35s, color .2s, box-shadow .35s; }
+  .tile.punct { width:auto; min-width:28px; background:transparent; border:0; color:#ffe28a; font-size:calc(var(--tf,52px)*0.8); }
+  .tile.on { color:var(--cream); background:linear-gradient(180deg,#8b0016,#c8102e); border-color:var(--gold);
+    box-shadow:0 0 16px rgba(255,213,74,.55); text-shadow:0 2px 0 #5a0008; animation:flip .45s ease; }
+  .tile.just { animation:pop .45s ease; }
+  @keyframes flip { from { transform:rotateX(90deg); } to { transform:rotateX(0); } }
+  @keyframes pop { 40% { transform:scale(1.18); } }
+  #usedWrap { width:100%; margin-top:16px; text-align:center; min-height:90px; }
+  #usedLbl { font:800 22px/1 'Outfit'; letter-spacing:.18em; color:#ffb3bc; margin-bottom:10px; }
+  #used { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; min-height:52px; }
+  #used .miss { width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font:900 30px 'Outfit'; background:#3a0a14; border:2px solid #ff6b7d; color:#ffd0d6; box-shadow:0 0 10px rgba(200,16,46,.45); }
+  #used .empty { font:700 24px 'Outfit'; color:rgba(255,255,255,.4); }
+  #mid { display:flex; width:100%; gap:12px; margin-top:18px; align-items:flex-end; justify-content:space-between; flex:1; min-height:320px; }
+  #bobWrap { position:relative; width:300px; height:340px; flex:0 0 auto; }
+  #bobWrap img { position:absolute; left:0; bottom:0; width:300px; height:auto; filter:drop-shadow(0 8px 16px rgba(0,0,0,.5)); }
+  #scene { flex:1; height:360px; display:flex; align-items:flex-end; justify-content:center; }
+  #snowman { width:300px; height:360px; overflow:visible; }
+  #snowman .bit { opacity:0; transform:scale(.4) translateY(16px); transform-box:fill-box; transform-origin:center bottom;
+    transition:opacity .35s ease, transform .45s cubic-bezier(.2,1.4,.4,1); }
+  #snowman .bit.on { opacity:1; transform:none; }
+  #snowman.lost .bit.on { animation:wobble .7s ease; }
+  @keyframes wobble { 20%{transform:rotate(-6deg)} 50%{transform:rotate(5deg)} 100%{transform:none} }
+  #side { width:300px; flex:0 0 auto; display:flex; flex-direction:column; gap:12px; padding-bottom:8px; }
+  #feedHead, #lbHead { font:800 18px/1 'Outfit'; letter-spacing:.16em; color:var(--gold); }
+  #feed, #lb { display:flex; flex-direction:column; gap:6px; }
+  .chip, .lbrow { background:rgba(0,0,0,.35); border-radius:12px; padding:8px 12px; font:800 22px/1.15 'Outfit';
+    border:1px solid rgba(255,255,255,.12); }
+  .chip b { color:var(--gold); }
+  .chip.ok b { color:#9ff0b0; }
+  .chip.no b { color:#ff8a95; }
+  .lbrow { display:flex; justify-content:space-between; }
+  .lbrow span { color:var(--gold); }
+  #banner { position:absolute; left:48px; right:48px; top:38%; transform:translateY(-40%) scale(.92);
+    opacity:0; pointer-events:none; z-index:12; text-align:center;
+    background:linear-gradient(160deg,rgba(90,6,18,.95),rgba(6,60,30,.95));
+    border:6px solid transparent; border-radius:32px;
+    border-image:repeating-linear-gradient(135deg,#ffd54a 0 12px,#fff 12px 24px) 6;
+    box-shadow:0 0 40px rgba(255,213,74,.45), 0 20px 60px rgba(0,0,0,.55);
+    padding:36px 32px 40px; transition:opacity .4s, transform .4s; }
+  #banner.on { opacity:1; transform:translateY(-50%) scale(1); pointer-events:none; }
+  #bnTop { font:800 28px/1 'Outfit'; letter-spacing:.18em; color:var(--gold); }
+  #bnBig { font:700 92px/0.95 'Mountains of Christmas',serif; margin:10px 0 8px;
+    text-shadow:0 0 10px #fff, 0 0 30px #ff3b4f, 0 0 50px #0fa04f; }
+  #bnSub { font:800 36px/1.2 'Outfit'; color:#fff; }
+  #bnSong { margin-top:14px; font:800 30px/1.25 'Outfit'; color:#ffe28a; }
+  #conn { position:absolute; right:28px; top:24px; width:16px; height:16px; border-radius:50%; background:#5a2030; z-index:11;
+    box-shadow:0 0 0 3px rgba(0,0,0,.3); }
+  #conn.ok { background:#39ff14; box-shadow:0 0 10px #39ff14; }
+  #conn.demo { background:var(--gold); box-shadow:0 0 10px var(--gold); }
+  #demoTag { position:absolute; left:28px; top:22px; z-index:11; font:800 18px 'Outfit'; letter-spacing:.12em;
+    background:var(--gold); color:#3a1600; padding:6px 12px; border-radius:10px; display:none; }
+  body.demo #demoTag { display:block; }
+  #fx { position:absolute; inset:0; z-index:11; pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <canvas id="snow" width="1080" height="1920"></canvas>
+  <div id="lights"></div>
+  <div class="cane tl"></div><div class="cane tr"></div>
+  <div class="cane bl"></div><div class="cane br"></div>
+  <div id="frame"></div>
+  <div id="demoTag">DEMO</div>
+  <div id="conn" title="link"></div>
+  <div id="panel">
+    <div id="brand">OASIS RADIO</div>
+    <h1 id="title">Song Hangman</h1>
+    <div id="cat">SONG – BAND</div>
+    <div id="how">Type a <b>letter</b> in chat — or guess the song!</div>
+    <div id="status">
+      <div id="badge" class="idle">GET READY</div>
+      <div id="lives" aria-label="lives"></div>
+    </div>
+    <div id="board">
+      <div class="row-label">SONG</div>
+      <div class="words" id="titleRow"></div>
+      <div class="row-label">BAND</div>
+      <div class="words" id="artistRow"></div>
+    </div>
+    <div id="usedWrap">
+      <div id="usedLbl">USED LETTERS</div>
+      <div id="used"><div class="empty">No misses yet</div></div>
+    </div>
+    <div id="mid">
+      <div id="bobWrap"><img src="images/bob-daredevil-xmas.webp" alt="Bob in a Santa hat"></div>
+      <div id="scene">
+        <svg id="snowman" viewBox="0 0 220 270" aria-label="Festive hangman snowman">
+          <defs>
+            <radialGradient id="sn" cx=".38" cy=".32" r=".8">
+              <stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#eef5fb"/><stop offset="1" stop-color="#b9cfe2"/>
+            </radialGradient>
+          </defs>
+          <g class="bit" data-p="1">
+            <ellipse cx="110" cy="258" rx="78" ry="10" fill="#9fb8cf" opacity=".45"/>
+            <circle cx="110" cy="208" r="56" fill="url(#sn)"/>
+          </g>
+          <g class="bit" data-p="2"><circle cx="110" cy="138" r="42" fill="url(#sn)"/></g>
+          <g class="bit" data-p="3"><circle cx="110" cy="80" r="32" fill="url(#sn)"/></g>
+          <g class="bit" data-p="4">
+            <g fill="#20242b">
+              <circle cx="110" cy="128" r="4.5"/><circle cx="110" cy="146" r="4.5"/>
+              <circle cx="110" cy="196" r="5"/><circle cx="110" cy="216" r="5"/>
+              <circle cx="99" cy="74" r="4"/><circle cx="121" cy="74" r="4"/>
+              <circle cx="96" cy="92" r="2.2"/><circle cx="103" cy="96" r="2.2"/><circle cx="110" cy="98" r="2.2"/>
+              <circle cx="117" cy="96" r="2.2"/><circle cx="124" cy="92" r="2.2"/>
+            </g>
+            <circle cx="92" cy="86" r="5" fill="#ff9aa8" opacity=".55"/><circle cx="128" cy="86" r="5" fill="#ff9aa8" opacity=".55"/>
+          </g>
+          <g class="bit" data-p="5"><path d="M110 82 L142 88 L110 89 z" fill="#ff7a1a" stroke="#c4520a" stroke-width="1"/></g>
+          <g class="bit" data-p="6">
+            <path d="M62 150 L22 118 M34 128 L22 132 M40 132 L34 112" stroke="#5a3a1e" stroke-width="5" stroke-linecap="round" fill="none"/>
+            <path d="M158 150 L196 112 M186 122 L200 124 M182 126 L188 106" stroke="#5a3a1e" stroke-width="5" stroke-linecap="round" fill="none"/>
+          </g>
+          <g class="bit" data-p="7">
+            <path d="M78 104 Q110 120 142 104 L144 116 Q110 132 76 116 z" fill="#c8102e"/>
+            <path d="M84 106 l6 14 M98 111 l4 15 M114 112 l-2 15 M128 109 l-4 14" stroke="#fff" stroke-width="4" opacity=".9"/>
+            <path d="M126 112 l12 46 l-16 2 l-6 -44 z" fill="#c8102e"/>
+            <path d="M124 124 l14 -1 M127 138 l13 -1 M130 151 l12 -1" stroke="#fff" stroke-width="4"/>
+            <rect x="72" y="50" width="76" height="9" rx="3" fill="#1d1f26"/>
+            <rect x="84" y="6" width="52" height="47" rx="4" fill="#24272f"/>
+            <rect x="84" y="38" width="52" height="10" fill="#0b6b3a"/>
+            <g transform="translate(126 42)">
+              <path d="M0 0c-6-8-15-8-17-3 4 2 3 6 0 8 5 1 6 5 4 8 7-3 13-8 13-13z" fill="#13904a"/>
+              <circle cx="-1" cy="2" r="3.5" fill="#e0182f"/><circle cx="4" cy="-1" r="3.5" fill="#d10f2f"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div id="side">
+        <div id="feedHead">LATEST GUESSES</div>
+        <div id="feed"></div>
+        <div id="lbHead">NICE LIST</div>
+        <div id="lb"></div>
+      </div>
+    </div>
+  </div>
+  <div id="banner">
+    <div id="bnTop"></div>
+    <div id="bnBig"></div>
+    <div id="bnSub"></div>
+    <div id="bnSong"></div>
+  </div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+</div>
+<script src="song-hangman-lib.js"></script>
+<script>
+(function () {
+  const H = window.OasisHangman;
+  const q = new URLSearchParams(location.search);
+  const DEMO = q.get('demo') === '1';
+  const SHOT = q.get('shot') === '1';
+  const SOUND = q.get('sound') !== '0';
+  const CLEAR = q.get('bg') === 'clear' || q.get('bg') === '0';
+  if (CLEAR) document.body.classList.add('clear');
+  if (DEMO) document.body.classList.add('demo');
+
+  const VW = 1080, VH = 1920;
+  const stage = document.getElementById('stage');
+  function fit() {
+    const s = Math.min(innerWidth / VW, innerHeight / VH);
+    stage.style.transform = 'translate(' + ((innerWidth - VW * s) / 2) + 'px,' + ((innerHeight - VH * s) / 2) + 'px) scale(' + s + ')';
+  }
+  addEventListener('resize', fit); fit();
+
+  // garland lights
+  (function () {
+    const el = document.getElementById('lights');
+    const cols = ['#c8102e', '#ffd54a', '#0b6b3a', '#fff', '#3dc6ff'];
+    const n = 18;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 1080 70');
+    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    let d = 'M0 18';
+    for (let i = 1; i <= 20; i++) d += ' Q ' + (i * 54 - 27) + ' ' + (18 + (i % 2 ? 16 : 0)) + ' ' + (i * 54) + ' 18';
+    p.setAttribute('d', d); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#2a3a30'); p.setAttribute('stroke-width', '3');
+    svg.appendChild(p); el.appendChild(svg);
+    for (let i = 0; i < n; i++) {
+      const u = (i + 0.5) / n;
+      const bulb = document.createElement('i');
+      bulb.style.left = (u * 100) + '%';
+      bulb.style.top = (14 + Math.abs(Math.sin(u * Math.PI * 4)) * 16) + 'px';
+      bulb.style.background = cols[i % cols.length];
+      bulb.style.animationDelay = (i * 0.13) + 's';
+      el.appendChild(bulb);
+    }
+  })();
+
+  // snow
+  (function () {
+    const c = document.getElementById('snow'), x = c.getContext('2d');
+    const N = 56, F = [];
+    for (let i = 0; i < N; i++) F.push({ x: Math.random() * VW, y: Math.random() * VH, r: 0.8 + Math.random() * 2.6, v: 0.35 + Math.random() * 0.9, w: Math.random() * 6 });
+    let last = 0;
+    function tick(ms) {
+      requestAnimationFrame(tick);
+      if (ms - last < 33) return; last = ms;
+      x.clearRect(0, 0, VW, VH);
+      x.fillStyle = '#fff';
+      for (let i = 0; i < F.length; i++) {
+        const f = F[i]; f.y += f.v * 1.6; f.w += 0.02; if (f.y > VH + 4) { f.y = -4; f.x = Math.random() * VW; }
+        x.globalAlpha = 0.82; x.beginPath(); x.arc(f.x + Math.sin(f.w) * 10, f.y, f.r, 0, 7); x.fill();
+      }
+      x.globalAlpha = 1;
+    }
+    requestAnimationFrame(tick);
+  })();
+
+  const $ = function (id) { return document.getElementById(id); };
+  const BADGE = { idle: 'GET READY', playing: 'GUESS A LETTER', won: 'WE HAVE A WINNER', lost: 'HO HO NO!', revealed: 'HERE IT IS' };
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]; });
+  }
+
+  function tileSize(title, artist) {
+    const lines = [title, artist];
+    let maxWord = 1, maxLetters = 1;
+    lines.forEach(function (line) {
+      const words = String(line || '').split(/\s+/).filter(Boolean);
+      words.forEach(function (w) { maxWord = Math.max(maxWord, w.replace(/[^A-Za-z]/g, '').length || w.length); });
+      maxLetters = Math.max(maxLetters, String(line || '').replace(/\s+/g, '').length);
+    });
+    const inner = 920;
+    const byWord = Math.floor((inner - 22 * 3) / Math.max(8, maxWord) - 8);
+    const byLine = Math.floor((inner - 8 * Math.max(0, maxLetters - 1)) / Math.max(10, maxLetters));
+    const tw = Math.max(44, Math.min(74, byWord, byLine + 18));
+    return { tw: tw, th: Math.round(tw * 1.18), tf: Math.round(tw * 0.7) };
+  }
+
+  function renderLine(el, text, revealed, justLetter, showAll) {
+    el.innerHTML = '';
+    H.tokens(text).forEach(function (word) {
+      const w = document.createElement('div'); w.className = 'word';
+      word.forEach(function (tok) {
+        const t = document.createElement('div');
+        if (tok.kind === 'punct') { t.className = 'tile punct'; t.textContent = tok.ch; }
+        else {
+          const on = showAll || revealed.indexOf(tok.ch) >= 0;
+          t.className = 'tile' + (on ? ' on' : '') + (on && justLetter === tok.ch ? ' just' : '');
+          t.textContent = on ? tok.ch : '';
+        }
+        w.appendChild(t);
+      });
+      el.appendChild(w);
+    });
+  }
+
+  let state = H.emptyState();
+  let lastJust = null, lastPhase = 'idle';
+
+  function render(opts) {
+    const just = opts && opts.just;
+    const st = state;
+    const showAll = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
+    const sz = tileSize(st.title || 'SONG', st.artist || 'BAND');
+    document.getElementById('board').style.setProperty('--tw', sz.tw + 'px');
+    document.getElementById('board').style.setProperty('--th', sz.th + 'px');
+    document.getElementById('board').style.setProperty('--tf', sz.tf + 'px');
+    if (st.phase === 'idle' || !st.title) {
+      $('titleRow').innerHTML = '<div class="empty" style="font:700 28px Outfit;color:#ffe28a;text-align:center;width:100%">Waiting for the next song…</div>';
+      $('artistRow').innerHTML = '';
+    } else {
+      renderLine($('titleRow'), st.title, st.revealed, just, showAll);
+      renderLine($('artistRow'), st.artist, st.revealed, just, showAll);
+    }
+    const badge = $('badge');
+    badge.className = st.phase || 'idle';
+    badge.textContent = BADGE[st.phase] || st.phase;
+    const lives = $('lives');
+    lives.innerHTML = '';
+    for (let i = 0; i < (st.lives || 7); i++) {
+      const s = document.createElement('span');
+      if (i >= st.livesLeft) s.className = 'gone';
+      lives.appendChild(s);
+    }
+    const built = (st.lives || 7) - (st.livesLeft || 0);
+    document.querySelectorAll('#snowman .bit').forEach(function (g) {
+      const p = +g.getAttribute('data-p');
+      g.classList.toggle('on', p <= built);
+    });
+    $('snowman').classList.toggle('lost', st.phase === 'lost');
+    const used = $('used');
+    if (!st.wrong || !st.wrong.length) used.innerHTML = '<div class="empty">No misses yet</div>';
+    else used.innerHTML = st.wrong.map(function (ch) { return '<div class="miss">' + esc(ch) + '</div>'; }).join('');
+    const feed = $('feed');
+    const recent = (st.recent || []).slice(0, 5);
+    feed.innerHTML = recent.length ? recent.map(function (r) {
+      const label = r.kind === 'solve' ? esc(r.guess) : esc(String(r.guess).toUpperCase());
+      return '<div class="chip ' + (r.ok ? 'ok' : 'no') + '">' + esc(r.name) + ' · <b>' + label + '</b></div>';
+    }).join('') : '<div class="chip">Waiting for guesses…</div>';
+    const lb = $('lb');
+    const board = (st.leaderboard || []).slice(0, 5);
+    lb.innerHTML = board.length ? board.map(function (r, i) {
+      return '<div class="lbrow">' + (i + 1) + '. ' + esc(r.name) + '<span>' + r.solves + '</span></div>';
+    }).join('') : '<div class="lbrow">No solvers yet</div>';
+
+    if (st.phase !== lastPhase) {
+      if (st.phase === 'won') showBanner('HO HO HO!', (st.winner && st.winner.name) || 'Someone', 'got it!', st, true);
+      else if (st.phase === 'lost') showBanner('HO HO NO!', '', 'The snowman is complete!', st, false);
+      else if (st.phase === 'revealed') showBanner('HERE IT IS!', '', 'The answer is…', st, false);
+      else hideBanner();
+      lastPhase = st.phase;
+    }
+  }
+
+  function showBanner(top, big, sub, st, celebrate) {
+    $('bnTop').textContent = top;
+    $('bnBig').textContent = big || (st.phase === 'lost' ? 'Ho ho no!' : '');
+    $('bnSub').textContent = sub;
+    $('bnSong').textContent = st.title ? (st.title + '  –  ' + st.artist) : '';
+    const b = $('banner');
+    b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
+    if (celebrate) { confetti(); jingle(true); } else if (st.phase === 'lost') jingle(false);
+  }
+  function hideBanner() { $('banner').classList.remove('on'); }
+
+  // sound
+  let actx = null, jingling = false;
+  function ctx() {
+    if (!SOUND) return null;
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function blip(ok) {
+    const c = ctx(); if (!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.value = ok ? 660 : 220;
+    g.gain.value = 0.0001; g.gain.exponentialRampToValueAtTime(ok ? 0.08 : 0.06, c.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + (ok ? 0.18 : 0.28));
+    o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.3);
+    if (ok) { const o2 = c.createOscillator(), g2 = c.createGain(); o2.type = 'sine'; o2.frequency.value = 990;
+      g2.gain.value = 0.0001; g2.gain.exponentialRampToValueAtTime(0.05, c.currentTime + 0.04);
+      g2.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.22);
+      o2.connect(g2); g2.connect(c.destination); o2.start(); o2.stop(c.currentTime + 0.25); }
+  }
+  function jingle(win) {
+    if (!SOUND || jingling) return;
+    const src = win ? 'sounds/xmas-thanks/jingle-big.mp3' : 'sounds/xmas-thanks/jingle-small.mp3';
+    const a = new Audio(src); a.volume = win ? 0.55 : 0.4; jingling = true;
+    a.play().catch(function () {}).finally(function () { setTimeout(function () { jingling = false; }, 1200); });
+  }
+  addEventListener('pointerdown', function () { ctx(); }, { once: true });
+
+  // confetti
+  const fx = $('fx'), fc = fx.getContext('2d');
+  let parts = [];
+  function confetti() {
+    const cols = ['#c8102e', '#ffd54a', '#0b6b3a', '#fff', '#3dc6ff'];
+    for (let j = 0; j < 2; j++) setTimeout(function () {
+      for (let i = 0; i < 120; i++) parts.push({ x: VW / 2 + (Math.random() - 0.5) * 400, y: VH * 0.38, vx: (Math.random() - 0.5) * 18, vy: -Math.random() * 18 - 4, r: Math.random() * 5, vr: (Math.random() - 0.5) * 0.4, c: cols[i % cols.length], w: 8 + Math.random() * 8, h: 5 + Math.random() * 6, life: 0 });
+    }, j * 500);
+  }
+  (function loop() {
+    fc.clearRect(0, 0, VW, VH);
+    for (const p of parts) {
+      p.vy += 0.42; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life++;
+      fc.save(); fc.translate(p.x, p.y); fc.rotate(p.r); fc.fillStyle = p.c; fc.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.life * 0.15))); fc.restore();
+    }
+    parts = parts.filter(function (p) { return p.y < VH + 30 && p.life < 400; });
+    requestAnimationFrame(loop);
+  })();
+
+  // state sync (local preview via BroadcastChannel + localStorage)
+  let mode = 'local';
+  let bc = null;
+  try { bc = new BroadcastChannel(H.CHANNEL); } catch (e) {}
+  function publish() {
+    try { localStorage.setItem(H.STORE, JSON.stringify(state)); } catch (e) {}
+    try { if (bc) bc.postMessage({ type: 'state', state: state, t: Date.now() }); } catch (e) {}
+  }
+  function adopt(s, opts) {
+    if (!s) return;
+    state = s;
+    render(opts);
+  }
+  function apply(action, opts) {
+    const r = H.applyAction(state, action, Date.now());
+    if (!r || !r.ok && !r.state) return r;
+    // still adopt state for accepted:false (already/cooldown) — no change
+    if (r.state) {
+      const changed = JSON.stringify(r.state) !== JSON.stringify(state);
+      adopt(r.state, { just: r.letter });
+      if (changed) {
+        publish();
+        if (r.accepted && r.letter) blip(!!r.correct);
+      }
+    }
+    return r;
+  }
+  if (bc) bc.onmessage = function (e) {
+    const d = e.data || {};
+    if (d.type === 'state' && d.state) adopt(d.state);
+    else if (d.type === 'action' && d.action) apply(d.action);
+    else if (d.type === 'sync') publish();
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(H.STORE) || 'null');
+    if (saved && saved.phase && !DEMO && !SHOT) adopt(saved);
+  } catch (e) {}
+
+  // queue + throttle for incoming chat (retry throttled letters shortly)
+  const queue = [];
+  let qBusy = false;
+  function enqueue(name, text) {
+    queue.push({ name: name, text: text });
+    pump();
+  }
+  function pump() {
+    if (qBusy) return;
+    const item = queue.shift();
+    if (!item) return;
+    qBusy = true;
+    const r = apply({ type: 'chat', name: item.name, text: item.text });
+    const wait = (r && r.reason === 'throttle') ? (H.LETTER_THROTTLE_MS + 40) : 40;
+    if (r && r.reason === 'throttle') queue.unshift(item);
+    setTimeout(function () { qBusy = false; pump(); }, wait);
+  }
+
+  // keyboard testing (does not run while typing in a form on the control page)
+  addEventListener('keydown', function (e) {
+    if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { apply({ type: 'next' }); return; }
+    if (e.key.length === 1 && /[a-zA-Z]/.test(e.key)) enqueue('Grumpy', e.key);
+  });
+
+  // ----- demo / shot -----
+  const FAKE = ['Holly Hannah', 'Snowball Sam', 'Jingle Jess', 'Mistletoe Mike', 'Neon Nina', 'Cassette Kev', 'Candy Cane Kim', 'Tinsel Tom'];
+  function shotState() {
+    const s = H.startNext(H.emptyState(), { puzzle: { title: 'Last Christmas', artist: 'Wham!' } });
+    s.revealed = ['L', 'A', 'S', 'T', 'C', 'H', 'M'];
+    s.wrong = ['Q', 'Z', 'K'];
+    s.livesLeft = 4;
+    s.recent = [
+      { name: 'Holly Hannah', guess: 'L', ok: true, kind: 'letter', t: 1 },
+      { name: 'Snowball Sam', guess: 'Q', ok: false, kind: 'letter', t: 2 },
+      { name: 'Jingle Jess', guess: 'A', ok: true, kind: 'letter', t: 3 },
+      { name: 'Tinsel Tom', guess: 'Z', ok: false, kind: 'letter', t: 4 },
+      { name: 'Neon Nina', guess: 'M', ok: true, kind: 'letter', t: 5 }
+    ];
+    s.leaderboard = [{ name: 'Holly Hannah', solves: 2 }, { name: 'Jingle Jess', solves: 1 }];
+    return s;
+  }
+  if (SHOT) {
+    adopt(shotState());
+    $('conn').classList.add('demo');
+  } else if (DEMO) {
+    $('conn').classList.add('demo');
+    const script = [
+      ['Holly Hannah', 'L'], ['Snowball Sam', 'S'], ['Mistletoe Mike', 'Q'],
+      ['Jingle Jess', 'T'], ['Neon Nina', 'A'], ['Tinsel Tom', 'Z'],
+      ['Candy Cane Kim', 'C'], ['Cassette Kev', 'H'], ['Holly Hannah', 'M'],
+      ['Snowball Sam', 'K'], ['Jingle Jess', 'Last Christmas']
+    ];
+    let i = 0, first = true;
+    function cycle() {
+      apply({ type: 'next', puzzle: first ? { title: 'Last Christmas', artist: 'Wham!' } : undefined });
+      first = false; i = 0;
+      const iv = setInterval(function () {
+        if (state.phase !== 'playing') { clearInterval(iv); setTimeout(cycle, 7000); return; }
+        if (i < script.length && state.title === 'Last Christmas') {
+          const g = script[i++]; enqueue(g[0], g[1]);
+        } else {
+          const need = Array.from(H.allLetters(state.title, state.artist)).filter(function (ch) { return state.revealed.indexOf(ch) < 0; });
+          const name = FAKE[i % FAKE.length]; i++;
+          if (need.length && Math.random() < 0.18) enqueue(name, state.title);
+          else if (need.length && Math.random() < 0.7) enqueue(name, need[Math.floor(Math.random() * need.length)]);
+          else enqueue(name, 'BCDFGHJKLMNPQRSTVWXYZ'[Math.floor(Math.random() * 21)]);
+        }
+      }, 1150);
+    }
+    cycle();
+  } else {
+    render();
+  }
+
+  // ----- live feed: hangman state events, or raw chat if Bob ever emits it -----
+  let BOX = 'https://bob.oasisradio.live';
+  const HDR = { 'ngrok-skip-browser-warning': '1' };
+  const bq = q.get('box');
+  if (bq && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq)) BOX = bq;
+  const PATH = q.get('channel') === 'test' ? '/events?channel=test' : '/events';
+
+  async function probeApi() {
+    if (DEMO || SHOT) return false;
+    try {
+      const r = await fetch(BOX + '/api/hangman/state', { headers: HDR, cache: 'no-store' });
+      if (r.ok) { const s = await r.json(); if (s && s.phase) { mode = 'api'; adopt(s); $('conn').classList.add('ok'); return true; } }
+    } catch (e) {}
+    return false;
+  }
+
+  let ctrl = null, lastData = Date.now(), running = false;
+  async function run() {
+    if (DEMO || SHOT) return;
+    if (running) return; running = true; lastData = Date.now(); ctrl = new AbortController();
+    try {
+      const r = await fetch(BOX + PATH, { headers: Object.assign({ Accept: 'text/event-stream' }, HDR), cache: 'no-store', signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error('status ' + r.status);
+      $('conn').classList.add('ok');
+      const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      for (;;) {
+        const { value, done } = await rd.read(); if (done) break;
+        lastData = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+        let n;
+        while ((n = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, n); buf = buf.slice(n + 2);
+          const data = chunk.split('\n').filter(function (l) { return l.startsWith('data:'); }).map(function (l) { return l.slice(5).replace(/^ /, ''); }).join('\n');
+          if (!data) continue;
+          try {
+            const d = JSON.parse(data);
+            if (!d || d.type === 'ping') continue;
+            if (d.type === 'hangman' && d.state) { mode = 'api'; adopt(d.state, { just: d.letter }); }
+            else if (mode !== 'api' && H.isChatEvent(d)) {
+              const text = H.chatText(d), name = H.chatName(d);
+              if (text) enqueue(name, text);
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+    $('conn').classList.remove('ok');
+    try { ctrl.abort(); } catch (e) {}
+    running = false; setTimeout(run, 3000);
+  }
+  setInterval(function () { if (running && Date.now() - lastData > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+  probeApi().then(function () { run(); });
+
+  window.__hangman = { get state() { return state; }, apply: apply, enqueue: enqueue };
+})();
+</script>
+</body>
+</html>
