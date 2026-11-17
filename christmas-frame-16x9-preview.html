@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Oasis Radio – Christmas frame preview (16:9)</title>
+<!--
+  PREVIEW ONLY. Transparent 16:9 (1920x1080) Christmas decoration layer for TikTok LIVE Studio.
+  Do not point a live Browser Source at this page until Grumpy says to switch it on.
+  Live pages (overlay, tree, nowplaying, votes, wheels, hall of fame, races, advent) are untouched.
+
+  Designed for the main screen: 1920x1080 landscape. Also scales if the source size changes.
+  Background is transparent; decorations sit around the edges so the centre camera stays clear.
+  Candy canes use the proper whole-cane assets (long stick, full round J-hook, stripes follow the curve).
+  Optional query flags: ?bg=1  ?xmasSnow=0  ?xmasLights=0  ?xmasText=0
+-->
+<style>
+  @font-face{
+    font-family:"Mountains of Christmas";
+    font-style:normal;
+    font-weight:700;
+    font-display:swap;
+    src:url("xmas/MountainsOfChristmas-Bold.woff2") format("woff2");
+  }
+  html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;pointer-events:none}
+  body.preview-bg{background:#2a2a2a}
+  *{box-sizing:border-box;-webkit-user-select:none;user-select:none}
+  #xsnow{position:fixed;inset:0;width:100%;height:100%;z-index:8;pointer-events:none}
+  #xlights{position:fixed;left:0;right:0;top:0;height:70px;z-index:6;pointer-events:none}
+  #xlights svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  #xlights i{
+    position:absolute;width:12px;height:18px;margin-left:-6px;
+    border-radius:50% 50% 46% 46%;
+    animation:xtw 2.4s ease-in-out infinite;
+  }
+  #xlights i::before{
+    content:"";position:absolute;left:2.5px;top:-5px;width:7px;height:6px;
+    background:#3d4a3f;border-radius:2px;
+  }
+  @keyframes xtw{0%,100%{opacity:1;filter:brightness(1.15)}50%{opacity:.28;filter:brightness(.7)}}
+  #garland-top,#garland-tl,#garland-tr,#garland-bl,#garland-br{
+    position:fixed;pointer-events:none;z-index:3;overflow:visible;
+  }
+  #garland-top{left:0;right:0;top:0;height:72px}
+  #garland-top svg{width:100%;height:100%;overflow:visible}
+  #garland-tl,#garland-tr{width:min(18vw,28vh,280px);height:min(18vw,28vh,280px)}
+  #garland-bl,#garland-br{width:min(16vw,26vh,250px);height:min(16vw,26vh,250px)}
+  #garland-tl{left:0;top:0}
+  #garland-tr{right:0;top:0}
+  #garland-bl{left:0;bottom:0}
+  #garland-br{right:0;bottom:0}
+  #garland-tl svg,#garland-tr svg,#garland-bl svg,#garland-br svg{width:100%;height:100%;overflow:visible}
+  .holly{
+    position:fixed;z-index:5;pointer-events:none;
+    width:min(9vw,14vh,150px);height:auto;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.4));
+  }
+  .holly.tl{left:.35%;top:2.4vh}
+  .holly.tr{right:.35%;top:2.4vh;transform:scaleX(-1)}
+  .holly.bl{left:.7%;bottom:1.6vh;transform:rotate(-14deg)}
+  .holly.br{right:.7%;bottom:1.6vh;transform:scaleX(-1) rotate(-14deg)}
+  /* Two side canes, sized for 1080-tall landscape. Height is driven by vh so they
+     do not shrink on a wide 16:9 stage the way a tight vw cap would. */
+  .cane{
+    position:fixed;z-index:7;pointer-events:none;
+    width:auto;height:62vh;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));
+  }
+  .cane.left{left:.7%;bottom:1.4%;transform:rotate(5deg);transform-origin:bottom center}
+  .cane.right{right:.7%;bottom:1.4%;transform:rotate(-5deg);transform-origin:bottom center}
+  .bauble{
+    position:fixed;z-index:5;pointer-events:none;
+    transform-origin:top center;
+    animation:sway 3.8s ease-in-out infinite;
+    display:flex;flex-direction:column;align-items:center;
+  }
+  .bauble .string{
+    width:1.5px;height:var(--len,34px);
+    background:linear-gradient(#1a2e20,#3d4a3f);
+    border-radius:1px;
+  }
+  .bauble img{
+    display:block;width:var(--w,34px);height:auto;margin-top:-1px;
+    filter:drop-shadow(0 2px 2px rgba(0,0,0,.4));
+  }
+  @keyframes sway{
+    0%,100%{transform:rotate(-5deg)}
+    50%{transform:rotate(5deg)}
+  }
+  .wish{
+    position:fixed;left:50%;bottom:1.6vh;transform:translateX(-50%);
+    z-index:7;pointer-events:none;
+    font-family:"Mountains of Christmas",Georgia,serif;
+    font-weight:700;
+    font-size:clamp(18px,3.2vh,34px);
+    line-height:1;
+    color:#ffd54a;
+    text-shadow:0 1px 0 #6b0010,0 2px 8px rgba(0,0,0,.55);
+    letter-spacing:.04em;
+    white-space:nowrap;
+    opacity:.88;
+  }
+</style>
+</head>
+<body>
+<canvas id="xsnow" aria-hidden="true"></canvas>
+<div id="garland-top"></div>
+<div id="garland-tl"></div>
+<div id="garland-tr"></div>
+<div id="garland-bl"></div>
+<div id="garland-br"></div>
+<div id="xlights"></div>
+<img class="holly tl" src="xmas/holly.svg" alt="">
+<img class="holly tr" src="xmas/holly.svg" alt="">
+<img class="holly bl" src="xmas/holly.svg" alt="">
+<img class="holly br" src="xmas/holly.svg" alt="">
+<img class="cane left" src="xmas/candy-cane-real.png" alt="">
+<img class="cane right" src="xmas/candy-cane-real-flip.png" alt="">
+<div class="bauble" style="left:10%;top:40px;--len:30px;--w:32px;animation-delay:-.2s"><span class="string"></span><img src="xmas/bauble-red.svg" alt=""></div>
+<div class="bauble" style="left:22%;top:48px;--len:44px;--w:28px;animation-delay:-1.0s"><span class="string"></span><img src="xmas/bauble-gold.svg" alt=""></div>
+<div class="bauble" style="left:35%;top:38px;--len:28px;--w:34px;animation-delay:-1.8s"><span class="string"></span><img src="xmas/bauble-green.svg" alt=""></div>
+<div class="bauble" style="left:50%;top:46px;--len:38px;--w:30px;animation-delay:-2.4s;margin-left:-15px"><span class="string"></span><img src="xmas/bauble-red.svg" alt=""></div>
+<div class="bauble" style="left:64%;top:40px;--len:32px;--w:32px;animation-delay:-3.1s"><span class="string"></span><img src="xmas/bauble-gold.svg" alt=""></div>
+<div class="bauble" style="left:77%;top:50px;--len:46px;--w:28px;animation-delay:-1.5s"><span class="string"></span><img src="xmas/bauble-green.svg" alt=""></div>
+<div class="bauble" style="left:88%;top:42px;--len:34px;--w:34px;animation-delay:-2.8s"><span class="string"></span><img src="xmas/bauble-red.svg" alt=""></div>
+<div class="wish" id="wish">Merry Christmas from Oasis Radio</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  if (q.get('bg') === '1' || q.get('preview') === '1') document.body.classList.add('preview-bg');
+  if (q.get('xmasText') === '0') { var w = document.getElementById('wish'); if (w) w.style.display = 'none'; }
+
+  var NS = 'http://www.w3.org/2000/svg';
+  function svgEl(name, attrs) {
+    var el = document.createElementNS(NS, name);
+    if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  function leaf(parent, x0, y0, x1, y1, wide, fill) {
+    var mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    var dx = x1 - x0, dy = y1 - y0, len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var nx = -dy / len * wide, ny = dx / len * wide;
+    parent.appendChild(svgEl('path', {
+      d: 'M' + x0.toFixed(1) + ' ' + y0.toFixed(1) +
+         ' Q' + (mx + nx).toFixed(1) + ' ' + (my + ny).toFixed(1) + ' ' + x1.toFixed(1) + ' ' + y1.toFixed(1) +
+         ' Q' + (mx - nx).toFixed(1) + ' ' + (my - ny).toFixed(1) + ' ' + x0.toFixed(1) + ' ' + y0.toFixed(1),
+      fill: fill
+    }));
+  }
+
+  function needleTuft(parent, x, y, along, scale, rng, opts) {
+    opts = opts || {};
+    var hang = (opts.hang != null) ? opts.hang : 1;
+    var g = svgEl('g', { transform: 'translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') rotate(' + along.toFixed(1) + ') scale(' + scale.toFixed(2) + ')' });
+    var dark = '#073318', mid = '#0c5a2b', lite = '#178a40', tip = '#2aa852';
+    g.appendChild(svgEl('path', { d: 'M0 -2 C0 6 0 14 0 18', stroke: dark, 'stroke-width': 1.6, fill: 'none', 'stroke-linecap': 'round' }));
+    var size = opts.size || 1;
+    var n = 12;
+    for (var i = 0; i < n; i++) {
+      var t = (i + 0.5) / n;
+      var py = (t * 18 * size) - 1;
+      var len = (16 + (1 - t) * 10 + rng() * 4) * (opts.short ? 0.78 : 1) * size;
+      var side = (i % 2 === 0) ? -1 : 1;
+      var spread = (52 + rng() * 24) * side;
+      var dir = hang;
+      if (rng() < 0.2) dir = -hang;
+      var a = (dir * 90 + spread * 0.55) * Math.PI / 180;
+      var x1 = Math.cos(a) * len;
+      var y1 = py + Math.sin(a) * len;
+      var col = (t < 0.25) ? dark : (i % 3 === 0 ? lite : (i % 3 === 1 ? tip : mid));
+      leaf(g, 0, py, x1, y1, (1.15 + (1 - t) * 0.55) * size, col);
+    }
+    parent.appendChild(g);
+  }
+
+  function berries(parent, x, y, s) {
+    var g = svgEl('g', { transform: 'translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ') scale(' + s + ')' });
+    function berry(cx, cy, r, fill) {
+      g.appendChild(svgEl('circle', { cx: cx, cy: cy, r: r, fill: fill }));
+      g.appendChild(svgEl('circle', { cx: cx - r * 0.35, cy: cy - r * 0.35, r: r * 0.28, fill: '#fff', opacity: '.55' }));
+    }
+    berry(-4.2, 1.5, 4.2, '#c20a26');
+    berry(4.4, 1.8, 4.0, '#d10f2f');
+    berry(0.2, -4.2, 4.1, '#e0182f');
+    parent.appendChild(g);
+  }
+
+  function pointOnQuad(x0, y0, x1, y1, x2, y2, t) {
+    var u = 1 - t;
+    return {
+      x: u * u * x0 + 2 * u * t * x1 + t * t * x2,
+      y: u * u * y0 + 2 * u * t * y1 + t * t * y2
+    };
+  }
+  function tanOnQuad(x0, y0, x1, y1, x2, y2, t) {
+    var dx = 2 * (1 - t) * (x1 - x0) + 2 * t * (x2 - x1);
+    var dy = 2 * (1 - t) * (y1 - y0) + 2 * t * (y2 - y1);
+    return Math.atan2(dy, dx) * 180 / Math.PI;
+  }
+
+  function topGarland() {
+    var host = document.getElementById('garland-top');
+    host.innerHTML = '';
+    var W = host.clientWidth || innerWidth, H = host.clientHeight || 72;
+    var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+    var rng = mulberry(2026);
+    var yBase = H * 0.38;
+    var sag = H * 0.28;
+    var segs = [
+      [0, yBase, W * 0.125, yBase + sag, W * 0.25, yBase],
+      [W * 0.25, yBase, W * 0.375, yBase + sag * 1.05, W * 0.5, yBase],
+      [W * 0.5, yBase, W * 0.625, yBase + sag * 1.05, W * 0.75, yBase],
+      [W * 0.75, yBase, W * 0.875, yBase + sag, W, yBase]
+    ];
+    var d = '';
+    segs.forEach(function (s, i) {
+      d += (i ? ' L' : 'M') + s[0].toFixed(1) + ' ' + s[1].toFixed(1) + ' Q' + s[2].toFixed(1) + ' ' + s[3].toFixed(1) + ' ' + s[4].toFixed(1) + ' ' + s[5].toFixed(1);
+    });
+    svg.appendChild(svgEl('path', { d: d, fill: 'none', stroke: '#062816', 'stroke-width': 10, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    svg.appendChild(svgEl('path', { d: d, fill: 'none', stroke: '#0b4a24', 'stroke-width': 6, 'stroke-linecap': 'round' }));
+    svg.appendChild(svgEl('path', { d: d, fill: 'none', stroke: '#147a38', 'stroke-width': 2.2, 'stroke-linecap': 'round', opacity: '.7', transform: 'translate(0,-1.5)' }));
+    segs.forEach(function (s) {
+      var steps = Math.max(10, Math.round((s[4] - s[0]) / 24));
+      for (var i = 0; i <= steps; i++) {
+        var t = i / steps;
+        var p = pointOnQuad(s[0], s[1], s[2], s[3], s[4], s[5], t);
+        var along = tanOnQuad(s[0], s[1], s[2], s[3], s[4], s[5], t);
+        needleTuft(svg, p.x, p.y + 1, along, 1, rng, { hang: 1, size: 1.1 });
+        if (i % 2 === 0) needleTuft(svg, p.x, p.y - 1, along, 1, rng, { hang: -1, short: 1, size: 0.78 });
+        if (i % 5 === 2) berries(svg, p.x + 1, p.y + 7, 0.8);
+      }
+    });
+    host.appendChild(svg);
+  }
+
+  function cornerGarland(id, corner) {
+    var host = document.getElementById(id);
+    host.innerHTML = '';
+    var S = 280;
+    var svg = svgEl('svg', { viewBox: '0 0 ' + S + ' ' + S, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
+    var rng = mulberry({ tl: 11, tr: 22, bl: 33, br: 44 }[corner]);
+    var root = svgEl('g');
+    var bottom = (corner === 'bl' || corner === 'br');
+    var vineH = 'M10 52 C62 26, 125 66, 200 42';
+    var vineV = 'M52 10 C26 62, 66 125, 42 200';
+    ['#062816', '#0b4a24'].forEach(function (col, i) {
+      var sw = i === 0 ? 9 : 5.5;
+      root.appendChild(svgEl('path', { d: vineH, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round' }));
+      root.appendChild(svgEl('path', { d: vineV, fill: 'none', stroke: col, 'stroke-width': sw, 'stroke-linecap': 'round' }));
+    });
+    function sprinkle(x0, y0, x1, y1, x2, y2, hang) {
+      var steps = 8;
+      for (var i = 0; i <= steps; i++) {
+        var t = i / steps;
+        var p = pointOnQuad(x0, y0, x1, y1, x2, y2, t);
+        var along = tanOnQuad(x0, y0, x1, y1, x2, y2, t);
+        needleTuft(root, p.x, p.y, along, 1, rng, { hang: hang, short: t > 0.75, size: bottom ? 1.3 : 1.5 });
+        if (i === 2 || i === 5) berries(root, p.x + 2, p.y + 5, 0.95);
+      }
+    }
+    var hangH = bottom ? -1 : 1;
+    sprinkle(10, 52, 62, 26, 200, 42, hangH);
+    sprinkle(52, 10, 26, 62, 42, 200, 1);
+    needleTuft(root, 44, 44, 135, 1, rng, { hang: 1, size: 1.7 });
+    needleTuft(root, 62, 32, 110, 1, rng, { hang: 1, short: 1, size: 1.4 });
+    needleTuft(root, 32, 62, 155, 1, rng, { hang: 1, short: 1, size: 1.4 });
+    berries(root, 56, 56, 1.1);
+    var tr = { tl: '', tr: 'translate(280,0) scale(-1,1)', bl: 'translate(0,280) scale(1,-1)', br: 'translate(280,280) scale(-1,-1)' }[corner];
+    if (tr) root.setAttribute('transform', tr);
+    svg.appendChild(root);
+    host.appendChild(svg);
+  }
+
+  function buildGarlands() {
+    topGarland();
+    cornerGarland('garland-tl', 'tl');
+    cornerGarland('garland-tr', 'tr');
+    cornerGarland('garland-bl', 'bl');
+    cornerGarland('garland-br', 'br');
+  }
+
+  function lights() {
+    var box = document.getElementById('xlights');
+    box.innerHTML = '';
+    if (q.get('xmasLights') === '0') { box.style.display = 'none'; return; }
+    var Wcss = innerWidth;
+    var n = Math.max(18, Math.min(36, Math.round(Wcss / 56)));
+    var sag = 16, VW = 1000, VH = 64;
+    var d = '';
+    for (var i = 0; i <= 80; i++) {
+      var u = i / 80;
+      var y = 8 + Math.abs(Math.sin(u * Math.PI * 4)) * sag;
+      d += (i ? 'L' : 'M') + (u * VW).toFixed(1) + ' ' + y.toFixed(1);
+    }
+    box.innerHTML = '<svg viewBox="0 0 ' + VW + ' ' + VH + '" preserveAspectRatio="none" aria-hidden="true"><path d="' + d + '" stroke="#1a2a1c" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>';
+    var COLS = ['#ff3b4f', '#ffd54a', '#3ee07a', '#5fc4ff', '#ff9a3c'];
+    for (var k = 0; k < n; k++) {
+      var u = (k + 0.5) / n;
+      var y = 8 + Math.abs(Math.sin(u * Math.PI * 4)) * sag;
+      var b = document.createElement('i');
+      var col = COLS[k % COLS.length];
+      b.style.cssText = 'left:' + (u * 100) + '%;top:' + (y + 6) + 'px;background:' + col + ';box-shadow:0 0 8px 2px ' + col + ';animation-delay:' + (-(k * 0.37) % 2.4).toFixed(2) + 's';
+      box.appendChild(b);
+    }
+  }
+
+  function snow() {
+    if (q.get('xmasSnow') === '0') return;
+    var c = document.getElementById('xsnow');
+    var x = c.getContext('2d'), W, H, dpr = Math.min(1.5, window.devicePixelRatio || 1);
+    function size() {
+      W = innerWidth; H = innerHeight;
+      c.width = Math.max(1, Math.round(W * dpr));
+      c.height = Math.max(1, Math.round(H * dpr));
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    size();
+    var spr = document.createElement('canvas'); spr.width = spr.height = 32;
+    var s = spr.getContext('2d');
+    var g = s.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.45, 'rgba(240,248,255,.85)');
+    g.addColorStop(1, 'rgba(220,240,255,0)');
+    s.fillStyle = g; s.fillRect(0, 0, 32, 32);
+    var n = Math.max(16, Math.min(32, Math.round(W * H / 70000)));
+    var F = [];
+    for (var i = 0; i < n; i++) {
+      F.push({ x: Math.random(), y: Math.random(), r: 1.4 + Math.random() * 2.6, v: 0.10 + Math.random() * 0.26, w: Math.random() * 6, a: 0.26 + Math.random() * 0.38 });
+    }
+    var last = 0;
+    function tick(ms) {
+      requestAnimationFrame(tick);
+      if (ms - last < 41) return;
+      var dt = Math.min(3, (ms - last) / 16.7); last = ms;
+      x.clearRect(0, 0, W, H);
+      for (var i = 0; i < F.length; i++) {
+        var f = F[i];
+        f.y += f.v * dt * 1.55 / H;
+        f.w += 0.012 * dt;
+        if (f.y > 1.03) { f.y = -0.03; f.x = Math.random(); }
+        x.globalAlpha = f.a;
+        x.drawImage(spr, f.x * W + Math.sin(f.w) * 9 - f.r, f.y * H - f.r, f.r * 2, f.r * 2);
+      }
+      x.globalAlpha = 1;
+    }
+    requestAnimationFrame(tick);
+    return size;
+  }
+
+  var snowResize = snow();
+  function layout() {
+    lights();
+    buildGarlands();
+    if (snowResize) snowResize();
+    var topOff = 40;
+    var baubles = document.querySelectorAll('.bauble');
+    var tops = [topOff, topOff + 10, topOff - 4, topOff + 8, topOff, topOff + 12, topOff + 2];
+    for (var i = 0; i < baubles.length; i++) baubles[i].style.top = tops[i] + 'px';
+  }
+  layout();
+  var t = 0;
+  addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(layout, 120);
+  });
+})();
+</script>
+</body>
+</html>
