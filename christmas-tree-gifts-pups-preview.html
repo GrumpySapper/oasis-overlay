@@ -7,13 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&display=swap" rel="stylesheet">
-<!-- oasis-overlay christmas-tree-gifts-pups-preview v1 -->
+<!-- oasis-overlay christmas-tree-gifts-pups-preview v2 -->
 <!-- PREVIEW ONLY. Do not use as the live Studio browser source until Grumpy approves.
-     Same tree / Bob / gifts as christmas-tree-gifts.html, plus three individual Christmas pups.
+     Same tree / Bob / gifts as christmas-tree-gifts.html, plus three Christmas pups running a seamless loop around the tree.
      Live page is unchanged. Uses a separate localStorage key so the live pile is not touched. -->
 <!-- Oasis Radio Christmas Gift Tree. TikTok LIVE Studio browser source, 1080x1920 (or 720x1280). Transparent background.
      Gifts fall as wrapped presents; Bob the Bot (Santa hat) catches each one and stacks it under the tree.
-     Three Christmas pups sit around the tree and near the presents, with light idle motion and a gift reaction.
+     Three Christmas pups run, scamper and chase around the tree on a continuous closed loop
+     (front of the presents, around the sides, behind the tree) with no wrap jumps.
+     On a gift they stop, look up, hop, then carry on. Bob stays beside the tree.
      ?demo=1 or ?test=1 simulates gifts (preview, no server needed).  ?channel=test listens to the test SSE channel.
      ?reset=1 empties the local pile only (does not touch the live gift jar).  ?names=0 hides gifter names.
      ?max=30 visible-pile cap.  ?per=8 presents per gift event cap.  ?rate=ms and ?n= count for demo bursts. -->
@@ -40,11 +42,11 @@
   bobImg.referrerPolicy = 'no-referrer';
   bobImg.src = 'images/donate/bob-still.webp';
 
-  const PUP_SRC_V = '1';
+  const PUP_SRC_V = '2';
   const PUP_DEFS = [
-    { id: 'cream',  src: 'images/pups/cream.png?v=' + PUP_SRC_V,  slot: 'left',  hFrac: 0.132, wFrac: 0.25 },
-    { id: 'tan',    src: 'images/pups/tan.png?v=' + PUP_SRC_V,    slot: 'front', hFrac: 0.126, wFrac: 0.24 },
-    { id: 'ginger', src: 'images/pups/ginger.png?v=' + PUP_SRC_V, slot: 'right', hFrac: 0.134, wFrac: 0.25 }
+    { id: 'cream',  src: 'images/pups/cream.webp?v=' + PUP_SRC_V,  hFrac: 0.118, wFrac: 0.22, u0: 0.00, period: 9800 },
+    { id: 'tan',    src: 'images/pups/tan.webp?v=' + PUP_SRC_V,    hFrac: 0.112, wFrac: 0.21, u0: 0.34, period: 10800 },
+    { id: 'ginger', src: 'images/pups/ginger.webp?v=' + PUP_SRC_V, hFrac: 0.120, wFrac: 0.22, u0: 0.68, period: 11400 }
   ];
   const pupImgs = {};
   PUP_DEFS.forEach(d => {
@@ -161,8 +163,11 @@
 
 
   // ---- Christmas pups (preview only) ----
-  // Sit around the tree / near the presents. Lightweight idle motion plus a
-  // short hop-and-look when a gift arrives. Bob stays in his usual spot beside the tree.
+  // Closed, arc-length path around the tree: across the snow, around the sides,
+  // and behind the tree. u wraps 0..1 with no position jump. Gift reaction pauses
+  // the run, looks up, hops, then carries on from the same spot. Bob is unchanged.
+  let pupTrack = null, pupTrackKey = '';
+
   function pupReady(d) {
     const im = pupImgs[d.id];
     return im && im.complete && !im._bad && im.naturalWidth > 0;
@@ -173,166 +178,183 @@
     const ratio = (im && im.naturalWidth && im.naturalHeight) ? (im.naturalWidth / im.naturalHeight) : 0.72;
     return { h, w: h * ratio };
   }
-  function pupHomeX(p) {
-    if (!scene) return 0;
-    const s = pupSize(p);
-    if (p.slot === 'left') {
-      // Far left of the snow, in front of the left-hand presents, clear of Bob.
-      return clamp(s.w * 0.46, 8, bobHomeX() - bobSize().w * 0.62);
+
+  function buildPupTrack() {
+    const pad = Math.max(42, Math.min(W, H) * 0.05);
+    const x0 = pad, x1 = W - pad;
+    const y1 = scene.ground;
+    const lift = Math.min(H * 0.028, 56);
+    const y0 = y1 - lift;
+    const R = Math.min((x1 - x0) * 0.28, 140, (x1 - x0) / 2 - 8);
+    const pts = [];
+    const line = (ax, ay, bx, by, n) => {
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        pts.push({ x: lerp(ax, bx, t), y: lerp(ay, by, t) });
+      }
+    };
+    const bezier = (p0, p1, p2, p3, n) => {
+      for (let i = 0; i < n; i++) {
+        const t = i / n, u = 1 - t;
+        pts.push({
+          x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+          y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y
+        });
+      }
+    };
+    // Clockwise: front (L->R), right hairpin, back (R->L, behind the tree), left hairpin.
+    line(x0 + R, y1, x1 - R, y1, 40);
+    bezier({ x: x1 - R, y: y1 }, { x: x1, y: y1 }, { x: x1, y: y0 }, { x: x1 - R, y: y0 }, 32);
+    line(x1 - R, y0, x0 + R, y0, 40);
+    bezier({ x: x0 + R, y: y0 }, { x: x0, y: y0 }, { x: x0, y: y1 }, { x: x0 + R, y: y1 }, 32);
+    const n = pts.length, seg = [];
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i + 1) % n];
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      seg.push(d); total += d;
     }
-    if (p.slot === 'right') {
-      // Just off the right edge of the tree skirt, facing in toward the presents.
-      return clamp(W - s.w * 0.48, scene.right - s.w * 0.05, W - s.w * 0.42);
-    }
-    // 'front': on the snow in front of the right side of the skirt, beside the pile.
-    return clamp(scene.cx + scene.moundR * 0.42, scene.cx + scene.trunkW * 1.6, scene.right - s.w * 0.2);
+    const prefix = [0];
+    for (let i = 0; i < n; i++) prefix.push(prefix[i] + seg[i]);
+    return { pts, seg, prefix, len: total, y0, y1, x0, x1, R };
   }
+  function getPupTrack() {
+    if (!scene) return null;
+    const key = (W | 0) + 'x' + (H | 0) + ':' + (scene.ground | 0);
+    if (!pupTrack || pupTrackKey !== key) { pupTrack = buildPupTrack(); pupTrackKey = key; }
+    return pupTrack;
+  }
+  function pupPathAt(u) {
+    const tr = getPupTrack();
+    if (!tr || !tr.len) return { x: 0, y: scene ? scene.ground : 0, z: 1, tx: 1, ty: 0 };
+    const dist = (((u % 1) + 1) % 1) * tr.len;
+    const pre = tr.prefix;
+    let lo = 0, hi = tr.seg.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (pre[mid] <= dist) lo = mid; else hi = mid - 1;
+    }
+    const i = lo, s = tr.seg[i] || 1, t = (dist - pre[i]) / s;
+    const a = tr.pts[i], b = tr.pts[(i + 1) % tr.pts.length];
+    const x = lerp(a.x, b.x, t), y = lerp(a.y, b.y, t);
+    const z = (y - tr.y0) / Math.max(1, tr.y1 - tr.y0);
+    return { x, y, z, tx: b.x - a.x, ty: b.y - a.y };
+  }
+  function presentHop(x, z) {
+    if (!scene || z < 0.75) return 0;
+    const half = scene.moundR * 0.72;
+    const d = Math.abs(x - scene.cx);
+    if (d >= half) return 0;
+    return Math.sin((1 - d / half) * Math.PI) * Math.min(W, H) * 0.05;
+  }
+  function applyPupPose(p, pos) {
+    p.x = pos.x; p.y = pos.y; p.z = pos.z;
+    // Flip only when the tangent is clearly left or right, so the U-turn doesn't flicker.
+    if (pos.tx > 1.2) p.facing = 1;
+    else if (pos.tx < -1.2) p.facing = -1;
+  }
+
   function ensurePups() {
     if (pups.length) return;
     PUP_DEFS.forEach((d, i) => {
       pups.push({
-        id: d.id, slot: d.slot, hFrac: d.hFrac, wFrac: d.wFrac,
-        x: 0, y: 0, facing: d.slot === 'left' ? 1 : -1,
-        phase: 'idle', act: null, actT: 0, actDur: 0,
-        gap: 900 + i * 700 + Math.random() * 800,
-        hop: 0, tilt: 0, lean: 0, bob: 0, squash: 1, wag: 0,
-        look: 0, reactT: 0, reactDur: 0, sniffTarget: 0,
-        seed: i * 1.7
+        id: d.id, hFrac: d.hFrac, wFrac: d.wFrac,
+        u: d.u0, period: d.period, u0: d.u0,
+        x: 0, y: 0, z: 1, facing: 1,
+        hop: 0, tilt: 0, lean: 0, squash: 1, squashX: 1, look: 0,
+        reactT: 0, reactDur: 0, reacting: false,
+        seed: i * 1.7, strides: 20
       });
     });
   }
   function layoutPups() {
     ensurePups();
     if (!scene) return;
-    pups.forEach(p => {
-      p.x = pupHomeX(p);
-      p.y = scene.ground;
-    });
+    getPupTrack(); // rebuild to the new size
+    pups.forEach(p => applyPupPose(p, pupPathAt(p.u)));
   }
   function pupsOnGift() {
     pups.forEach((p, i) => {
+      p.reacting = true;
       p.reactT = 0;
-      p.reactDur = 900 + i * 120;
-      p.act = 'gift';
-      p.actT = 0;
-      p.actDur = p.reactDur;
-      p.gap = 500 + Math.random() * 400;
-      // Face toward the incoming catch if we already know where Bob is heading.
+      p.reactDur = 1000 + i * 140;
       if (current && current.catchX != null) p.facing = current.catchX >= p.x ? 1 : -1;
-      else if (p.slot === 'left') p.facing = 1;
-      else p.facing = -1;
     });
   }
-  function pickPupAct(p) {
-    const vis = placed.filter(g => g.settled && !g.hidden);
-    const acts = ['wag', 'tilt', 'hop'];
-    if (vis.length && (p.slot === 'front' || p.slot === 'right' || p.slot === 'left')) acts.push('sniff');
-    if (Math.random() < 0.35) acts.push('hop');
-    return acts[(Math.random() * acts.length) | 0];
-  }
-  function startPupAct(p, name) {
-    p.act = name || pickPupAct(p);
-    p.actT = 0;
-    p.actDur = p.act === 'sniff' ? 1600 : p.act === 'wag' ? 1100 : p.act === 'hop' ? 620 : 1400;
-    if (p.act === 'sniff') {
-      const vis = placed.filter(g => g.settled && !g.hidden);
-      if (vis.length) {
-        const g = vis.reduce((best, it) => Math.abs((it.x || 0) - p.x) < Math.abs((best.x || 0) - p.x) ? it : best);
-        p.sniffTarget = g.x || scene.cx;
-        p.facing = p.sniffTarget >= p.x ? 1 : -1;
-      } else {
-        p.sniffTarget = scene.cx;
-        p.facing = scene.cx >= p.x ? 1 : -1;
-      }
-    }
-  }
+
   function tickPups(dt, now) {
     if (!scene) return;
+    ensurePups();
     pups.forEach(p => {
       const s = pupSize(p);
-      // Always a tiny breathe / bob so they never freeze.
-      const breathe = Math.sin(now / (640 + p.seed * 80) + p.seed);
-      p.bob = Math.abs(breathe) * s.h * 0.018;
-      if (p.act !== 'gift') p.squash = lerp(p.squash || 1, 1 + breathe * 0.03, 0.2);
 
-      if (p.act === 'gift') {
-        p.actT += dt;
-        const u = clamp(p.actT / Math.max(1, p.actDur), 0, 1);
-        // Look up as the present falls, then a happy hop.
-        p.look = Math.sin(Math.min(1, u * 1.15) * Math.PI) * 0.55;
-        p.hop = Math.sin(u * Math.PI * (u < 0.55 ? 1 : 2)) * s.h * 0.16;
-        p.tilt = Math.sin(u * Math.PI * 2) * 0.12;
-        p.wag = Math.sin(now / 70) * 0.16;
-        p.squash = 1 - Math.sin(u * Math.PI) * 0.06;
-        p.lean = 0;
-        if (u >= 1) { p.act = null; p.actT = 0; p.look = 0; p.hop = 0; p.gap = 700 + Math.random() * 900; }
-        return;
-      }
-
-      if (!p.act) {
-        p.gap -= dt;
-        p.hop = lerp(p.hop, 0, 0.2);
-        p.lean = lerp(p.lean, 0, 0.12);
-        p.look = lerp(p.look, 0, 0.12);
-        p.wag = lerp(p.wag, Math.sin(now / (280 + p.seed * 40)) * 0.05, 0.1);
-        p.tilt = lerp(p.tilt, Math.sin(now / (820 + p.seed * 90) + p.seed) * 0.10, 0.1);
-        // Rest facing the tree / presents.
-        const restFace = p.slot === 'left' ? 1 : -1;
-        if (p.facing !== restFace && Math.random() < 0.01) p.facing = restFace;
-        if (p.gap <= 0) startPupAct(p);
-        return;
-      }
-
-      p.actT += dt;
-      const u = clamp(p.actT / Math.max(1, p.actDur), 0, 1);
-      if (p.act === 'wag') {
-        p.wag = Math.sin(u * Math.PI * 6) * 0.18 * Math.sin(u * Math.PI);
-        p.tilt = lerp(p.tilt, Math.sin(u * Math.PI * 2) * 0.08, 0.2);
-        p.hop = lerp(p.hop, 0, 0.2);
-        p.lean = lerp(p.lean, 0, 0.15);
-      } else if (p.act === 'tilt') {
-        p.tilt = Math.sin(u * Math.PI) * 0.28;
-        p.wag = lerp(p.wag, 0.04, 0.15);
-        p.hop = lerp(p.hop, 0, 0.2);
-      } else if (p.act === 'hop') {
-        p.hop = Math.sin(u * Math.PI) * s.h * 0.14;
+      if (p.reacting) {
+        p.reactT += dt;
+        const u = clamp(p.reactT / Math.max(1, p.reactDur), 0, 1);
+        p.look = Math.sin(Math.min(1, u * 1.15) * Math.PI) * 0.58;
+        p.hop = Math.sin(u * Math.PI * (u < 0.5 ? 1 : 2)) * s.h * 0.18;
+        p.tilt = Math.sin(u * Math.PI * 2) * 0.10;
+        p.lean = lerp(p.lean, 0, 0.2);
         p.squash = 1 - Math.sin(u * Math.PI) * 0.08;
-        p.tilt = Math.sin(u * Math.PI * 2) * 0.08;
-        p.wag = Math.sin(u * Math.PI * 4) * 0.1;
-      } else if (p.act === 'sniff') {
-        const down = u < 0.25 ? easeOut(u / 0.25) : u > 0.75 ? 1 - easeIn((u - 0.75) / 0.25) : 1;
-        p.lean = down * 0.22;
-        p.look = -down * 0.32;
-        p.tilt = Math.sin(u * Math.PI * 3) * 0.08 * down;
-        p.hop = lerp(p.hop, 0, 0.2);
-        p.wag = Math.sin(now / 90) * 0.08 * down;
+        p.squashX = 1 + Math.sin(u * Math.PI) * 0.06;
+        // Don't park on the gift pile: keep a slow crawl if the pause would cover presents.
+        const here = pupPathAt(p.u);
+        if (here.z > 0.8 && scene && Math.abs(here.x - scene.cx) < scene.moundR * 0.85) {
+          p.u += (dt / p.period) * 0.35;
+          p.u -= p.u | 0;
+          if (p.u < 0) p.u += 1;
+        }
+        if (u >= 1) {
+          p.reacting = false; p.reactT = 0; p.look = 0; p.hop = 0;
+        }
+        const pos = pupPathAt(p.u);
+        p.x = pos.x; p.y = pos.y; p.z = pos.z;
+        return;
       }
-      if (u >= 1) {
-        p.act = null; p.actT = 0; p.gap = 800 + Math.random() * 1600;
-        p.lean = 0; p.look = 0;
-      }
+
+      // Mild speed weave so they catch up and ease off, still a closed loop.
+      const weave = 1 + 0.10 * Math.sin(now / (1400 + p.seed * 120) + p.seed);
+      p.u += (dt / p.period) * weave;
+      p.u -= p.u | 0; // wrap 0..1 without a position pop (path is closed)
+      if (p.u < 0) p.u += 1;
+
+      const pos = pupPathAt(p.u);
+      applyPupPose(p, pos);
+
+      // Distance-tied gallop so the bounce phase is continuous when u wraps
+      // (strides is an integer).
+      const g = (((p.u * p.strides) % 1) + 1) % 1;
+      const beat = Math.sin(g * Math.PI * 2);
+      const air = Math.pow(Math.max(0, Math.sin(g * Math.PI * 2)), 1.15);
+      const jump = presentHop(pos.x, pos.z);
+      p.hop = air * s.h * 0.11 + jump;
+      p.squash = 1 - 0.10 * beat + (jump ? 0.04 : 0);
+      p.squashX = 1 + 0.07 * beat;
+      p.lean = (p.facing > 0 ? 1 : -1) * (0.14 + 0.08 * air);
+      p.tilt = Math.sin(g * Math.PI * 2 + 0.4) * 0.05;
+      p.look = lerp(p.look, jump ? 0.08 : 0, 0.15);
     });
   }
+
   function drawPup(p) {
     const im = pupImgs[p.id];
     if (!im || !im.complete || im._bad || !im.naturalWidth || !scene) return;
-    const s = pupSize(p);
+    const s0 = pupSize(p);
+    const depth = lerp(0.84, 1, clamp(p.z, 0, 1));
+    const s = { w: s0.w * depth, h: s0.h * depth };
     const x = p.x;
-    const y = p.y - (p.hop || 0) - (p.bob || 0);
+    const y = p.y - (p.hop || 0);
     ctx.save();
     ctx.translate(x, y);
-    // Face, then a little body wag / lean / look-up, pivoted at the paws.
-    ctx.scale(p.facing, (p.squash || 1));
-    ctx.rotate(((p.tilt || 0) + (p.wag || 0) * 0.6) * p.facing + (p.lean || 0) * p.facing + (p.look || 0) * -0.4);
+    ctx.scale((p.facing || 1) * (p.squashX || 1), p.squash || 1);
+    ctx.rotate(((p.tilt || 0) + (p.lean || 0) + (p.look || 0) * -0.35) * (p.facing || 1));
     ctx.drawImage(im, -s.w / 2, -s.h, s.w, s.h);
     ctx.restore();
   }
   function drawPups(layer) {
-    // 'back' = left & right flank; 'front' = the pup sitting by the presents.
-    pups.forEach(p => {
-      if (layer === 'front' && p.slot === 'front') drawPup(p);
-      if (layer === 'back' && p.slot !== 'front') drawPup(p);
-    });
+    const list = pups.filter(p => layer === 'back' ? p.z < 0.5 : p.z >= 0.5);
+    list.sort((a, b) => a.z - b.z);
+    list.forEach(drawPup);
   }
 
   // ---- presents ----
@@ -1490,6 +1512,8 @@
       ctx.clearRect(0, 0, W, H);
       const t = now / 1000;
       drawFlakes(dt, t);
+      // Pups on the back stretch run behind the tree (occluded by trunk and foliage).
+      drawPups('back');
       drawBakedTree();
       drawLightsAndStar(t);
       // back-to-front presents (lower z first)
@@ -1499,12 +1523,10 @@
         const na = age < 5000 ? 1 : age < 7500 ? 1 - (age - 5000) / 2500 : 0;
         drawPresent(p, na);
       });
-      // Flank pups sit around the tree; Bob stays in front of them when he walks past.
-      drawPups('back');
       // In-flight present is drawn after Bob so the mid-air catch and carry stay visible.
       drawBob();
       if (current && current.present && !current.present.settled) drawPresent(current.present, 1);
-      // Front pup sniffs the pile, drawn last so it sits among the presents.
+      // Front-stretch pups pass in front of the pile and Bob, then loop behind again.
       drawPups('front');
       drawSparkles();
       drawFloatNames(Date.now());
