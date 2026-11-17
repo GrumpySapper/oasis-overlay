@@ -72,6 +72,9 @@
     <button class="reveal" id="bReveal">👀 Reveal the answer</button>
     <button class="skip" id="bSkip">⏭ Skip</button>
   </div>
+  <div class="row">
+    <button class="ghost" id="bIdle">🧹 Clear the board (back to "Waiting…")</button>
+  </div>
   <div class="msg" id="msg"></div>
 </div>
 
@@ -103,25 +106,14 @@
 </div>
 
 <div class="card">
-  <div style="font-weight:800">How guessing works</div>
+  <div style="font-weight:800">How viewers play (live in TikTok chat)</div>
   <div class="small">
-    The overlay listens for Bob’s existing <code>/events</code> stream, the same way song vote and the wheels do.
-    Today that feed carries gifts, welcomes, votes and race updates — <b>not raw TikTok chat</b> — so live letter guesses cannot be scored until Bob is taught this game.
-    Until then, use <a href="song-hangman.html?demo=1" target="_blank" rel="noopener">demo mode</a> (fake chat) or the simulate box above while both pages are open on this computer.
-    Studio layer: <code>song-hangman.html</code> (add <code>?bg=clear</code> for a transparent background). Control this page. Christmas styling is already on.
-  </div>
-</div>
-
-<div class="card">
-  <div style="font-weight:800">Bob change needed for live chat (do this off-air, later)</div>
-  <div class="small">
-    In the tiktok-welcomer app (port 8787), add a hangman module modelled on the song vote — and do not touch race, vote, gift-jar or hall-of-fame state.
-    Keep a small game state (current title/artist, revealed letters, wrong letters, 7 lives, winner, session leaderboard).
-    While a round is <code>playing</code>, treat a chat message of a single A–Z as a letter guess, and a longer message as a solve attempt (ignore case and punctuation; the song title alone is enough; the band name alone is not).
-    Apply a per-viewer cooldown (about 4 seconds) and a global 1-second throttle so a rush of chat cannot flip the whole board at once. Already-guessed letters are ignored and do not cost a life. A wrong letter costs one life and is added to the used-letters row; at 0 lives reveal the answer as a loss.
-    Host routes, same <code>x-key</code> as the other games: <code>GET /api/hangman/state</code>, <code>POST /api/hangman/next</code>, <code>/reveal-letter</code>, <code>/reveal</code>, <code>/skip</code>, <code>/add</code>.
-    Emit SSE events <code>{ type:'hangman', ev, state }</code> on <code>/events</code> so the overlay can follow them exactly as <code>song-vote.html</code> follows <code>type:'vote'</code>.
-    These preview pages already look for that API and those events; they fall back to local demo / this-browser control if they are not there. No restart and no deploy is needed just to look at this preview.
+    Press <b>Next puzzle</b>, then tell chat: <i>"Type ONE letter to guess, or type the song title to solve it!"</i><br>
+    • A single letter (A–Z) is a guess. Right letters light up; each wrong letter adds a piece to the snowman (7 lives).<br>
+    • Typing the song title solves it (small typos are fine, the band isn't needed). Ordinary chat is ignored.<br>
+    • Each viewer can guess every 4 seconds; letters already guessed are free and ignored.<br>
+    When a round ends, press <b>Next puzzle</b> for another, or <b>Clear the board</b> to go back to "Waiting…".
+    Studio layer: <code>song-hangman.html</code> (add <code>?bg=clear</code> for a transparent background). The answer only shows on this page once your key is saved.
   </div>
 </div>
 
@@ -138,6 +130,7 @@
   const bq = q.get('box');
   if (bq && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(bq)) BOX = bq;
   let KEY = localStorage.getItem('marbleKey') || '';
+  function keyHdr() { return KEY ? Object.assign({ 'x-key': KEY }, HDR) : HDR; }
   let mode = 'local';
   let state = H.emptyState();
   let bc = null;
@@ -171,6 +164,7 @@
     $('phase').textContent = NAMES[st.phase] || st.phase;
     $('linkMode').textContent = mode === 'api' ? 'Linked to Bob’s hangman API' : 'Local preview (this browser). Open the overlay on this computer to see it update.';
     if (!st.title) $('answer').innerHTML = 'No puzzle yet';
+    else if (st.masked) $('answer').innerHTML = 'Answer hidden – tap <b>Change key</b> and save your key to see it';
     else $('answer').innerHTML = 'Answer: <span>' + esc(st.title) + '</span> – ' + esc(st.artist);
     const left = st.livesLeft == null ? 7 : st.livesLeft;
     $('lives').textContent = 'Lives: ' + '●'.repeat(left) + '○'.repeat(Math.max(0, (st.lives || 7) - left)) + '  (' + left + ' / ' + (st.lives || 7) + ')';
@@ -253,6 +247,7 @@
     $('sguess').focus();
   };
   $('sguess').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('bGuess').click(); });
+  $('bIdle').onclick = function () { if (confirm('Clear the board back to "Waiting for the next song"?')) call('idle', {}, { type: 'reset-board' }, '✅ Board cleared'); };
   $('bDemo').onclick = function () { window.open('song-hangman.html?demo=1', '_blank', 'noopener'); };
 
   $('bKey').onclick = function () { showKey(true); };
@@ -276,7 +271,7 @@
 
   async function probe() {
     try {
-      const r = await fetch(BOX + '/api/hangman/state', { headers: HDR, cache: 'no-store' });
+      const r = await fetch(BOX + '/api/hangman/state', { headers: keyHdr(), cache: 'no-store' });
       if (r.ok) {
         const s = await r.json();
         if (s && s.phase) { mode = 'api'; adopt(s); msg('✅ Linked to Bob'); return; }
@@ -287,7 +282,7 @@
   probe();
   setInterval(function () {
     if (mode !== 'api') return;
-    fetch(BOX + '/api/hangman/state', { headers: HDR, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) { if (s) adopt(s); }).catch(function () {});
+    fetch(BOX + '/api/hangman/state', { headers: keyHdr(), cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (s) { if (s) adopt(s); }).catch(function () {});
   }, 2000);
 })();
 </script>
