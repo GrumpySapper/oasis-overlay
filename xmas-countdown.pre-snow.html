@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;background:transparent;overflow:hidden;font-family:'Arial Black',Impact,sans-serif}
+#box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;padding:18px 34px;border-radius:22px;background:rgba(10,0,40,.78);border:4px solid #ff2bd6;box-shadow:0 0 22px #ff2bd6,inset 0 0 14px #00e5ff}
+h1{margin:0 0 8px;font-size:40px;color:#fff;text-shadow:0 0 10px #ff2bd6,0 0 22px #ff2bd6}
+#row{display:flex;gap:18px;justify-content:center}
+.u{min-width:110px}.n{font-size:72px;color:#00ffb3;text-shadow:0 0 12px #00ffb3}
+.l{font-size:20px;color:#00e5ff;letter-spacing:2px}
+</style></head><body><div id="box"><h1>🎄 COUNTDOWN TO CHRISTMAS 🎅</h1><div id="row">
+<div class=u><div class=n id=d>0</div><div class=l>DAYS</div></div>
+<div class=u><div class=n id=h>0</div><div class=l>HOURS</div></div>
+<div class=u><div class=n id=m>0</div><div class=l>MINS</div></div>
+<div class=u><div class=n id=s>0</div><div class=l>SECS</div></div></div></div>
+<script>
+// Christmas midnight UK time (GMT, UTC+0)
+function target(){const y=new Date().getUTCFullYear();let t=Date.UTC(y,11,25);if(Date.now()>t+864e5)t=Date.UTC(y+1,11,25);return t}
+const p=n=>String(n).padStart(2,'0');
+function tick(){let r=Math.max(0,target()-Date.now());
+if(r==0){document.querySelector('h1').textContent='🎄 MERRY CHRISTMAS! 🎅';}
+const s=Math.floor(r/1000);d.textContent=Math.floor(s/86400);h.textContent=p(Math.floor(s%86400/3600));m.textContent=p(Math.floor(s%3600/60));document.getElementById('s').textContent=p(s%60);}
+tick();setInterval(tick,1000);
+</script></body></html>

@@ -1,0 +1,441 @@
+<!doctype html>
+<html><head>
+<script src="sse-shim.js"></script><meta charset="utf-8"><title>Oasis Radio Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:transparent;overflow:hidden;font-family:Montserrat,'Segoe UI',Arial,sans-serif}
+  body.preview{background:linear-gradient(135deg,#1b1b2f,#3a3a5a);min-height:100vh}
+  #stage{position:fixed;left:0;right:0;bottom:8vh;display:flex;justify-content:center;pointer-events:none}
+  .card{max-width:min(88vw,760px);opacity:0;transform:translateY(40px) scale(.92);transition:opacity .45s ease,transform .45s cubic-bezier(.2,1.4,.4,1)}
+  .card.show{opacity:1;transform:none}
+  .card.hide{opacity:0;transform:translateY(-20px) scale(.96)}
+  /* welcome card: neon sunset */
+  .welcome{display:flex;align-items:center;gap:16px;padding:16px 26px;border-radius:18px;color:#fff;
+    background:linear-gradient(100deg,rgba(255,0,128,.92),rgba(255,140,0,.92));
+    box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(255,0,170,.7),0 10px 30px rgba(0,0,0,.45)}
+  .welcome .icon{font-size:40px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+  .welcome .txt{font-weight:800;font-size:30px;line-height:1.2;text-shadow:0 2px 4px rgba(0,0,0,.45)}
+  .welcome .u{color:#fff7a8}
+  /* fact card: retro cassette-label teal */
+  .fact{padding:16px 24px 18px;border-radius:12px;color:#0d1b2a;background:rgba(240,252,255,.96);
+    border-left:10px solid #00c2c7;box-shadow:0 0 0 3px #00c2c7,0 0 26px rgba(0,194,199,.6),0 10px 30px rgba(0,0,0,.45)}
+  .fact .lbl{font-size:15px;font-weight:800;letter-spacing:.18em;color:#7a2bd9;text-transform:uppercase;margin-bottom:6px}
+  .fact .txt{font-size:24px;font-weight:600;line-height:1.3}
+  /* reply card: Bob answers chat, electric purple + neon cyan */
+  .reply{padding:14px 24px 18px;border-radius:18px;color:#fff;
+    background:linear-gradient(100deg,rgba(98,0,234,.93),rgba(0,150,199,.93));
+    box-shadow:0 0 0 3px rgba(255,255,255,.85),0 0 28px rgba(0,229,255,.65),0 10px 30px rgba(0,0,0,.45)}
+  .reply .hd{font-size:17px;font-weight:800;letter-spacing:.06em;color:#fff7a8;text-shadow:0 2px 3px rgba(0,0,0,.4);margin-bottom:4px}
+  .reply .msg{font-size:19px;font-weight:600;font-style:italic;opacity:.85;margin-bottom:6px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .reply .txt{font-size:28px;font-weight:800;line-height:1.2;text-shadow:0 2px 4px rgba(0,0,0,.45)}
+  /* gift card: gold, tiered; pop + glow + confetti */
+  .gift{position:relative;display:flex;align-items:center;gap:16px;padding:16px 26px;border-radius:18px;color:#3a1d00;
+    background:linear-gradient(100deg,rgba(255,215,64,.96),rgba(255,160,0,.96));
+    box-shadow:0 0 0 3px rgba(255,255,255,.9),0 0 26px rgba(255,200,0,.75),0 10px 30px rgba(0,0,0,.45)}
+  .gift .icon{font-size:44px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+  .gift .hd{font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#7a2bd9;margin-bottom:2px}
+  .gift .txt{font-weight:800;font-size:26px;line-height:1.2;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+  .gift.small{padding:12px 22px}.gift.small .icon{font-size:36px}
+  .gift.medium{background:linear-gradient(100deg,rgba(255,94,196,.96),rgba(255,196,0,.96));color:#2b0030}
+  .gift.medium .txt{font-size:29px}
+  .gift.big{padding:20px 30px;background:linear-gradient(100deg,rgba(255,215,0,.98),rgba(255,64,129,.98),rgba(124,77,255,.98));color:#fff}
+  .gift.big .txt{font-size:33px;text-shadow:0 2px 4px rgba(0,0,0,.45)}.gift.big .hd{color:#fff7a8}.gift.big .icon{font-size:52px}
+  .gift.huge{padding:26px 36px;max-width:min(94vw,900px);background:linear-gradient(100deg,#ff8a00,#ff2d95,#7c4dff,#00c6ff);background-size:300% 100%;color:#fff;
+    box-shadow:0 0 0 5px #fff,0 0 60px rgba(255,64,200,.95),0 10px 30px rgba(0,0,0,.5)}
+  .gift.huge .txt{font-size:40px;text-shadow:0 3px 6px rgba(0,0,0,.55)}.gift.huge .hd{color:#fff7a8;font-size:19px}.gift.huge .icon{font-size:64px}
+  .gift.huge.show{animation:giftpop .8s cubic-bezier(.2,1.7,.4,1) both,giftglowbig .8s ease-in-out .8s 8,hugeshift 3s linear infinite}
+  .gift.heartme{padding:9px 18px;gap:10px;border-radius:14px;background:rgba(255,240,246,.95);color:#8a0036;box-shadow:0 0 0 2px #ff7aa8,0 0 16px rgba(255,90,150,.55),0 6px 18px rgba(0,0,0,.35)}
+  .gift.heartme .icon{font-size:28px}.gift.heartme .hd{display:none}.gift.heartme .txt{font-size:22px;text-shadow:none}
+  .gift.heartme.show{animation:giftpop .45s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes hugeshift{to{background-position:300% 0}}
+  .gift.request{background:linear-gradient(100deg,rgba(0,200,140,.96),rgba(255,200,0,.96));color:#06261a}
+  .gift.show{animation:giftpop .6s cubic-bezier(.2,1.6,.4,1) both,giftglow 1.2s ease-in-out .6s 3}
+  .gift.big.show{animation:giftpop .7s cubic-bezier(.2,1.6,.4,1) both,giftglowbig .9s ease-in-out .7s 5}
+  @keyframes giftpop{0%{opacity:0;transform:scale(.4) rotate(-4deg)}60%{opacity:1;transform:scale(1.08) rotate(1deg)}100%{opacity:1;transform:none}}
+  @keyframes giftglow{50%{box-shadow:0 0 0 3px #fff,0 0 46px rgba(255,220,0,1),0 10px 30px rgba(0,0,0,.45)}}
+  @keyframes giftglowbig{50%{box-shadow:0 0 0 4px #fff,0 0 70px rgba(255,64,200,1),0 10px 30px rgba(0,0,0,.45);transform:scale(1.03)}}
+  .gift.hide{animation:gifthide .45s ease forwards}
+  @keyframes gifthide{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-20px) scale(.96)}}
+  /* legend (1000+ diamonds): full-screen takeover */
+  #legend{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:20;pointer-events:none;
+    background:radial-gradient(ellipse at center,rgba(60,20,0,.82) 0%,rgba(10,0,20,.9) 70%);opacity:0;transition:opacity .6s ease}
+  #legend.on{display:flex}#legend.vis{opacity:1}
+  #legend .crown{font-size:min(22vh,180px);line-height:1;animation:crownbob 1.6s ease-in-out infinite;filter:drop-shadow(0 0 30px rgba(255,215,0,.9))}
+  #legend .lg{font-size:min(5vh,40px);font-weight:800;letter-spacing:.35em;color:#ffd740;text-transform:uppercase;margin-top:1vh}
+  #legend .name{font-size:min(15vh,13vw);font-weight:800;line-height:1.05;margin:1vh 4vw;color:#fff;max-width:92vw;overflow-wrap:anywhere;
+    background:linear-gradient(90deg,#fff6c0,#ffd700,#ff9d00,#ffd700,#fff6c0);background-size:200% auto;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    animation:shine 2.5s linear infinite,legendzoom .9s cubic-bezier(.2,1.6,.4,1) both;filter:drop-shadow(0 4px 12px rgba(0,0,0,.7))}
+  #legend .line{font-size:min(5.2vh,44px);font-weight:800;color:#fff;max-width:88vw;text-shadow:0 0 18px rgba(255,64,200,.9),0 3px 6px rgba(0,0,0,.8)}
+  @keyframes crownbob{50%{transform:translateY(-12px) rotate(-6deg)}}
+  @keyframes shine{to{background-position:200% center}}
+  @keyframes legendzoom{0%{transform:scale(.2);opacity:0}100%{transform:none;opacity:1}}
+  .spark{position:fixed;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:21;animation:burst 1.4s ease-out forwards}
+  @keyframes burst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.3);opacity:0}}
+  .confetti{position:fixed;top:-20px;width:10px;height:16px;border-radius:2px;pointer-events:none;z-index:22;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
+  #stage{z-index:15}
+  #showtitle{position:fixed;inset:0;z-index:5;pointer-events:none;display:none;align-items:center;justify-content:center;text-align:center;background:radial-gradient(ellipse at center,rgba(40,0,70,.28),rgba(20,0,40,.18) 70%);transition:background .9s ease}
+  #showtitle.on{display:flex}
+  #showtitle .wrap{transform:scale(.3);opacity:0;transition:transform 1s cubic-bezier(.2,1.3,.4,1),opacity .6s ease,top 1s ease}
+  #showtitle.vis .wrap{transform:none;opacity:1}
+  #showtitle .st{font-family:inherit;font-weight:900;font-size:min(11vh,9.5vw);line-height:1.05;max-width:94vw;margin:0 3vw;
+    background:linear-gradient(90deg,#ffd740,#fff6c2,#c77dff,#ffd740,#fff6c2,#ffd740);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:shine 3s linear infinite;filter:drop-shadow(0 0 14px rgba(255,215,64,.85)) drop-shadow(0 0 30px rgba(170,60,255,.8)) drop-shadow(0 4px 4px rgba(0,0,0,.7))}
+  #showtitle .ss{margin-top:2vh;font-weight:800;font-size:min(4.4vh,3.9vw);color:#fff;text-shadow:0 0 16px rgba(170,60,255,.95),0 0 6px rgba(255,215,64,.8),0 3px 6px rgba(0,0,0,.85)}
+  #showtitle.mini{background:transparent;align-items:flex-start}
+  #showtitle.mini .wrap{margin-top:2.5vh;padding:1vh 3vw;border-radius:18px;background:rgba(40,0,70,.45);box-shadow:0 0 0 2px rgba(255,215,64,.8),0 0 26px rgba(170,60,255,.8)}
+  #showtitle.mini .st{font-size:min(4.6vh,5.5vw)}
+  #showtitle.mini .ss{font-size:min(2.6vh,3.2vw);margin-top:.4vh}
+  #showtitle .tw{position:absolute;font-size:min(4vh,30px);animation:twinkle 1.8s ease-in-out infinite;filter:drop-shadow(0 0 8px #ffd740)}
+  #showtitle.mini .tw{display:none}
+  @keyframes twinkle{0%,100%{opacity:.15;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1.2) rotate(30deg)}}
+</style></head>
+<body>
+<div id="showtitle"><div class="wrap"><div class="st"></div><div class="ss"></div></div></div>
+<div id="stage"></div>
+<div id="legend"><div class="crown">👑</div><div class="lg">Legend</div><div class="name"></div><div class="line"></div></div>
+<!-- np-card removed: song box is its own Studio source (nowplaying.html) -->
+<script>/* Oasis overlay data bus: stable box link via ngrok (header skips the ngrok warning page) + ntfy.sh relay for Now Playing. */
+window.OasisBus = (function () {
+  const BOX = 'https://bob.oasisradio.live', TOPIC = 'oasisradio-np-67c6ab132bb28b1d2d0df0be', H = { 'ngrok-skip-browser-warning': '1' };
+  function api(path) { return fetch(BOX + path, { headers: H, cache: 'no-store' }).then(r => r.json()); }
+  // SSE over fetch (EventSource can't send the header). Auto-reconnects forever; watchdog kills stalled streams.
+  function boxStream(path, onEvent, onState) {
+    let ctrl = null, last = Date.now(), running = false, since = 0;
+    async function run() {
+      if (running) return; running = true; last = Date.now();
+      ctrl = new AbortController();
+      try {
+        const r = await fetch(BOX + path, { headers: Object.assign({ Accept: 'text/event-stream' }, H), cache: 'no-store', signal: ctrl.signal });
+        if (!r.ok || !r.body) throw new Error('status ' + r.status);
+        since = Date.now(); onState && onState(true, since);
+        const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+        for (;;) {
+          const { value, done } = await rd.read(); if (done) break;
+          last = Date.now(); buf += dec.decode(value, { stream: true }).replace(/\r/g, '');
+          let i;
+          while ((i = buf.indexOf('\n\n')) >= 0) {
+            const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+            const data = chunk.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5).replace(/^ /, '')).join('\n');
+            if (data) { try { const d = JSON.parse(data); if (d && d.type !== 'ping') onEvent(d); } catch (e) {} }
+          }
+        }
+      } catch (e) {}
+      try { ctrl.abort(); } catch (e) {}
+      running = false; onState && onState(false, 0);
+      setTimeout(run, 3000);
+    }
+    setInterval(() => { if (running && Date.now() - last > 45000) { try { ctrl.abort(); } catch (e) {} } }, 10000);
+    run();
+    return { connectedSince: () => since };
+  }
+  // ntfy.sh: messages are JSON strings we published. Initial = last cached message.
+  function ntfy(onEvent) {
+    const parse = m => { try { if (m && m.event === 'message' && m.message) { const d = JSON.parse(m.message); d._t = m.time * 1000; onEvent(d); } } catch (e) {} };
+    fetch('https://ntfy.sh/' + TOPIC + '/json?poll=1&since=12h', { cache: 'no-store' }).then(r => r.text()).then(t => {
+      const lines = t.trim().split('\n').filter(Boolean); if (lines.length) { try { const m = JSON.parse(lines[lines.length - 1]); m._initial = true; parse(m); } catch (e) {} }
+    }).catch(() => {});
+    let es = null, last = Date.now();
+    const connect = () => {
+      try { if (es) es.close(); } catch (e) {}
+      last = Date.now();
+      es = new EventSource('https://ntfy.sh/' + TOPIC + '/sse');
+      es.onmessage = e => { last = Date.now(); try { parse(JSON.parse(e.data)); } catch (x) {} };
+      es.addEventListener('keepalive', () => { last = Date.now(); });
+      es.onopen = () => { last = Date.now(); };
+    };
+    connect();
+    setInterval(() => { if (!es || es.readyState === 2 || Date.now() - last > 120000) connect(); }, 15000);
+  }
+  return { BOX, TOPIC, api, boxStream, ntfy };
+})();
+</script>
+<script>/* GiftFX: gift sounds + confetti. Synth chime/jingle/fanfare (WebAudio), then a random Grumpy voice clip from sounds/thanks/manifest.json if any fit the tier.
+   ?sound=0 mutes everything, ?vol=0.1-1 volume, ?voice=after (default: synth then clip) | instead (clip only) | off (synth only), ?soundtest=1 plays all tiers on load. */
+window.GiftFX = (function () {
+  const q = new URLSearchParams(location.search);
+  const MUTED = q.get('sound') === '0', VOL = Math.min(1, Math.max(0.05, +(q.get('vol') || 1)));
+  let ctx = null;
+  function ac() {
+    if (MUTED) return null;
+    try { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === 'suspended') ctx.resume().catch(() => {}); } catch (e) { ctx = null; }
+    return ctx;
+  }
+  // Browsers may start audio "suspended" until a click; unlock on any interaction (OBS: right-click source > Interact).
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => addEventListener(ev, () => ac(), { passive: true }));
+  function note(c, out, freq, t, dur, type, vol) {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.5, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  const N = { C4: 261.63, E4: 329.63, G4: 392.0, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.0, B5: 987.77, C6: 1046.5, E6: 1318.5, G6: 1568.0, B6: 1975.5 };
+  function CLINK(c, o, t) {
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900; hp.connect(o);
+    const ping = (f, s, v) => [[1, 1, 0.45], [2.32, 0.45, 0.3], [4.1, 0.2, 0.18]].forEach(([r, g, d]) => note(c, hp, f * r, t + s, d, 'sine', v * g));
+    ping(2093, 0, 0.16);      // first clink (C7-ish)
+    ping(2637, 0.075, 0.11);  // second, smaller clink as it settles
+  }
+  const SONGS = {
+    // Coin "clink into jar": two soft metallic pings (coin hits glass, then settles), ~0.6s, gentle volume.
+    small: (c, o, t) => CLINK(c, o, t),
+    heartme: (c, o, t) => CLINK(c, o, t),
+    request: (c, o, t) => { note(c, o, N.G5, t, 0.35, 'triangle', 0.4); note(c, o, N.C6, t + 0.12, 0.6, 'triangle', 0.4); },
+    medium: (c, o, t) => { [N.C5, N.E5, N.G5, N.C6, N.E6].forEach((f, i) => note(c, o, f, t + i * 0.09, 0.45, 'triangle', 0.4)); note(c, o, N.G6, t + 0.5, 0.8, 'sine', 0.3); },   // sparkly jingle
+    big: (c, o, t) => {                                                                                                               // brassy fanfare
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.connect(o);
+      const brass = (f, s, d, v) => { note(c, lp, f, t + s, d, 'sawtooth', v); note(c, lp, f * 1.005, t + s, d, 'square', v * 0.4); };
+      brass(N.G4, 0, 0.14, 0.22); brass(N.G4, 0.16, 0.14, 0.22); brass(N.G4, 0.32, 0.14, 0.22);
+      brass(N.C5, 0.48, 0.9, 0.26); brass(N.E5, 0.48, 0.9, 0.18); brass(N.G5, 0.48, 0.9, 0.16);
+      brass(N.E5, 1.0, 0.16, 0.2); brass(N.G5, 1.18, 1.1, 0.24); brass(N.C6, 1.18, 1.1, 0.16);
+      note(c, o, N.C4, t + 0.48, 1.6, 'triangle', 0.3);
+    },
+    huge: (c, o, t) => {                                                                                                              // bigger fanfare (~3.5s)
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2500; lp.connect(o);
+      const brass = (f, s, d, v) => { note(c, lp, f, t + s, d, 'sawtooth', v); note(c, lp, f * 1.006, t + s, d, 'square', v * 0.35); };
+      const chord = (fs, s, d, v) => fs.forEach(f => brass(f, s, d, v));
+      [0, 0.14, 0.28].forEach(s => brass(N.G4, s, 0.11, 0.2)); chord([N.C5, N.E5, N.G5], 0.42, 0.55, 0.15);
+      [1.0, 1.14].forEach(s => brass(N.E5, s, 0.11, 0.2)); chord([N.D5, N.G5, N.B5], 1.28, 0.5, 0.15);
+      chord([N.C5, N.E5, N.G5, N.C6], 1.85, 1.6, 0.14); note(c, o, N.C4, t + 1.85, 1.7, 'triangle', 0.32);
+      [N.E6, N.G6].forEach((f, i) => note(c, o, f, t + 1.9 + i * 0.08, 1.1, 'sine', 0.16));
+    },
+    legend: (c, o, t) => {                                                                                                            // long triumphant fanfare (~5s)
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(o);
+      const brass = (f, s, d, v) => { note(c, lp, f, t + s, d, 'sawtooth', v); note(c, lp, f * 1.006, t + s, d, 'square', v * 0.35); };
+      const chord = (fs, s, d, v) => fs.forEach(f => brass(f, s, d, v));
+      [0, 0.15, 0.3].forEach(s => brass(N.C5, s, 0.12, 0.2)); chord([N.C5, N.E5, N.G5], 0.45, 0.6, 0.15);
+      [1.1, 1.25, 1.4].forEach(s => brass(N.D5, s, 0.12, 0.2)); chord([N.D5, N.F5, N.A5], 1.55, 0.6, 0.15);
+      [2.2, 2.35, 2.5].forEach(s => brass(N.E5, s, 0.12, 0.2)); chord([N.E5, N.G5, N.B5], 2.65, 0.5, 0.15);
+      chord([N.C5, N.E5, N.G5, N.C6], 3.2, 1.9, 0.14); note(c, o, N.C4, t + 3.2, 2.0, 'triangle', 0.35);
+      [N.C6, N.E6, N.G6].forEach((f, i) => note(c, o, f, t + 3.25 + i * 0.07, 1.4, 'sine', 0.18));
+    },
+  };
+  const SYNTH_LEN = { heartme: 0.9, small: 0.75, request: 0.75, medium: 1.25, big: 2.35, huge: 3.6, legend: 5.2 };   // seconds before a voice clip starts in 'after' mode
+  // ---- Grumpy's voice clips: sounds/thanks/manifest.json = { "clips": [ { "file": "ta-1.mp3", "tier": "any" } ] } ----
+  const VOICE = MUTED ? 'off' : (q.get('voice') || 'after');
+  const CLIP_BASE = new URL('sounds/thanks/', location.href);
+  let clips = [], lastClip = null; const buffers = {};
+  if (VOICE !== 'off') fetch(new URL('manifest.json', CLIP_BASE), { cache: 'no-store' }).then(r => r.ok ? r.json() : { clips: [] }).then(m => {
+    const list = Array.isArray(m) ? m : (m && Array.isArray(m.clips) ? m.clips : []);
+    clips = list.map(x => typeof x === 'string' ? { file: x, tier: 'any' } : x)
+      .filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(mp3|m4a|ogg|wav|webm)$/i.test(x.file))
+      .map(x => ({ file: x.file, tier: ['small', 'medium', 'big', 'huge', 'legend', 'heartme', 'request', 'any'].includes(String(x.tier || 'any').toLowerCase()) ? String(x.tier || 'any').toLowerCase() : 'any' }));
+  }).catch(() => { clips = []; });
+  function pickClip(tier) {
+    let pool = tier === 'heartme' ? clips.filter(x => x.tier === 'heartme') : clips.filter(x => x.tier === tier || x.tier === 'any');   // Heart Me: only its own clips, else just the bell
+    const up = { legend: ['huge', 'big'], huge: ['big'] }[tier];   // no clip for this tier yet: borrow the next tier down, then 'any'
+    if (up && !pool.some(x => x.tier === tier)) { for (const t of up) { const p = clips.filter(x => x.tier === t); if (p.length) { pool = p; break; } } }
+    if (!pool.length && tier === 'request') pool = clips.filter(x => x.tier === 'small');
+    if (pool.length > 1) pool = pool.filter(x => x.file !== lastClip);   // no immediate repeat
+    if (!pool.length) return null;
+    const c = pool[Math.floor(Math.random() * pool.length)]; lastClip = c.file; return c;
+  }
+  function loadClip(c, file) {
+    if (!buffers[file]) buffers[file] = fetch(new URL(encodeURIComponent(file) + '?b=20261024', CLIP_BASE)).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(ab => new Promise((ok, no) => c.decodeAudioData(ab, ok, no))).catch(e => { delete buffers[file]; throw e; });
+    return buffers[file];
+  }
+  // ---- ONE voice queue: a clip starts only after the previous one ended + VOICE_GAP. Max VOICE_MAX waiting; same gifter merges. ----
+  const VOICE_GAP = 0.3, VOICE_MAX = +(q.get('voiceMax') || 6);
+  let voiceChain = Promise.resolve(), voiceEndAt = 0; const voicePending = [];   // [{ who, p }]
+  function playClip(c, out, file, when, who) {
+    // resolves with the seconds from *now* until the clip finishes (it may start late if it was waiting in the queue)
+    if (who) { const same = voicePending.find(v => v.who === who); if (same) return same.p; }   // combo/streak from the same gifter: one thank-you
+    if (voicePending.length >= VOICE_MAX) return Promise.resolve(null);                          // queue full: chime only
+    const ent = { who };
+    const load = loadClip(c, file);
+    ent.p = voiceChain = voiceChain.catch(() => {}).then(() => load).then(buf => {
+      const src = c.createBufferSource(); src.buffer = buf; src.connect(out);
+      const at = Math.max(c.currentTime + 0.02, when, voiceEndAt ? voiceEndAt + VOICE_GAP : 0); src.start(at);
+      voiceEndAt = at + buf.duration;
+      setTimeout(() => { const i = voicePending.indexOf(ent); if (i >= 0) voicePending.splice(i, 1); }, Math.max(0, (at - c.currentTime) * 1000));   // leaves the queue when it starts
+      return (at - c.currentTime) + buf.duration;
+    });
+    ent.p.catch(() => { const i = voicePending.indexOf(ent); if (i >= 0) voicePending.splice(i, 1); });
+    voicePending.push(ent); return ent.p;
+  }
+  function sound(tier, who) {
+    const c = ac(); if (!c) return false;
+    try {
+      const out = c.createGain(); out.gain.value = VOL; out.connect(c.destination);
+      const t0 = c.currentTime + 0.03, clip = VOICE === 'off' ? null : pickClip(tier);
+      const synth = () => (SONGS[tier] || SONGS.small)(c, out, t0);
+      // Returns { running, clip }: clip is a Promise of seconds-until-the-clip-ends (null if no clip / it failed), so the card can wait for it.
+      let clipP = Promise.resolve(null);
+      if (!clip) synth();
+      else if (VOICE === 'instead' || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) clipP = playClip(c, out, clip.file, t0, who).catch(() => { synth(); return null; });   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
+      else { synth(); clipP = playClip(c, out, clip.file, t0 + (SYNTH_LEN[tier] || 0.8), who).catch(() => null); }
+      return { running: c.state === 'running', clip: clipP };
+    } catch (e) { return null; }
+  }
+  const COLORS = ['#ffd740', '#ff4081', '#7c4dff', '#00e5ff', '#69f0ae', '#ff9100', '#fff'];
+  function confetti(tier) {
+    const n = { legend: 220, huge: 150, big: 90, medium: 40, small: 12 }[tier] || 0; if (!n) return;
+    const GOLD = ['#ffd700', '#ffec80', '#ffb300', '#fff3c4', '#e6a800'], cols = (tier === 'legend' || tier === 'huge') ? GOLD.concat(COLORS.slice(1, 3)) : COLORS;
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('div'); d.className = 'confetti';
+      d.style.left = (Math.random() * 100) + 'vw'; d.style.background = cols[i % cols.length];
+      if (tier === 'legend' || tier === 'huge') d.style.top = (-20 - Math.random() * 300) + 'px';
+      d.style.animationDuration = (2.2 + Math.random() * 2.3) + 's'; d.style.animationDelay = (Math.random() * 0.8) + 's';
+      d.style.transform = 'rotate(' + Math.floor(Math.random() * 360) + 'deg)';
+      document.body.appendChild(d); setTimeout(() => d.remove(), 5500);
+    }
+  }
+  function fireworks(ms) {   // gold sparks bursting at random spots
+    const end = Date.now() + ms;
+    (function boom() {
+      if (Date.now() > end) return;
+      const x = 10 + Math.random() * 80, y = 10 + Math.random() * 45;
+      for (let i = 0; i < 26; i++) {
+        const s = document.createElement('div'), a = (i / 26) * 2 * Math.PI, r = 90 + Math.random() * 90;
+        s.className = 'spark'; s.style.left = x + 'vw'; s.style.top = y + 'vh';
+        s.style.background = ['#ffd700', '#fff3c4', '#ff9d00', '#ff4fd8'][i % 4]; s.style.boxShadow = '0 0 10px ' + s.style.background;
+        s.style.setProperty('--dx', Math.cos(a) * r + 'px'); s.style.setProperty('--dy', Math.sin(a) * r + 'px');
+        document.body.appendChild(s); setTimeout(() => s.remove(), 1500);
+      }
+      setTimeout(boom, 450 + Math.random() * 400);
+    })();
+  }
+  if (q.get('soundtest') === '1') setTimeout(() => { sound('small'); setTimeout(() => sound('medium'), 1200); setTimeout(() => sound('big'), 2800); setTimeout(() => sound('huge'), 5600); setTimeout(() => sound('legend'), 9800); }, 800);
+  return { sound, confetti, fireworks, muted: MUTED, voice: VOICE, clips: () => clips.slice(), state: () => (ctx ? ctx.state : (MUTED ? 'muted' : 'not-started')) };
+})();
+</script>
+<script>
+const params = new URLSearchParams(location.search);
+const TEST = params.get('test') === '1';
+const TESTREPLY = params.get('testreply') === '1';          // local-only reply preview (no live stream)
+const CHANNEL = params.get('channel') === 'test' ? 'test' : ''; // separate test SSE channel (not on air)
+const REPLY_MS = +(params.get('replyMs') || 8000), REPLY_MAX_QUEUE = 3, REPLY_MAX_AGE_MS = 60000;
+const WELCOME_MS = +(params.get('welcomeMs') || 4000), FACT_MS = +(params.get('factMs') || 12000);
+if (TEST || TESTREPLY || params.get('bg') === '1') document.body.classList.add('preview');
+const stage = document.getElementById('stage');
+const welcomes = [], facts = [], replies = [], says = [], gifts = [], legends = [], hearts = [];
+const LEGEND_MS = +(params.get('legendMs') || 13000);
+let current = null;   // { el, timer } of the card on screen, so a legend can cut it short
+const GIFT_MS = +(params.get('giftMs') || 0);   // optional override for every gift card
+const CLIP_CARD_MAX_MS = +(params.get('clipCardMaxMs') || 12000), CLIP_CARD_MAX_HUGE_MS = +(params.get('clipCardMaxHugeMs') || 16000);   // longest a gift card is held for a voice clip (huge tier gets longer)
+const HEART_MAX_QUEUE = 2, HEART_MAX_AGE_MS = 30000;   // Heart Me bursts: tiny, short, never crowd other cards
+const GIFT_TIER_MS = { heartme: 3500, request: 6000, small: 5000, medium: 6000, big: 7000, huge: 8000 }, GIFT_MAX_QUEUE = 5, GIFT_MAX_AGE_MS = 120000;
+let busy = false;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(item){
+  const el = document.createElement('div');
+  if (item.type === 'welcome') {
+    const h = '@' + item.username.replace(/^@/,'');
+    const txt = esc(item.text).split(esc(h)).join('<span class="u">'+esc(h)+'</span>');
+    el.className = 'card welcome'; el.innerHTML = '<div class="icon">📻</div><div class="txt">'+txt+'</div>';
+  } else if (item.type === 'gift') {
+    const tier = ['small','medium','big','huge','heartme','request'].includes(item.tier) ? item.tier : 'small';
+    const icon = { small:'🎁', medium:'🎉', big:'🏆', huge:'🎆', heartme:'🛎️', request:'🎶' }[tier];
+    const hd = { small:'Ta very much!', medium:'Cor blimey!', big:'Big gift alert!', huge:'HUGE gift alert!', heartme:'', request:'Gifter\'s request' }[tier];
+    el.className = 'card gift ' + tier;
+    el.innerHTML = '<div class="icon">'+icon+'</div><div><div class="hd">'+hd+'</div><div class="txt">'+esc(item.text||'')+'</div></div>';
+  } else if (item.type === 'reply') {
+    el.className = 'card reply';
+    el.innerHTML = '<div class="hd">🤖 Bob → @'+esc(String(item.display||item.nickname||item.user||'').replace(/^@/,''))+'</div>'
+      + '<div class="msg">“'+esc(item.message||'')+'”</div><div class="txt">'+esc(item.reply||'')+'</div>';
+  } else {
+    el.className = 'card fact'; el.innerHTML = '<div class="lbl">'+esc(item.label||'📼 Music Fact')+'</div><div class="txt">'+esc(item.text)+'</div>';
+  }
+  return el;
+}
+function next(){
+  if (busy) return;
+  while (replies.length && Date.now() - replies[0]._rx > REPLY_MAX_AGE_MS) replies.shift();   // drop stale replies
+  while (gifts.length && Date.now() - gifts[0]._rx > GIFT_MAX_AGE_MS) gifts.shift();      // drop stale gift cards
+  while (welcomes.length > 6) welcomes.shift();
+  if (legends.length) return showLegend(legends.shift());   // legend takeover jumps every queue
+  while (hearts.length && Date.now() - hearts[0]._rx > HEART_MAX_AGE_MS) hearts.shift();
+  const item = replies.shift() || gifts.shift() || says.shift() || hearts.shift() || welcomes.shift() || facts.shift();   // Heart Me dings wait behind real gifts and Bob's lines   // replies, gifts, Bob says, welcomes, facts; one card at a time
+  if (!item) return;
+  busy = true;
+  const el = render(item); stage.appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
+  let snd = null;
+  if (item.type === 'gift') { snd = GiftFX.sound(item.tier, String(item.user || item.uniqueId || item.display || item.name || '').toLowerCase()); GiftFX.confetti(item.tier); if (item.tier === 'huge') { GiftFX.fireworks(5000); setTimeout(()=>GiftFX.confetti('huge'), 3500); } }
+  const dur = item.type === 'reply' ? REPLY_MS : item.type === 'gift' ? (GIFT_MS || GIFT_TIER_MS[item.tier] || 6000) : item.type === 'welcome' ? WELCOME_MS : FACT_MS;
+  const done = () => { if (!current || current.el !== el) return; current = null; el.classList.add('hide'); setTimeout(()=>{ el.remove(); busy=false; next(); }, 500); };
+  const shownAt = Date.now();
+  current = { el, timer: setTimeout(done, dur), done, holdMs: dur };
+  // Voice clip on a gift card: hold the card until chime + clip + 0.5s (never below the tier default, max 12s). Only a legend can cut it short.
+  if (snd && snd.clip) snd.clip.then(left => {
+    if (!left || !current || current.el !== el) return;
+    const elapsed = Date.now() - shownAt;
+    const total = Math.min(item.tier === 'huge' ? CLIP_CARD_MAX_HUGE_MS : CLIP_CARD_MAX_MS, Math.max(dur, elapsed + left * 1000 + 500));
+    clearTimeout(current.timer); current.holdMs = total; current.timer = setTimeout(done, Math.max(0, total - elapsed));
+  });
+}
+function showLegend(item){
+  busy = true;
+  const box = document.getElementById('legend');
+  box.querySelector('.name').textContent = String(item.name || item.display || item.user || 'Legend').replace(/^@/,'').slice(0, 24);
+  box.querySelector('.line').textContent = item.text || '';
+  box.classList.add('on'); requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.add('vis')));
+  GiftFX.sound('legend'); GiftFX.confetti('legend'); GiftFX.fireworks(Math.max(3000, LEGEND_MS - 2000));
+  setTimeout(()=>GiftFX.confetti('legend'), Math.min(6000, LEGEND_MS / 2));
+  setTimeout(()=>{ box.classList.remove('vis'); setTimeout(()=>{ box.classList.remove('on'); busy=false; next(); }, 650); }, LEGEND_MS);
+}
+function push(evt){
+  if (evt && evt.title) return showTitle(evt);   // show-title takeover: its own layer, never blocks the card queue
+  if (evt.type==='welcome') welcomes.push(evt);
+  else if (evt.type==='fact') { if (evt.label) says.push(evt); else facts.push(evt); }
+  else if (evt.type==='gift' && evt.tier==='legend') { legends.push(evt); if (current) { clearTimeout(current.timer); current.done(); } }   // cut the current card short
+  else if (evt.type==='gift' && evt.tier==='heartme') { if (!evt.text) return; evt._rx = Date.now(); hearts.push(evt); while (hearts.length > HEART_MAX_QUEUE) hearts.shift(); }
+  else if (evt.type==='gift') { if (!evt.text) return; evt._rx = Date.now(); gifts.push(evt); while (gifts.length > GIFT_MAX_QUEUE) { const i = gifts.findIndex(g => g.tier !== 'big' && g.tier !== 'huge'); gifts.splice(i < 0 ? 0 : i, 1); } }
+  else if (evt.type==='reply') { if (!evt.reply) return; evt._rx = Date.now(); replies.push(evt); while (replies.length > REPLY_MAX_QUEUE) replies.shift(); }
+  next();
+}
+window.__push = push;
+if (TEST) {
+  const freeze = params.get('freeze');
+  OasisBus.api('/api/sample').then(d=>{
+    if (freeze === 'welcome') { WELCOME_HOLD(d.welcomes[0]); return; }
+    if (freeze === 'fact') { WELCOME_HOLD({type:'fact', text:d.fact}); return; }
+    d.welcomes.slice(0,4).forEach(w=>push({type:'welcome', ...w}));
+    push({type:'welcome', ...d.welcomes[0]}); // duplicate: deduped below
+    push({type:'fact', text:d.fact});
+    d.welcomes.slice(4).forEach(w=>push({type:'welcome', ...w}));
+  });
+}
+if (TESTREPLY) {
+  const freeze = params.get('freeze'), msg = params.get('msg');
+  const url = msg ? '/api/reply-preview?force=1&msg='+encodeURIComponent(msg)+'&user='+encodeURIComponent(params.get('user')||'neonrider85')+'&nick='+encodeURIComponent(params.get('nick')||params.get('user')||'Neon Rider') : '/api/reply-sample';
+  OasisBus.api(url).then(d=>{
+    const list = (Array.isArray(d) ? d : [d]).filter(x=>x.reply);
+    if (freeze === 'reply') { WELCOME_HOLD(list[0]); return; }
+    list.forEach(x=>push(x));
+  });
+}
+function WELCOME_HOLD(item){ item.type = item.type || 'welcome'; const el=render(item); stage.appendChild(el); requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show'))); }
+// client-side dedupe guard (server also dedupes per session)
+const shown = new Set(); const _push = push;
+push = function(evt){ if (evt && evt.type==='nowplaying'){ if (window.NowPlaying) NowPlaying.handle(evt); return; } if (evt.type==='session'){ shown.clear(); return; } if (evt.type==='welcome'){ const k=evt.username.toLowerCase(); if (shown.has(k)) return; shown.add(k);} _push(evt); };
+if (params.get('giftdemo') === '1') {   // local preview of gift cards (no server, not on air unless this page is the live source)
+  [{tier:'small',text:"Cor blimey, ta for the Rose, Rosie! 🌹"},{tier:'medium',text:"Strike a light! Donna, you're a proper star! Ta! ⭐"},{tier:'big',text:"WAHEY! Big Spender, you absolute legend! Ta ever so! 🏆"},{tier:'huge',text:"HOLD ON TO YER HATS! Hugh, that's ENORMOUS! Ta! 🎆"},{tier:'heartme',text:"Ding! Ta for the Heart Me, Hattie ❤️"},{tier:'request',text:"Rosie's request is at the top of Grumpy's list! 🎶"}]
+    .forEach((g,i)=>setTimeout(()=>push({type:'gift',...g}), 300 + i*100));
+}
+// Show-title takeover: ~20s big centre (light dim, face visible), then a small top banner for the rest of evt.ms.
+let titleTimers = [];
+function showTitle(evt){
+  const box = document.getElementById('showtitle'); if (!box) return;
+  titleTimers.forEach(clearTimeout); titleTimers = [];
+  const ms = Math.max(3000, Math.min(300000, +evt.ms || 15000)), bigMs = Math.min(20000, ms);
+  box.querySelector('.st').textContent = String(evt.show || evt.label || '').slice(0, 60);
+  box.querySelector('.ss').textContent = String(evt.sub || evt.text || '').slice(0, 100);
+  box.querySelectorAll('.tw').forEach(e => e.remove());
+  for (let i = 0; i < 14; i++) { const t = document.createElement('div'); t.className = 'tw'; t.textContent = i % 3 ? '✨' : '⭐'; t.style.left = (5 + Math.random() * 90) + 'vw'; t.style.top = (8 + Math.random() * 80) + 'vh'; t.style.animationDelay = (Math.random() * 1.8) + 's'; box.appendChild(t); }
+  box.classList.remove('mini','vis'); box.classList.add('on');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>box.classList.add('vis')));
+  try { if (window.GiftFX && GiftFX.confetti) GiftFX.confetti('big'); } catch (e) {}
+  if (ms > bigMs) titleTimers.push(setTimeout(()=>box.classList.add('mini'), bigMs));
+  titleTimers.push(setTimeout(()=>{ box.classList.remove('vis'); titleTimers.push(setTimeout(()=>box.classList.remove('on','mini'), 900)); }, ms));
+}
+if (params.get('titletest')) setTimeout(()=>showTitle({ show: '🎵 Featured Album Wednesday! 🎵', sub: 'Tonight: Queen – A Kind of Magic (1986) ✨', ms: +params.get('titletest') > 100 ? +params.get('titletest') : 40000 }), 300);
+if (params.get('nptest')) { const [a,t] = params.get('nptest').split('|'); setTimeout(()=>push({type:'nowplaying', artist:t?a:'', title:t||a}), 300); }
+if (!TEST && !TESTREPLY) {
+  OasisBus.boxStream(CHANNEL ? '/events?channel=test' : '/events', d => push(d));
+}
+</script>
+<script src="xmas-theme.js"></script>
+</body></html>

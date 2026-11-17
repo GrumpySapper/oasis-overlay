@@ -1,6 +1,7 @@
 <!doctype html>
 <html><head>
 <script src="sse-shim.js"></script><meta charset="utf-8"><title>Oasis Radio Overlay</title>
+<!-- Snow cap on the show-title banner; rollback: overlay.pre-snow.html -->
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
 <style>
@@ -90,9 +91,15 @@
   #showtitle .tw{position:absolute;font-size:min(4vh,30px);animation:twinkle 1.8s ease-in-out infinite;filter:drop-shadow(0 0 8px #ffd740)}
   #showtitle.mini .tw{display:none}
   @keyframes twinkle{0%,100%{opacity:.15;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1.2) rotate(30deg)}}
+
+  /* snow cap on the small top show-title banner */
+  #showtitle .wrap{position:relative;overflow:visible}
+  #showtitle.mini .wrap{margin-top:4.6vh}
+  #showtitle .snowcap{display:none}
+  #showtitle.mini .snowcap{display:block}
 </style></head>
 <body>
-<div id="showtitle"><div class="wrap"><div class="st"></div><div class="ss"></div></div></div>
+<div id="showtitle"><div class="wrap" data-snowcap><div class="st"></div><div class="ss"></div></div></div>
 <div id="stage"></div>
 <div id="legend"><div class="crown">👑</div><div class="lg">Legend</div><div class="name"></div><div class="line"></div></div>
 <!-- np-card removed: song box is its own Studio source (nowplaying.html) -->
@@ -437,5 +444,6 @@ if (!TEST && !TESTREPLY) {
   OasisBus.boxStream(CHANNEL ? '/events?channel=test' : '/events', d => push(d));
 }
 </script>
+<script src="xmas-snowcaps.js?v=7"></script>
 <script src="xmas-theme.js"></script>
 </body></html>
