@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Oasis Radio – YouTube banner preview</title>
+<!--
+  Preview only: a 1920x1080 transparent TikTok LIVE overlay layer.
+  Slim lower-third promoting Grumpy's YouTube channels. The centre of the
+  screen is left clear. This file does not replace any existing LIVE page.
+
+  Channels (verified):
+    Grumpy Sapper (show playlists)  https://www.youtube.com/@GrumpySapper
+    SilverShroudMusic (music)       https://www.youtube.com/@SilverShroudMusic
+
+  Query flags:
+    ?preview=1 or ?bg=1  dark background, banner held on screen (for screenshots)
+    ?hold=1              keep the banner visible (no cycle)
+    ?every=120           seconds between appearances (default 120)
+    ?dur=18              seconds the banner stays on screen (default 18)
+-->
+<style>
+  @font-face{
+    font-family:"Mountains of Christmas";
+    font-style:normal;
+    font-weight:700;
+    font-display:swap;
+    src:url("xmas/MountainsOfChristmas-Bold.woff2") format("woff2");
+  }
+  html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    background:transparent;
+    overflow:hidden;
+    pointer-events:none;
+  }
+  body.preview-bg{background:#1c1618}
+  *{box-sizing:border-box;-webkit-user-select:none;user-select:none}
+  #xsnow{
+    position:fixed;inset:0;width:100%;height:100%;
+    z-index:2;pointer-events:none;
+  }
+  #banner-slot{
+    position:fixed;
+    left:50%;
+    bottom:7.2%;
+    transform:translateX(-50%);
+    z-index:10;
+    pointer-events:none;
+    width:max-content;
+    max-width:86vw;
+  }
+  #banner{
+    display:flex;
+    align-items:center;
+    gap:clamp(16px,1.6vw,30px);
+    width:max-content;
+    max-width:100%;
+    padding:16px 34px 16px 20px;
+    border-radius:18px;
+    background:linear-gradient(180deg,rgba(28,12,16,.88),rgba(12,8,12,.90));
+    border:1px solid rgba(255,213,74,.42);
+    box-shadow:
+      0 8px 28px rgba(0,0,0,.45),
+      0 0 0 1px rgba(107,0,16,.35),
+      inset 0 1px 0 rgba(255,213,74,.18);
+    transform:translateY(140%);
+    opacity:0;
+    will-change:transform,opacity;
+  }
+  #banner.show{
+    animation:slideIn .9s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  #banner.hide{
+    animation:slideOut .7s ease-in forwards;
+  }
+  #banner.hold{
+    transform:translateY(0);
+    opacity:1;
+    animation:none;
+  }
+  @keyframes slideIn{
+    0%  {opacity:0;transform:translateY(140%)}
+    100%{opacity:1;transform:translateY(0)}
+  }
+  @keyframes slideOut{
+    0%  {opacity:1;transform:translateY(0)}
+    100%{opacity:0;transform:translateY(140%)}
+  }
+  .yt-icon{
+    flex:0 0 auto;
+    width:58px;
+    height:42px;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));
+  }
+  .copy{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-width:0;
+    gap:2px;
+  }
+  .kicker{
+    font-family:"Mountains of Christmas",Georgia,serif;
+    font-weight:700;
+    font-size:clamp(26px,2.4vw,40px);
+    line-height:1;
+    color:#ffd54a;
+    text-shadow:0 1px 0 #6b0010,0 2px 8px rgba(0,0,0,.55);
+    letter-spacing:.03em;
+    white-space:nowrap;
+  }
+  .channels{
+    display:flex;
+    align-items:baseline;
+    flex-wrap:nowrap;
+    gap:clamp(14px,1.8vw,32px);
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    font-weight:700;
+    font-size:clamp(18px,1.55vw,28px);
+    line-height:1.15;
+    color:#fff;
+    text-shadow:0 1px 2px rgba(0,0,0,.7);
+    letter-spacing:.01em;
+    white-space:nowrap;
+  }
+  .channels .handle{
+    color:#fff;
+  }
+  .channels .note{
+    font-weight:600;
+    font-size:.72em;
+    color:rgba(255,213,74,.88);
+    letter-spacing:.02em;
+  }
+  .channels .dot{
+    color:rgba(255,213,74,.7);
+    font-weight:700;
+    padding:0 .15em;
+  }
+  .rule{
+    width:1px;
+    align-self:stretch;
+    margin:4px 0;
+    background:linear-gradient(180deg,transparent,rgba(255,213,74,.45),transparent);
+    flex:0 0 1px;
+  }
+</style>
+</head>
+<body>
+<canvas id="xsnow" aria-hidden="true"></canvas>
+<div id="banner-slot">
+  <div id="banner" role="img" aria-label="Find us on YouTube. Grumpy Sapper, show playlists, at GrumpySapper. SilverShroudMusic, music, at SilverShroudMusic.">
+    <!-- Simple YouTube-style play mark drawn in SVG (not a copied logo file). -->
+    <svg class="yt-icon" viewBox="0 0 58 42" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="0.5" y="0.5" width="57" height="41" rx="10" ry="10" fill="#e61e25"/>
+      <polygon points="23,11 23,31 41,21" fill="#fff"/>
+    </svg>
+    <div class="copy">
+      <div class="kicker">Find us on YouTube</div>
+      <div class="channels">
+        <span><span class="handle">@GrumpySapper</span> <span class="note">show playlists</span></span>
+        <span class="dot" aria-hidden="true">·</span>
+        <span><span class="handle">@SilverShroudMusic</span> <span class="note">music</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var preview = q.get('preview') === '1' || q.get('bg') === '1';
+  var hold = preview || q.get('hold') === '1';
+  if (preview) document.body.classList.add('preview-bg');
+
+  var el = document.getElementById('banner');
+  var every = parseFloat(q.get('every'));
+  if (!(every > 0)) every = 120;
+  var dur = parseFloat(q.get('dur'));
+  if (!(dur > 0)) dur = 18;
+  if (dur >= every) dur = Math.max(8, every - 4);
+
+  var hideT;
+  function show() {
+    clearTimeout(hideT);
+    el.classList.remove('hold', 'hide', 'show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    if (!hold) {
+      hideT = setTimeout(function () {
+        el.classList.remove('show');
+        el.classList.add('hide');
+      }, dur * 1000);
+    }
+  }
+
+  if (hold) {
+    el.classList.add('hold');
+  } else {
+    setTimeout(function () {
+      show();
+      setInterval(show, every * 1000);
+    }, 800);
+  }
+
+  // Light snow, heavier toward the top so the lower-third stays readable.
+  var c = document.getElementById('xsnow');
+  var x = c.getContext('2d'), W, H, dpr = Math.min(1.5, window.devicePixelRatio || 1);
+  function size() {
+    W = innerWidth; H = innerHeight;
+    c.width = Math.max(1, Math.round(W * dpr));
+    c.height = Math.max(1, Math.round(H * dpr));
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  size();
+  var spr = document.createElement('canvas'); spr.width = spr.height = 32;
+  var s = spr.getContext('2d');
+  var g = s.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.45, 'rgba(240,248,255,.85)');
+  g.addColorStop(1, 'rgba(220,240,255,0)');
+  s.fillStyle = g; s.fillRect(0, 0, 32, 32);
+  var n = Math.max(12, Math.min(22, Math.round(W * H / 110000)));
+  var F = [];
+  for (var i = 0; i < n; i++) {
+    F.push({
+      x: Math.random(),
+      y: Math.random() * 0.62,
+      r: 1.2 + Math.random() * 2.2,
+      v: 0.08 + Math.random() * 0.18,
+      w: Math.random() * 6,
+      a: 0.22 + Math.random() * 0.32
+    });
+  }
+  var last = 0;
+  function tick(ms) {
+    requestAnimationFrame(tick);
+    if (ms - last < 41) return;
+    var dt = Math.min(3, (ms - last) / 16.7); last = ms;
+    x.clearRect(0, 0, W, H);
+    for (var i = 0; i < F.length; i++) {
+      var f = F[i];
+      f.y += f.v * dt * 1.2 / H;
+      f.w += 0.012 * dt;
+      if (f.y > 0.72) { f.y = -0.03; f.x = Math.random(); }
+      var fade = f.y < 0.48 ? 1 : Math.max(0, 1 - (f.y - 0.48) / 0.24);
+      x.globalAlpha = f.a * fade;
+      x.drawImage(spr, f.x * W + Math.sin(f.w) * 8 - f.r, f.y * H - f.r, f.r * 2, f.r * 2);
+    }
+    x.globalAlpha = 1;
+  }
+  requestAnimationFrame(tick);
+  addEventListener('resize', function () {
+    size();
+  });
+})();
+</script>
+</body>
+</html>
