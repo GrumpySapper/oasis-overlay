@@ -222,9 +222,10 @@ window.GiftFX = (function () {
   // ---- Grumpy's voice clips: sounds/thanks/manifest.json = { "clips": [ { "file": "ta-1.mp3", "tier": "any" } ] } ----
   const VOICE = MUTED ? 'off' : (q.get('voice') || 'after');
   const CLIP_BASE = new URL('sounds/thanks/', location.href);
-  let clips = [], lastClip = null; const buffers = {};
+  let clips = [], lastClip = null, clipsReplaceSynth = false; const buffers = {};   // manifest {replaceSynth:true}: clips carry their own bells, so they play instead of the synth
   if (VOICE !== 'off') fetch(new URL('manifest.json', CLIP_BASE), { cache: 'no-store' }).then(r => r.ok ? r.json() : { clips: [] }).then(m => {
     const list = Array.isArray(m) ? m : (m && Array.isArray(m.clips) ? m.clips : []);
+    clipsReplaceSynth = !!(m && m.replaceSynth);
     clips = list.map(x => typeof x === 'string' ? { file: x, tier: 'any' } : x)
       .filter(x => x && typeof x.file === 'string' && /^[\w .()-]+\.(mp3|m4a|ogg|wav|webm)$/i.test(x.file))
       .map(x => ({ file: x.file, tier: ['small', 'medium', 'big', 'huge', 'legend', 'heartme', 'request', 'any'].includes(String(x.tier || 'any').toLowerCase()) ? String(x.tier || 'any').toLowerCase() : 'any' }));
@@ -271,7 +272,7 @@ window.GiftFX = (function () {
       // Returns { running, clip }: clip is a Promise of seconds-until-the-clip-ends (null if no clip / it failed), so the card can wait for it.
       let clipP = Promise.resolve(null);
       if (!clip) synth();
-      else if (VOICE === 'instead' || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) clipP = playClip(c, out, clip.file, t0, who).catch(() => { synth(); return null; });   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
+      else if (VOICE === 'instead' || clipsReplaceSynth || tier === 'heartme' || (tier === 'legend' && clip.tier === 'legend')) clipP = playClip(c, out, clip.file, t0, who).catch(() => { synth(); return null; });   // clip replaces the synth (legend clips carry their own bell + crowd); load failure falls back to the synth
       else { synth(); clipP = playClip(c, out, clip.file, t0 + (SYNTH_LEN[tier] || 0.8), who).catch(() => null); }
       return { running: c.state === 'running', clip: clipP };
     } catch (e) { return null; }
