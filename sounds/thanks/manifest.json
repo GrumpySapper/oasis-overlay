@@ -1,6 +1,6 @@
 {
   "replaceSynth": true,
-  "note": "Grumpy's own-voice Christmas thank-yous (bells built in). Previous set: manifest.pre-grumpyvoice-20261122.json",
+  "note": "Grumpy's own-voice Christmas thank-yous + Santa (stock TTS voice, not cloned), bells built in. Previous: manifest.pre-grumpyvoice-20261122.json",
   "clips": [
     {
       "file": "xg-small-1.mp3",
@@ -60,6 +60,38 @@
     },
     {
       "file": "xg-heartme-2.mp3",
+      "tier": "heartme"
+    },
+    {
+      "file": "xs-small-1.mp3",
+      "tier": "small"
+    },
+    {
+      "file": "xs-small-2.mp3",
+      "tier": "small"
+    },
+    {
+      "file": "xs-medium-1.mp3",
+      "tier": "medium"
+    },
+    {
+      "file": "xs-big-1.mp3",
+      "tier": "big"
+    },
+    {
+      "file": "xs-big-2.mp3",
+      "tier": "big"
+    },
+    {
+      "file": "xs-huge-1.mp3",
+      "tier": "huge"
+    },
+    {
+      "file": "xs-legend-1.mp3",
+      "tier": "legend"
+    },
+    {
+      "file": "xs-heartme-1.mp3",
       "tier": "heartme"
     }
   ]
