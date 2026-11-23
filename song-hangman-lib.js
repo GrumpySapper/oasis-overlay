@@ -2,7 +2,9 @@
    Used by song-hangman.html (overlay) and song-hangman-control.html.
    Preview only: no live pages are changed. Chat play on air needs a small
    Bob backend addition (documented on the control page); this lib also
-   accepts future SSE events of type "hangman" or raw "chat"/"comment". */
+   accepts future SSE events of type "hangman" or raw "chat"/"comment".
+   Answers are always SONG TITLES only. The band/artist is never part of the puzzle;
+   it is an optional hint the host can show (artistHint). */
 (function (root) {
   const LIVES = 7;
   const LETTER_THROTTLE_MS = 1000;
@@ -10,47 +12,76 @@
   const CHANNEL = 'oasis-song-hangman';
   const STORE = 'oasisSongHangman';
 
+  // Answers are SONG TITLES only (never a band). Harder picks: deeper cuts and multi-word titles, 1950s-2020s,
+  // no Christmas songs. year = original release year, used for the decade/year hint.
   const SONGS = [
-    { title: 'Billie Jean', artist: 'Michael Jackson' },
-    { title: 'Beat It', artist: 'Michael Jackson' },
-    { title: 'Thriller', artist: 'Michael Jackson' },
-    { title: 'Take On Me', artist: 'a-ha' },
-    { title: 'Sweet Dreams (Are Made of This)', artist: 'Eurythmics' },
-    { title: 'Everybody Wants to Rule the World', artist: 'Tears for Fears' },
-    { title: "Don't You Want Me", artist: 'The Human League' },
-    { title: 'Girls Just Want to Have Fun', artist: 'Cyndi Lauper' },
-    { title: 'Time After Time', artist: 'Cyndi Lauper' },
-    { title: 'Wake Me Up Before You Go-Go', artist: 'Wham!' },
-    { title: 'Careless Whisper', artist: 'George Michael' },
-    { title: 'Karma Chameleon', artist: 'Culture Club' },
-    { title: 'Hungry Like the Wolf', artist: 'Duran Duran' },
-    { title: 'West End Girls', artist: 'Pet Shop Boys' },
-    { title: "Livin' on a Prayer", artist: 'Bon Jovi' },
-    { title: "Sweet Child O' Mine", artist: "Guns N' Roses" },
-    { title: 'Jump', artist: 'Van Halen' },
-    { title: 'Africa', artist: 'Toto' },
-    { title: 'Every Breath You Take', artist: 'The Police' },
-    { title: 'Walking on Sunshine', artist: 'Katrina and the Waves' },
-    { title: 'I Wanna Dance with Somebody', artist: 'Whitney Houston' },
-    { title: 'Never Gonna Give You Up', artist: 'Rick Astley' },
-    { title: 'Down Under', artist: 'Men at Work' },
-    { title: '99 Red Balloons', artist: 'Nena' },
-    { title: 'You Spin Me Round', artist: 'Dead or Alive' },
-    { title: 'Footloose', artist: 'Kenny Loggins' },
-    { title: 'Ghostbusters', artist: 'Ray Parker Jr.' },
-    { title: 'Eye of the Tiger', artist: 'Survivor' },
-    { title: 'Total Eclipse of the Heart', artist: 'Bonnie Tyler' },
-    { title: "Don't Stop Believin'", artist: 'Journey' },
-    { title: 'Last Christmas', artist: 'Wham!' },
-    { title: 'All I Want for Christmas Is You', artist: 'Mariah Carey' },
-    { title: 'Merry Christmas Everyone', artist: "Shakin' Stevens" },
-    { title: 'Driving Home for Christmas', artist: 'Chris Rea' },
-    { title: "Do They Know It's Christmas?", artist: 'Band Aid' },
-    { title: 'I Wish It Could Be Christmas Everyday', artist: 'Wizzard' },
-    { title: 'Wonderful Christmastime', artist: 'Paul McCartney' },
-    { title: 'Jingle Bell Rock', artist: 'Bobby Helms' },
-    { title: 'Rockin\' Around the Christmas Tree', artist: 'Brenda Lee' },
-    { title: 'Step Into Christmas', artist: 'Elton John' }
+    { title: "Whole Lotta Shakin' Goin' On", artist: "Jerry Lee Lewis", year: 1957 },
+    { title: "Smoke Gets in Your Eyes", artist: "The Platters", year: 1958 },
+    { title: "Summertime Blues", artist: "Eddie Cochran", year: 1958 },
+    { title: "Lonely Teardrops", artist: "Jackie Wilson", year: 1958 },
+    { title: "Rave On", artist: "Buddy Holly", year: 1958 },
+    { title: "Mack the Knife", artist: "Bobby Darin", year: 1959 },
+    { title: "Mr. Tambourine Man", artist: "The Byrds", year: 1965 },
+    { title: "The Tracks of My Tears", artist: "The Miracles", year: 1965 },
+    { title: "Reach Out I'll Be There", artist: "Four Tops", year: 1966 },
+    { title: "Waterloo Sunset", artist: "The Kinks", year: 1967 },
+    { title: "Nights in White Satin", artist: "The Moody Blues", year: 1967 },
+    { title: "A Whiter Shade of Pale", artist: "Procol Harum", year: 1967 },
+    { title: "Sunshine of Your Love", artist: "Cream", year: 1967 },
+    { title: "All Along the Watchtower", artist: "The Jimi Hendrix Experience", year: 1968 },
+    { title: "Gimme Shelter", artist: "The Rolling Stones", year: 1969 },
+    { title: "Life on Mars?", artist: "David Bowie", year: 1971 },
+    { title: "Tiny Dancer", artist: "Elton John", year: 1971 },
+    { title: "Won't Get Fooled Again", artist: "The Who", year: 1971 },
+    { title: "Go Your Own Way", artist: "Fleetwood Mac", year: 1976 },
+    { title: "Year of the Cat", artist: "Al Stewart", year: 1976 },
+    { title: "More Than a Feeling", artist: "Boston", year: 1976 },
+    { title: "Hold the Line", artist: "Toto", year: 1978 },
+    { title: "Hong Kong Garden", artist: "Siouxsie and the Banshees", year: 1978 },
+    { title: "Ever Fallen in Love", artist: "Buzzcocks", year: 1978 },
+    { title: "Down in the Tube Station at Midnight", artist: "The Jam", year: 1978 },
+    { title: "Wuthering Heights", artist: "Kate Bush", year: 1978 },
+    { title: "Once in a Lifetime", artist: "Talking Heads", year: 1980 },
+    { title: "Love Will Tear Us Apart", artist: "Joy Division", year: 1980 },
+    { title: "Enola Gay", artist: "Orchestral Manoeuvres in the Dark", year: 1980 },
+    { title: "Fade to Grey", artist: "Visage", year: 1980 },
+    { title: "Ghost Town", artist: "The Specials", year: 1981 },
+    { title: "Rebel Yell", artist: "Billy Idol", year: 1983 },
+    { title: "Here Comes the Rain Again", artist: "Eurythmics", year: 1984 },
+    { title: "The Killing Moon", artist: "Echo & the Bunnymen", year: 1984 },
+    { title: "Don't You (Forget About Me)", artist: "Simple Minds", year: 1985 },
+    { title: "Hounds of Love", artist: "Kate Bush", year: 1985 },
+    { title: "There Is a Light That Never Goes Out", artist: "The Smiths", year: 1986 },
+    { title: "Give It Away", artist: "Red Hot Chili Peppers", year: 1991 },
+    { title: "Disarm", artist: "The Smashing Pumpkins", year: 1993 },
+    { title: "Black Hole Sun", artist: "Soundgarden", year: 1994 },
+    { title: "Live Forever", artist: "Oasis", year: 1994 },
+    { title: "Champagne Supernova", artist: "Oasis", year: 1995 },
+    { title: "Common People", artist: "Pulp", year: 1995 },
+    { title: "Fake Plastic Trees", artist: "Radiohead", year: 1995 },
+    { title: "Bitter Sweet Symphony", artist: "The Verve", year: 1997 },
+    { title: "Somebody Told Me", artist: "The Killers", year: 2004 },
+    { title: "Take Me Out", artist: "Franz Ferdinand", year: 2004 },
+    { title: "I Bet You Look Good on the Dancefloor", artist: "Arctic Monkeys", year: 2005 },
+    { title: "Open Your Eyes", artist: "Snow Patrol", year: 2006 },
+    { title: "Fluorescent Adolescent", artist: "Arctic Monkeys", year: 2007 },
+    { title: "Dog Days Are Over", artist: "Florence and the Machine", year: 2008 },
+    { title: "Pumped Up Kicks", artist: "Foster the People", year: 2010 },
+    { title: "Little Talks", artist: "Of Monsters and Men", year: 2011 },
+    { title: "Tongue Tied", artist: "Grouplove", year: 2011 },
+    { title: "Midnight City", artist: "M83", year: 2011 },
+    { title: "Do I Wanna Know?", artist: "Arctic Monkeys", year: 2013 },
+    { title: "Riptide", artist: "Vance Joy", year: 2013 },
+    { title: "The Less I Know the Better", artist: "Tame Impala", year: 2015 },
+    { title: "Green Light", artist: "Lorde", year: 2017 },
+    { title: "Cornelia Street", artist: "Taylor Swift", year: 2019 },
+    { title: "Heat Waves", artist: "Glass Animals", year: 2020 },
+    { title: "Pink Pony Club", artist: "Chappell Roan", year: 2020 },
+    { title: "Late Night Talking", artist: "Harry Styles", year: 2022 },
+    { title: "Bad Habit", artist: "Steve Lacy", year: 2022 },
+    { title: "Kill Bill", artist: "SZA", year: 2022 },
+    { title: "Paint the Town Red", artist: "Doja Cat", year: 2023 },
+    { title: "Good Luck, Babe!", artist: "Chappell Roan", year: 2024 }
   ];
 
   function norm(s) {
@@ -72,6 +103,7 @@
     return new Set(String(s || '').toUpperCase().replace(/[^A-Z]/g, '').split(''));
   }
 
+  // Letters of the answer. Pass only the title: the band is never guessed.
   function allLetters(title, artist) {
     const set = new Set();
     lettersOf(title).forEach(function (ch) { set.add(ch); });
@@ -86,6 +118,8 @@
       puzzleId: null,
       title: '',
       artist: '',
+      year: null,
+      yearHint: null,
       revealed: [],
       wrong: [],
       lives: LIVES,
@@ -97,7 +131,8 @@
       customSongs: [],
       lastAcceptedAt: 0,
       userCooldown: {},
-      startedAt: 0
+      startedAt: 0,
+      artistHint: false
     };
   }
 
@@ -120,7 +155,7 @@
   }
 
   function isComplete(state) {
-    const need = allLetters(state.title, state.artist);
+    const need = allLetters(state.title);
     if (!need.size) return false;
     return Array.from(need).every(function (ch) { return state.revealed.indexOf(ch) >= 0; });
   }
@@ -158,7 +193,9 @@
       roundId: (s.roundId || 0) + 1,
       puzzleId: id,
       title: p.title,
-      artist: p.artist,
+      artist: p.artist || '',
+      year: p.year || null,
+      yearHint: null,
       revealed: [],
       wrong: [],
       lives: LIVES,
@@ -170,7 +207,8 @@
       customSongs: s.customSongs || [],
       lastAcceptedAt: 0,
       userCooldown: {},
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      artistHint: false
     };
   }
 
@@ -205,7 +243,7 @@
     if (!host && s.lastAcceptedAt && now - s.lastAcceptedAt < LETTER_THROTTLE_MS) {
       return { ok: true, accepted: false, reason: 'throttle', letter: ch, state: s, retry: true };
     }
-    const need = allLetters(s.title, s.artist);
+    const need = allLetters(s.title);
     const correct = need.has(ch);
     s.lastAcceptedAt = now;
     markCooldown(s, name, now);
@@ -266,7 +304,7 @@
       pushRecent(s, name, raw, false, 'solve', now);
       return { ok: true, accepted: true, correct: false, reason: 'wrong-solve', state: s };
     }
-    s.revealed = Array.from(allLetters(s.title, s.artist));
+    s.revealed = Array.from(allLetters(s.title));
     s.phase = 'won';
     s.winner = { name: String(name || 'Viewer').trim() || 'Viewer', how: 'solve' };
     s.leaderboard = award(s, name);
@@ -287,7 +325,7 @@
   function revealLetter(state) {
     const s = clone(state);
     if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
-    const hidden = Array.from(allLetters(s.title, s.artist)).filter(function (ch) {
+    const hidden = Array.from(allLetters(s.title)).filter(function (ch) {
       return s.revealed.indexOf(ch) < 0;
     });
     if (!hidden.length) return { ok: false, reason: 'none-left', state: s };
@@ -306,15 +344,47 @@
     const s = clone(state);
     if (s.phase !== 'playing' && s.phase !== 'idle') {
       if (s.title) {
-        s.revealed = Array.from(allLetters(s.title, s.artist));
+        s.revealed = Array.from(allLetters(s.title));
         if (s.phase === 'playing') s.phase = 'revealed';
       }
       return { ok: true, state: s };
     }
     if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
-    s.revealed = Array.from(allLetters(s.title, s.artist));
+    s.revealed = Array.from(allLetters(s.title));
     s.phase = 'revealed';
     s.winner = null;
+    return { ok: true, state: s };
+  }
+
+  // Main hint: first press shows the decade, a second press the exact year.
+  function hintYear(state) {
+    const s = clone(state);
+    if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
+    if (!s.year) return { ok: false, reason: 'no-year-for-this-song', state: s };
+    if (s.yearHint === 'year') return { ok: false, reason: 'year-already-shown', state: s };
+    s.yearHint = s.yearHint === 'decade' ? 'year' : 'decade';
+    pushRecent(s, 'Grumpy', s.yearHint === 'year' ? 'Year hint' : 'Decade hint', true, 'hint', Date.now());
+    return { ok: true, state: s };
+  }
+
+  // Text of the hints currently on screen, e.g. "1970s" or "1977 · Fleetwood Mac".
+  function hintText(state) {
+    const st = state || {}, parts = [];
+    const done = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
+    if (st.year && (done || st.yearHint === 'year')) parts.push(String(st.year));
+    else if (st.year && st.yearHint === 'decade') parts.push((Math.floor(st.year / 10) * 10) + 's');
+    if (st.artist && (done || st.artistHint)) parts.push(st.artist);
+    return parts.join(' · ');
+  }
+
+  // Optional extra hint: show the band under the song (the band is never an answer).
+  function hintArtist(state) {
+    const s = clone(state);
+    if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
+    if (!String(s.artist || '').trim()) return { ok: false, reason: 'no-band-for-this-song', state: s };
+    if (s.artistHint) return { ok: false, reason: 'band-already-shown', state: s };
+    s.artistHint = true;
+    pushRecent(s, 'Grumpy', 'Band hint', true, 'hint', Date.now());
     return { ok: true, state: s };
   }
 
@@ -322,12 +392,13 @@
     return { ok: true, state: startNext(state, opts) };
   }
 
-  function addSong(state, title, artist, play) {
+  function addSong(state, title, artist, play, year) {
     const s = clone(state);
     const t = String(title || '').trim();
     const a = String(artist || '').trim();
-    if (!t || !a) return { ok: false, reason: 'need-title-artist', state: s };
-    const song = { title: t, artist: a, id: 'custom-' + Date.now() };
+    if (!t || !/[a-z]/i.test(t)) return { ok: false, reason: 'need-song-title', state: s };
+    const y = parseInt(year, 10);
+    const song = { title: t, artist: a, year: (y >= 1900 && y <= 2100) ? y : null, id: 'custom-' + Date.now() };
     s.customSongs = (s.customSongs || []).concat([song]);
     if (play) return { ok: true, added: song, state: startNext(s, { puzzle: song }) };
     return { ok: true, added: song, state: s };
@@ -339,7 +410,9 @@
     if (type === 'skip') return skip(state, action);
     if (type === 'reveal-letter') return revealLetter(state);
     if (type === 'reveal-answer') return revealAnswer(state);
-    if (type === 'add-song') return addSong(state, action.title, action.artist, !!action.play);
+    if (type === 'hint-artist') return hintArtist(state);
+    if (type === 'hint-year') return hintYear(state);
+    if (type === 'add-song') return addSong(state, action.title, action.artist, !!action.play, action.year);
     if (type === 'guess') return guessLetter(state, action.letter, action.name, now, action);
     if (type === 'solve' || type === 'chat') {
       return handleChat(state, action.name, action.text || action.guess, now, action);
@@ -404,6 +477,9 @@
     revealLetter: revealLetter,
     revealAnswer: revealAnswer,
     skip: skip,
+    hintArtist: hintArtist,
+    hintYear: hintYear,
+    hintText: hintText,
     addSong: addSong,
     applyAction: applyAction,
     tokens: tokens,

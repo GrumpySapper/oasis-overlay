@@ -68,6 +68,7 @@
     background:linear-gradient(160deg,#0a2a1c,#3a0d16); z-index:0; }
   #board > * { position:relative; z-index:1; }
   .row-label { font:800 20px/1 'Outfit'; letter-spacing:.2em; color:var(--gold); text-align:center; margin:6px 0 10px; text-shadow:0 2px 0 #000; }
+  .hintline { font:800 44px Outfit, sans-serif; color:#ffe28a; text-align:center; letter-spacing:2px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
   .words { display:flex; flex-wrap:wrap; justify-content:center; gap:14px 22px; margin-bottom:16px; }
   .word { display:flex; gap:8px; }
   .tile { width:var(--tw,70px); height:var(--th,84px); border-radius:14px; display:flex; align-items:center; justify-content:center;
@@ -141,8 +142,8 @@
   <div id="panel">
     <div id="brand">OASIS RADIO</div>
     <h1 id="title">Song Hangman</h1>
-    <div id="cat">SONG – BAND</div>
-    <div id="how">Type a <b>letter</b> in chat — or guess the song!</div>
+    <div id="cat">GUESS THE SONG TITLE</div>
+    <div id="how">Type a <b>letter</b> in chat — or type the song title!</div>
     <div id="status">
       <div id="badge" class="idle">GET READY</div>
       <div id="lives" aria-label="lives"></div>
@@ -150,7 +151,7 @@
     <div id="board">
       <div class="row-label">SONG</div>
       <div class="words" id="titleRow"></div>
-      <div class="row-label">BAND</div>
+      <div class="row-label" id="artistLbl">HINT</div>
       <div class="words" id="artistRow"></div>
     </div>
     <div id="usedWrap">
@@ -329,16 +330,20 @@
     const just = opts && opts.just;
     const st = state;
     const showAll = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
-    const sz = tileSize(st.title || 'SONG', st.artist || 'BAND');
+    const sz = tileSize(st.title || 'SONG', '');
     document.getElementById('board').style.setProperty('--tw', sz.tw + 'px');
     document.getElementById('board').style.setProperty('--th', sz.th + 'px');
     document.getElementById('board').style.setProperty('--tf', sz.tf + 'px');
     if (st.phase === 'idle' || !st.title) {
       $('titleRow').innerHTML = '<div class="empty" style="font:700 28px Outfit;color:#ffe28a;text-align:center;width:100%">Waiting for the next song…</div>';
       $('artistRow').innerHTML = '';
+      $('artistLbl').style.visibility = 'hidden';
     } else {
       renderLine($('titleRow'), st.title, st.revealed, just, showAll);
-      renderLine($('artistRow'), st.artist, st.revealed, just, showAll);
+      // Answers are the song title only; this row only ever shows hints (decade/year, band if Grumpy chooses).
+      const hint = H.hintText(st);
+      $('artistLbl').style.visibility = hint ? '' : 'hidden';
+      $('artistRow').innerHTML = hint ? '<div class="hintline">' + esc(hint) + '</div>' : '';
     }
     const badge = $('badge');
     badge.className = st.phase || 'idle';
@@ -384,7 +389,7 @@
     $('bnTop').textContent = top;
     $('bnBig').textContent = big || (st.phase === 'lost' ? 'Ho ho no!' : '');
     $('bnSub').textContent = sub;
-    $('bnSong').textContent = st.title ? (st.title + '  –  ' + st.artist) : '';
+    $('bnSong').textContent = st.title ? (st.title + (st.artist ? '  –  ' + st.artist : '') + (st.year ? '  (' + st.year + ')' : '')) : '';
     const b = $('banner');
     b.classList.remove('on'); void b.offsetWidth; b.classList.add('on');
     if (celebrate) { confetti(); jingle(true); } else if (st.phase === 'lost') jingle(false);
@@ -504,16 +509,17 @@
   // ----- demo / shot -----
   const FAKE = ['Holly Hannah', 'Snowball Sam', 'Jingle Jess', 'Mistletoe Mike', 'Neon Nina', 'Cassette Kev', 'Candy Cane Kim', 'Tinsel Tom'];
   function shotState() {
-    const s = H.startNext(H.emptyState(), { puzzle: { title: 'Last Christmas', artist: 'Wham!' } });
-    s.revealed = ['L', 'A', 'S', 'T', 'C', 'H', 'M'];
+    const s = H.startNext(H.emptyState(), { puzzle: { title: 'Go Your Own Way', artist: 'Fleetwood Mac', year: 1976 } });
+    s.revealed = ['O', 'A', 'W'];
     s.wrong = ['Q', 'Z', 'K'];
     s.livesLeft = 4;
+    s.yearHint = 'decade';
     s.recent = [
-      { name: 'Holly Hannah', guess: 'L', ok: true, kind: 'letter', t: 1 },
+      { name: 'Holly Hannah', guess: 'O', ok: true, kind: 'letter', t: 1 },
       { name: 'Snowball Sam', guess: 'Q', ok: false, kind: 'letter', t: 2 },
       { name: 'Jingle Jess', guess: 'A', ok: true, kind: 'letter', t: 3 },
       { name: 'Tinsel Tom', guess: 'Z', ok: false, kind: 'letter', t: 4 },
-      { name: 'Neon Nina', guess: 'M', ok: true, kind: 'letter', t: 5 }
+      { name: 'Neon Nina', guess: 'W', ok: true, kind: 'letter', t: 5 }
     ];
     s.leaderboard = [{ name: 'Holly Hannah', solves: 2 }, { name: 'Jingle Jess', solves: 1 }];
     return s;
@@ -524,21 +530,21 @@
   } else if (DEMO) {
     $('conn').classList.add('demo');
     const script = [
-      ['Holly Hannah', 'L'], ['Snowball Sam', 'S'], ['Mistletoe Mike', 'Q'],
+      ['Holly Hannah', 'O'], ['Snowball Sam', 'S'], ['Mistletoe Mike', 'R'],
       ['Jingle Jess', 'T'], ['Neon Nina', 'A'], ['Tinsel Tom', 'Z'],
-      ['Candy Cane Kim', 'C'], ['Cassette Kev', 'H'], ['Holly Hannah', 'M'],
-      ['Snowball Sam', 'K'], ['Jingle Jess', 'Last Christmas']
+      ['Candy Cane Kim', 'W'], ['Cassette Kev', 'E'], ['Holly Hannah', 'Y'],
+      ['Snowball Sam', 'K'], ['Jingle Jess', 'Go Your Own Way']
     ];
     let i = 0, first = true;
     function cycle() {
-      apply({ type: 'next', puzzle: first ? { title: 'Last Christmas', artist: 'Wham!' } : undefined });
+      apply({ type: 'next', puzzle: first ? { title: 'Go Your Own Way', artist: 'Fleetwood Mac', year: 1976 } : undefined });
       first = false; i = 0;
       const iv = setInterval(function () {
         if (state.phase !== 'playing') { clearInterval(iv); setTimeout(cycle, 7000); return; }
-        if (i < script.length && state.title === 'Last Christmas') {
+        if (i < script.length && state.title === 'Go Your Own Way') {
           const g = script[i++]; enqueue(g[0], g[1]);
         } else {
-          const need = Array.from(H.allLetters(state.title, state.artist)).filter(function (ch) { return state.revealed.indexOf(ch) < 0; });
+          const need = Array.from(H.allLetters(state.title)).filter(function (ch) { return state.revealed.indexOf(ch) < 0; });
           const name = FAKE[i % FAKE.length]; i++;
           if (need.length && Math.random() < 0.18) enqueue(name, state.title);
           else if (need.length && Math.random() < 0.7) enqueue(name, need[Math.floor(Math.random() * need.length)]);
