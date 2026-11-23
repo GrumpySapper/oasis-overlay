@@ -3,8 +3,8 @@
    Preview only: no live pages are changed. Chat play on air needs a small
    Bob backend addition (documented on the control page); this lib also
    accepts future SSE events of type "hangman" or raw "chat"/"comment".
-   Answers are always SONG TITLES only. The band/artist is never part of the puzzle;
-   it is an optional hint the host can show (artistHint). */
+   The puzzle is the SONG TITLE and the BAND, both hidden as letter blanks. Letters count if they are in
+   either; typing the title (or "title by band") solves it. The decade/year is an optional host hint. */
 (function (root) {
   const LIVES = 7;
   const LETTER_THROTTLE_MS = 1000;
@@ -12,7 +12,7 @@
   const CHANNEL = 'oasis-song-hangman';
   const STORE = 'oasisSongHangman';
 
-  // Answers are SONG TITLES only (never a band). Harder picks: deeper cuts and multi-word titles, 1950s-2020s,
+  // Puzzle = song title + band. Harder picks: deeper cuts and multi-word titles, 1950s-2020s,
   // no Christmas songs. year = original release year, used for the decade/year hint.
   const SONGS = [
     { title: "Whole Lotta Shakin' Goin' On", artist: "Jerry Lee Lewis", year: 1957 },
@@ -103,7 +103,6 @@
     return new Set(String(s || '').toUpperCase().replace(/[^A-Z]/g, '').split(''));
   }
 
-  // Letters of the answer. Pass only the title: the band is never guessed.
   function allLetters(title, artist) {
     const set = new Set();
     lettersOf(title).forEach(function (ch) { set.add(ch); });
@@ -131,8 +130,7 @@
       customSongs: [],
       lastAcceptedAt: 0,
       userCooldown: {},
-      startedAt: 0,
-      artistHint: false
+      startedAt: 0
     };
   }
 
@@ -155,7 +153,7 @@
   }
 
   function isComplete(state) {
-    const need = allLetters(state.title);
+    const need = allLetters(state.title, state.artist);
     if (!need.size) return false;
     return Array.from(need).every(function (ch) { return state.revealed.indexOf(ch) >= 0; });
   }
@@ -207,8 +205,7 @@
       customSongs: s.customSongs || [],
       lastAcceptedAt: 0,
       userCooldown: {},
-      startedAt: Date.now(),
-      artistHint: false
+      startedAt: Date.now()
     };
   }
 
@@ -243,7 +240,7 @@
     if (!host && s.lastAcceptedAt && now - s.lastAcceptedAt < LETTER_THROTTLE_MS) {
       return { ok: true, accepted: false, reason: 'throttle', letter: ch, state: s, retry: true };
     }
-    const need = allLetters(s.title);
+    const need = allLetters(s.title, s.artist);
     const correct = need.has(ch);
     s.lastAcceptedAt = now;
     markCooldown(s, name, now);
@@ -304,7 +301,7 @@
       pushRecent(s, name, raw, false, 'solve', now);
       return { ok: true, accepted: true, correct: false, reason: 'wrong-solve', state: s };
     }
-    s.revealed = Array.from(allLetters(s.title));
+    s.revealed = Array.from(allLetters(s.title, s.artist));
     s.phase = 'won';
     s.winner = { name: String(name || 'Viewer').trim() || 'Viewer', how: 'solve' };
     s.leaderboard = award(s, name);
@@ -325,7 +322,7 @@
   function revealLetter(state) {
     const s = clone(state);
     if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
-    const hidden = Array.from(allLetters(s.title)).filter(function (ch) {
+    const hidden = Array.from(allLetters(s.title, s.artist)).filter(function (ch) {
       return s.revealed.indexOf(ch) < 0;
     });
     if (!hidden.length) return { ok: false, reason: 'none-left', state: s };
@@ -344,13 +341,13 @@
     const s = clone(state);
     if (s.phase !== 'playing' && s.phase !== 'idle') {
       if (s.title) {
-        s.revealed = Array.from(allLetters(s.title));
+        s.revealed = Array.from(allLetters(s.title, s.artist));
         if (s.phase === 'playing') s.phase = 'revealed';
       }
       return { ok: true, state: s };
     }
     if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
-    s.revealed = Array.from(allLetters(s.title));
+    s.revealed = Array.from(allLetters(s.title, s.artist));
     s.phase = 'revealed';
     s.winner = null;
     return { ok: true, state: s };
@@ -367,25 +364,13 @@
     return { ok: true, state: s };
   }
 
-  // Text of the hints currently on screen, e.g. "1970s" or "1977 · Fleetwood Mac".
+  // Decade/year hint text on screen, e.g. "1970s" or "1977" (the band is on the board as blanks).
   function hintText(state) {
     const st = state || {}, parts = [];
     const done = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
     if (st.year && (done || st.yearHint === 'year')) parts.push(String(st.year));
     else if (st.year && st.yearHint === 'decade') parts.push((Math.floor(st.year / 10) * 10) + 's');
-    if (st.artist && (done || st.artistHint)) parts.push(st.artist);
     return parts.join(' · ');
-  }
-
-  // Optional extra hint: show the band under the song (the band is never an answer).
-  function hintArtist(state) {
-    const s = clone(state);
-    if (s.phase !== 'playing') return { ok: false, reason: 'not-playing', state: s };
-    if (!String(s.artist || '').trim()) return { ok: false, reason: 'no-band-for-this-song', state: s };
-    if (s.artistHint) return { ok: false, reason: 'band-already-shown', state: s };
-    s.artistHint = true;
-    pushRecent(s, 'Grumpy', 'Band hint', true, 'hint', Date.now());
-    return { ok: true, state: s };
   }
 
   function skip(state, opts) {
@@ -410,7 +395,6 @@
     if (type === 'skip') return skip(state, action);
     if (type === 'reveal-letter') return revealLetter(state);
     if (type === 'reveal-answer') return revealAnswer(state);
-    if (type === 'hint-artist') return hintArtist(state);
     if (type === 'hint-year') return hintYear(state);
     if (type === 'add-song') return addSong(state, action.title, action.artist, !!action.play, action.year);
     if (type === 'guess') return guessLetter(state, action.letter, action.name, now, action);
@@ -477,7 +461,6 @@
     revealLetter: revealLetter,
     revealAnswer: revealAnswer,
     skip: skip,
-    hintArtist: hintArtist,
     hintYear: hintYear,
     hintText: hintText,
     addSong: addSong,

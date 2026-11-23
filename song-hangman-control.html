@@ -74,7 +74,6 @@
   </div>
   <div class="row">
     <button class="hint" id="bYear">📅 Hint: decade, then year</button>
-    <button class="ghost" id="bBand">🎤 Band hint (optional)</button>
   </div>
   <div class="row">
     <button class="ghost" id="bIdle">🧹 Clear the board (back to "Waiting…")</button>
@@ -86,7 +85,7 @@
   <div style="font-weight:800">Add a custom song</div>
   <label for="ctitle">Song title</label>
   <input id="ctitle" placeholder="Go Your Own Way">
-  <label for="cartist">Band / artist (optional – only ever shown as a hint)</label>
+  <label for="cartist">Band / artist (hidden as blanks, part of the puzzle)</label>
   <input id="cartist" placeholder="Fleetwood Mac">
   <label for="cyear">Year (optional – for the decade/year hint)</label>
   <input id="cyear" inputmode="numeric" placeholder="1976">
@@ -116,7 +115,7 @@
   <div class="small">
     Press <b>Next puzzle</b>, then tell chat: <i>"Type ONE letter to guess, or type the song title to solve it!"</i><br>
     • A single letter (A–Z) is a guess. Right letters light up; each wrong letter adds a piece to the snowman (7 lives).<br>
-    • Answers are always the <b>song title</b> – never the band. Typing the title solves it (small typos are fine). Hints are sparing: <b>📅 Hint</b> shows the decade, press again for the year. The band stays hidden unless you press <b>Band hint</b>. Ordinary chat is ignored.<br>
+    • The puzzle is the <b>song title and the band</b>, both as blanks; a letter counts if it is in either. Typing the title solves it, or "title by band" / "title - band" (small typos are fine). The band shows when the round ends. Hints are sparing: <b>📅 Hint</b> shows the decade, press again for the year. Ordinary chat is ignored.<br>
     • Each viewer can guess every 4 seconds; letters already guessed are free and ignored.<br>
     When a round ends, press <b>Next puzzle</b> for another, or <b>Clear the board</b> to go back to "Waiting…".
     Studio layer: <code>song-hangman.html</code> (add <code>?bg=clear</code> for a transparent background). The answer only shows on this page once your key is saved.
@@ -171,7 +170,7 @@
     $('linkMode').textContent = mode === 'api' ? 'Linked to Bob’s hangman API' : 'Local preview (this browser). Open the overlay on this computer to see it update.';
     if (!st.title) $('answer').innerHTML = 'No puzzle yet';
     else if (st.masked) $('answer').innerHTML = 'Answer hidden – tap <b>Change key</b> and save your key to see it';
-    else $('answer').innerHTML = 'Answer (song title): <span>' + esc(st.title) + '</span>' + (st.artist ? ' <span class="small">– band hint: ' + esc(st.artist) + (st.artistHint ? ' (shown)' : ' (hidden)') + '</span>' : '') + (st.year ? ' <span class="small">· ' + st.year + (st.yearHint ? ' (' + st.yearHint + ' shown)' : '') + '</span>' : '');
+    else $('answer').innerHTML = 'Answer: <span>' + esc(st.title) + '</span>' + (st.artist ? ' – by <span>' + esc(st.artist) + '</span>' : '') + (st.year ? ' <span class="small">· ' + st.year + (st.yearHint ? ' (' + st.yearHint + ' shown)' : '') + '</span>' : '');
     const left = st.livesLeft == null ? 7 : st.livesLeft;
     $('lives').textContent = 'Lives: ' + '●'.repeat(left) + '○'.repeat(Math.max(0, (st.lives || 7) - left)) + '  (' + left + ' / ' + (st.lives || 7) + ')';
     const letters = [];
@@ -180,12 +179,11 @@
     $('letters').innerHTML = letters.length ? letters.join('') : '<span class="small">None yet</span>';
     if (st.title) {
       const showAll = st.phase === 'won' || st.phase === 'lost' || st.phase === 'revealed';
-      $('preview').innerHTML = mini(st.title, st.revealed || [], showAll);
+      $('preview').innerHTML = mini(st.title, st.revealed || [], showAll) + (st.artist ? '<br>' + mini(st.artist, st.revealed || [], showAll) : '');
     } else $('preview').innerHTML = '';
     const playing = st.phase === 'playing';
     $('bHint').disabled = !playing;
     $('bReveal').disabled = !playing;
-    $('bBand').disabled = !playing || !st.artist || !!st.artistHint;
     $('bYear').disabled = !playing || !st.year || st.yearHint === 'year';
     $('bSkip').disabled = !playing && st.phase === 'idle';
     const lb = st.leaderboard || [];
@@ -235,7 +233,6 @@
   $('bHint').onclick = function () { call('reveal-letter', {}, { type: 'reveal-letter' }, '✅ Hint letter up'); };
   $('bReveal').onclick = function () { if (confirm('Reveal the answer on screen?')) call('reveal', {}, { type: 'reveal-answer' }, '✅ Answer revealed'); };
   $('bYear').onclick = function () { call('hint-year', {}, { type: 'hint-year' }, '✅ Hint on screen'); };
-  $('bBand').onclick = function () { call('hint-artist', {}, { type: 'hint-artist' }, '✅ Band hint on screen'); };
   $('bSkip').onclick = function () { if (confirm('Skip this song and start the next one?')) call('skip', {}, { type: 'skip' }, '✅ Skipped'); };
   $('bAdd').onclick = function () {
     const t = $('ctitle').value.trim(), a = $('cartist').value.trim(), y = $('cyear').value.trim();
