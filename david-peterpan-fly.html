@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oasis Radio – David as Peter Pan (flying overlay)</title>
+<meta name="viewport" content="width=720, height=1280, initial-scale=1">
+<style>
+  /* TikTok LIVE Studio Link / browser source: 720 x 1280, transparent background.
+     David stays on screen in a lower corner (default right) with a gentle idle hover.
+     Every 60s (override with ?every=N seconds) he flies a 15s Peter Pan swoop
+     with a fairy-dust trail, then returns to his rest spot.
+     Params:  ?pos=left|right  ?every=<sec>  ?test=1 (first flight after 1s)
+              ?t=<sec> seek into the first flight (for previews)  ?dbg=1 dark bg */
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 720px;
+    height: 1280px;
+    overflow: hidden;
+    background: transparent !important;
+  }
+  body.dbg { background: #111 !important; }
+  #stage {
+    position: relative;
+    width: 720px;
+    height: 1280px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  #sparkles {
+    position: absolute;
+    inset: 0;
+    width: 720px;
+    height: 1280px;
+    pointer-events: none;
+  }
+  #david {
+    position: absolute;
+    bottom: 28px;
+    height: 460px;
+    width: auto;
+    transform-origin: 50% 55%;
+    will-change: transform;
+    z-index: 2;
+  }
+  body.right #david { right: 16px; left: auto; }
+  body.left  #david { left: 16px;  right: auto; }
+  #bobber {
+    height: 100%;
+    width: auto;
+    transform-origin: 50% 50%;
+    animation: idleHover 3.4s ease-in-out infinite;
+  }
+  #david img {
+    display: block;
+    height: 460px;
+    width: auto;
+    background: transparent;
+    filter: drop-shadow(0 8px 10px rgba(0,0,0,.4)) drop-shadow(0 0 10px rgba(160,255,120,.18));
+  }
+  @keyframes idleHover {
+    0%, 100% { transform: translateY(0) rotate(-1.6deg); }
+    50%      { transform: translateY(-7px) rotate(1.8deg); }
+  }
+  /* Flight paths are relative to the rest corner. 0% and 100% are identity so the loop is seamless. */
+  body.right #david.flying {
+    animation: flyRight 15s ease-in-out both;
+  }
+  body.left #david.flying {
+    animation: flyLeft 15s ease-in-out both;
+  }
+  @keyframes flyRight {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    8%   { transform: translate(4px, -250px) rotate(-20deg); }
+    18%  { transform: translate(-170px, -560px) rotate(-26deg); }
+    28%  { transform: translate(-240px, -720px) rotate(6deg); }
+    40%  { transform: translate(-450px, -660px) rotate(16deg); }
+    52%  { transform: translate(-460px, -300px) rotate(20deg); }
+    62%  { transform: translate(-450px, -24px) rotate(-8deg); }
+    72%  { transform: translate(-200px, -80px) rotate(12deg); }
+    82%  { transform: translate(-40px, -380px) rotate(-18deg); }
+    92%  { transform: translate(4px, -120px) rotate(8deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
+  @keyframes flyLeft {
+    0%   { transform: translate(0, 0) rotate(0deg); }
+    8%   { transform: translate(-4px, -250px) rotate(20deg); }
+    18%  { transform: translate(170px, -560px) rotate(26deg); }
+    28%  { transform: translate(240px, -720px) rotate(-6deg); }
+    40%  { transform: translate(450px, -660px) rotate(-16deg); }
+    52%  { transform: translate(460px, -300px) rotate(-20deg); }
+    62%  { transform: translate(450px, -24px) rotate(8deg); }
+    72%  { transform: translate(200px, -80px) rotate(-12deg); }
+    82%  { transform: translate(40px, -380px) rotate(18deg); }
+    92%  { transform: translate(-4px, -120px) rotate(-8deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
+</style>
+</head>
+<body>
+<div id="stage" aria-hidden="true">
+  <canvas id="sparkles" width="720" height="1280"></canvas>
+  <div id="david">
+    <div id="bobber">
+      <img src="images/david-peter-pan.png?v=1" alt="" decoding="async">
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var every = parseFloat(q.get('every'));
+  if (!(every > 0)) every = 60;
+  var pos = (q.get('pos') || 'right').toLowerCase();
+  if (pos !== 'left') pos = 'right';
+  var test = q.get('test') === '1';
+  var seek = parseFloat(q.get('t'));
+  if (!(seek >= 0)) seek = 0;
+  var firstDelay = (seek > 0) ? 0 : (test ? 1 : 4);
+  var FLY = 15;
+  if (every < FLY + 1) every = FLY + 1;
+
+  document.body.classList.add(pos);
+  if (q.get('dbg') === '1') document.body.classList.add('dbg');
+
+  var david = document.getElementById('david');
+  var img = david.querySelector('img');
+  var canvas = document.getElementById('sparkles');
+  var ctx = canvas.getContext('2d');
+  var flying = false;
+  var particles = [];
+  var lastX = 0, lastY = 0, haveLast = false;
+
+  function bodyCenter() {
+    var r = img.getBoundingClientRect();
+    return { x: r.left + r.width * 0.5, y: r.top + r.height * 0.48 };
+  }
+
+  function emit(x, y, vx, vy, n) {
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var spd = 18 + Math.random() * 50;
+      var pal = Math.random();
+      var color = pal < 0.45 ? '255,215,90' : pal < 0.75 ? '200,255,140' : pal < 0.9 ? '255,255,255' : '255,160,60';
+      particles.push({
+        x: x - vx * 0.04 + (Math.random() - 0.5) * 36,
+        y: y - vy * 0.04 + (Math.random() - 0.5) * 40,
+        vx: -(vx) * 0.4 + Math.cos(ang) * spd * 0.12,
+        vy: -(vy) * 0.4 + Math.sin(ang) * spd * 0.12 - 18,
+        life: 0.55 + Math.random() * 0.85,
+        age: 0,
+        size: 2.4 + Math.random() * 4.2,
+        color: color
+      });
+    }
+  }
+
+  var lastTs = 0;
+  function tick(ts) {
+    var dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0.016;
+    lastTs = ts;
+    ctx.clearRect(0, 0, 720, 1280);
+    if (flying) {
+      var p = bodyCenter();
+      var vx = 0, vy = 0;
+      if (haveLast) { vx = (p.x - lastX) / dt; vy = (p.y - lastY) / dt; }
+      lastX = p.x; lastY = p.y; haveLast = true;
+      emit(p.x, p.y, vx, vy, 6);
+    } else {
+      haveLast = false;
+    }
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var s = particles[i];
+      s.age += dt;
+      if (s.age >= s.life) { particles.splice(i, 1); continue; }
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy += 8 * dt;
+      var t = 1 - s.age / s.life;
+      var a = t * t;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(' + s.color + ',' + a + ')';
+      ctx.arc(s.x, s.y, s.size * (0.6 + 0.4 * t), 0, Math.PI * 2);
+      ctx.fill();
+      if (t > 0.55) {
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255,255,220,' + (a * 0.55) + ')';
+        ctx.arc(s.x, s.y, s.size * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function startFlight(seekSec) {
+    if (flying) return;
+    flying = true;
+    if (seekSec > 0) {
+      david.style.animationDelay = (-seekSec) + 's';
+    } else {
+      david.style.animationDelay = '0s';
+    }
+    david.classList.add('flying');
+    var remaining = Math.max(0.05, FLY - (seekSec || 0));
+    setTimeout(endFlight, remaining * 1000);
+  }
+
+  function endFlight() {
+    david.classList.remove('flying');
+    david.style.animationDelay = '';
+    flying = false;
+  }
+
+  function schedule() {
+    startFlight(seek);
+    setInterval(function () { startFlight(0); }, every * 1000);
+  }
+
+  function go() {
+    setTimeout(schedule, firstDelay * 1000);
+  }
+  if (img.complete) go();
+  else img.addEventListener('load', go);
+  img.addEventListener('error', go);
+})();
+</script>
+</body>
+</html>
